@@ -43,9 +43,13 @@ const UserManager = () => {
 
   const handleResetPassword = (e) => {
     e.preventDefault();
-    updateUser(resetPasswordData.userId, { password: resetPasswordData.newPassword, mustChangePassword: true });
+    updateUser(resetPasswordData.userId, { 
+      password: resetPasswordData.newPassword, 
+      mustChangePassword: true, 
+      isLocked: false 
+    });
     handleCloseResetModal();
-    alert("Password reset successfully. User will be forced to change password on next login.");
+    alert("Password reset successfully. Account unlocked and user will be forced to change password on next login.");
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
