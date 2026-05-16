@@ -23,34 +23,37 @@ app.use(cors());
 app.use(express.json());
 
 // API Route for sending emails
-app.post('/api/send-email', async (req, res) => {
+app.post('/api/send-email', (req, res) => {
   const { to, subject, text, html, smtpConfig } = req.body;
 
-  try {
-    // We use the SMTP credentials provided from the frontend settings
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host || 'smtp.gmail.com',
-      port: smtpConfig.port || 587,
-      secure: smtpConfig.port == 465, // true for 465, false for other ports
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass
-      }
-    });
+  // 1. Return immediately to prevent UI hanging
+  res.status(200).json({ success: true, message: 'Email successfully queued for background delivery.' });
 
-    const info = await transporter.sendMail({
-      from: `"TravelOps System" <${smtpConfig.user}>`,
-      to,
-      subject: subject || 'TravelOps Test Email',
-      text: text || 'This is a test email from TravelOps.',
-      html: html || '<b>This is a test email from TravelOps.</b>'
-    });
+  // 2. Process the email sending asynchronously in the background
+  (async () => {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpConfig.host || 'smtp.gmail.com',
+        port: smtpConfig.port || 587,
+        secure: smtpConfig.port == 465, // true for 465, false for other ports
+        auth: {
+          user: smtpConfig.user,
+          pass: smtpConfig.pass
+        }
+      });
 
-    res.status(200).json({ success: true, messageId: info.messageId });
-  } catch (error) {
-    console.error('Email sending error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+      const info = await transporter.sendMail({
+        from: `"TravelOps System" <${smtpConfig.user}>`,
+        to,
+        subject: subject || 'TravelOps Test Email',
+        text: text || 'This is a test email from TravelOps.',
+        html: html || '<b>This is a test email from TravelOps.</b>'
+      });
+      console.log(`[BACKGROUND TASK] Email successfully sent to ${to}. MessageID: ${info.messageId}`);
+    } catch (error) {
+      console.error(`[BACKGROUND TASK] Failed to send email to ${to}:`, error.message);
+    }
+  })();
 });
 
 // Serve static files from the Vite build output
