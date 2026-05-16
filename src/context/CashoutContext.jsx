@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-const CashoutContext = createContext(null);
+export const CashoutContext = createContext(null);
 
 export const CashoutProvider = ({ children }) => {
   const [cashoutRequests, setCashoutRequests] = useState([]);

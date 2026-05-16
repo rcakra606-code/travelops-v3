@@ -93,4 +93,4 @@ export const CruiseProvider = ({ children }) => {
   );
 };
 
-export const useCruise = () => useContext(CruiseContext);
+export const useCruises = () => useContext(CruiseContext);

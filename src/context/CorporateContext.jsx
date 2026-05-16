@@ -223,3 +223,5 @@ export const CorporateProvider = ({ children }) => {
     </CorporateContext.Provider>
   );
 };
+
+export const useCorporate = () => useContext(CorporateContext);
