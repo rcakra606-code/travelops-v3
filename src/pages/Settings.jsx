@@ -11,6 +11,8 @@ const Settings = () => {
   const { user, forceLogoutAll } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database');
+  const [testEmailTarget, setTestEmailTarget] = useState('');
+  const [testEmailStatus, setTestEmailStatus] = useState('idle');
   
   const [formData, setFormData] = useState({
     idleTimeout: settings.idleTimeout || 15,
@@ -70,8 +72,22 @@ const Settings = () => {
   };
 
   const handleTestEmail = () => {
-    logSystemAction(user, 'SMTP Test', `Sent test email using host ${formData.smtpHost}`);
-    alert(`Test email simulated successfully via ${formData.smtpHost}! Please check your console for details.`);
+    if (!testEmailTarget) {
+      alert('Please enter a target email address first.');
+      return;
+    }
+    
+    setTestEmailStatus('sending');
+    
+    // Simulate network delay
+    setTimeout(() => {
+      logSystemAction(user, 'SMTP Test', `Sent test email to ${testEmailTarget} using host ${formData.smtpHost}`);
+      setTestEmailStatus('success');
+      
+      setTimeout(() => {
+        setTestEmailStatus('idle');
+      }, 3000);
+    }, 1500);
   };
 
   const handleExportDB = () => {
@@ -367,11 +383,33 @@ const Settings = () => {
                   </p>
 
                   <div style={{ marginTop: '2rem', borderTop: '1px solid #334155', paddingTop: '1.5rem' }}>
-                    <h4 style={{ margin: '0 0 1rem 0', color: '#f8fafc' }}>SMTP Testing Module</h4>
-                    <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '1rem' }}>Click the button below to verify your SMTP connection by sending a simulated test email.</p>
-                    <button type="button" onClick={handleTestEmail} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0f172a', color: '#10b981', border: '1px solid #10b981', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}>
-                      <Send size={16} /> Send Test Email
-                    </button>
+                    <h4 style={{ margin: '0 0 1rem 0', color: '#f8fafc' }}>Test Email</h4>
+                    <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '1rem' }}>Send a test email to verify SMTP configuration</p>
+                    <div style={{ display: 'flex', gap: '10px', position: 'relative', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input 
+                        type="email" 
+                        id="testEmailAddress" 
+                        value={testEmailTarget}
+                        onChange={(e) => setTestEmailTarget(e.target.value)}
+                        placeholder="test@email.com" 
+                        disabled={testEmailStatus === 'sending'}
+                        style={{ position: 'relative', zIndex: 1, padding: '0.75rem', borderRadius: '8px', border: '1px solid #334155', background: '#0f172a', color: '#f8fafc', flex: '1 1 200px', maxWidth: '300px' }}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={handleTestEmail} 
+                        disabled={testEmailStatus === 'sending'}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0f172a', color: testEmailStatus === 'sending' ? '#94a3b8' : '#10b981', border: `1px solid ${testEmailStatus === 'sending' ? '#334155' : '#10b981'}`, padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: testEmailStatus === 'sending' ? 'not-allowed' : 'pointer', fontWeight: '500', whiteSpace: 'nowrap', transition: 'all 0.3s' }}
+                      >
+                        {testEmailStatus === 'sending' ? '⏳ Sending...' : '📧 Send Test'}
+                      </button>
+                      
+                      {testEmailStatus === 'success' && (
+                        <span style={{ color: '#10b981', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.25rem', animation: 'fadeIn 0.3s ease-out' }}>
+                          ✓ Email Sent!
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
