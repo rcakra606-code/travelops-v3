@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
 import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users } from 'lucide-react';
@@ -58,9 +59,27 @@ const Settings = () => {
     });
   };
 
-  const loadLogs = () => {
-    const raw = localStorage.getItem('travelops_logs');
-    setSystemLogs(raw ? JSON.parse(raw) : []);
+  const loadLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('travelops_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      
+      const mapped = data.map(log => ({
+        id: log.id,
+        timestamp: log.created_at,
+        user: log.user_name,
+        action: log.action,
+        details: log.details
+      }));
+      setSystemLogs(mapped);
+    } catch (err) {
+      console.error('Failed to load system logs:', err);
+    }
   };
 
   const handleSave = (e) => {
