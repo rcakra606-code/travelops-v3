@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Plane, Lock, Mail, AlertCircle } from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('admin@travelops.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -78,11 +78,6 @@ const Login = () => {
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        
-        <div style={{ marginTop: '2rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-          Admin Credentials:<br/>
-          <strong>admin@travelops.com / password</strong>
-        </div>
       </div>
     </div>
   );
