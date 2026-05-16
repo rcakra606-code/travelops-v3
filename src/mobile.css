@@ -1,0 +1,64 @@
+/* =========================================
+   RESPONSIVE MOBILE ADJUSTMENTS
+   ========================================= */
+   @media screen and (max-width: 768px) {
+    .sidebar {
+      position: fixed !important;
+      top: 0;
+      left: -260px;
+      height: 100vh;
+      z-index: 1000;
+      transition: left 0.3s ease;
+    }
+    
+    .sidebar:not(.closed) {
+      left: 0 !important;
+    }
+  
+    .content-area {
+      padding: 1rem !important;
+    }
+  
+    .dashboard-grid {
+      grid-template-columns: 1fr !important;
+    }
+    
+    .top-nav {
+      padding: 0 1rem !important;
+    }
+  
+    .card {
+      padding: 1rem !important;
+    }
+  
+    /* Force table wrappers to scroll on mobile */
+    .data-table {
+      white-space: nowrap;
+    }
+    
+    /* Override any hardcoded grids on settings / forms */
+    [style*="grid-template-columns: 1fr 1fr"],
+    [style*="grid-template-columns:1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+  
+    /* Make modal dialogs responsive */
+    [style*="min-width: 500px"], 
+    [style*="min-width: 600px"],
+    [style*="min-width: 800px"],
+    .modal-content {
+      min-width: 90vw !important;
+      max-width: 95vw !important;
+      padding: 1rem !important;
+      margin: 0 !important;
+    }
+    
+    /* Mobile table responsiveness */
+    div[style*="overflow-x: auto"] {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .welcome-banner h1 {
+      font-size: 1.5rem !important;
+    }
+  }
