@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const CruiseContext = createContext(null);
 
@@ -7,80 +8,82 @@ export const CruiseProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedCruises = localStorage.getItem('travelops_cruises');
-    if (savedCruises) {
-      setCruises(JSON.parse(savedCruises));
-    } else {
-      setCruises([
-        {
-          id: 'CRS-1001',
-          cruiseBrand: 'Royal Caribbean',
-          shipName: 'Symphony of the Seas',
-          sailingStart: '2026-06-01',
-          sailingEnd: '2026-06-05',
-          route: 'Singapore - Penang - Langkawi',
-          picName: 'John Doe',
-          participants: ['Jane Doe', 'Jimmy Doe'],
-          phoneNumber: '+6281234567890',
-          email: 'john@example.com',
-          reservationCode: 'RC-98765',
-          staff: 'Admin TravelOps',
-          status: 'Upcoming'
-        }
-      ]);
-    }
-    setLoading(false);
+    fetchCruises();
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const updatedCruises = cruises.map(crs => {
-        if (crs.status !== 'Past Date' && crs.status !== 'Cancel' && crs.sailingEnd) {
-          const endDate = new Date(crs.sailingEnd);
-          if (endDate < today) {
-            return { ...crs, status: 'Past Date' };
-          }
-        }
-        
-        // Handle initial status if not set
-        if (!crs.status) {
-          const startDate = new Date(crs.sailingStart);
-          return { ...crs, status: startDate >= today ? 'Upcoming' : 'Past Date' };
-        }
-        
-        return crs;
-      });
-
-      const isChanged = JSON.stringify(cruises) !== JSON.stringify(updatedCruises);
-      if (isChanged) {
-        setCruises(updatedCruises);
-      } else {
-        localStorage.setItem('travelops_cruises', JSON.stringify(cruises));
-      }
+  const fetchCruises = async () => {
+    try {
+      const { data, error } = await supabase.from('travelops_cruises').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const mapped = data.map(c => ({
+        id: c.id,
+        picName: c.pic_name,
+        route: c.route,
+        paxCount: c.pax_count,
+        sailingStart: c.sailing_start,
+        sailingEnd: c.sailing_end,
+        cruiseLine: c.cruise_line,
+        bookingRef: c.booking_ref,
+        finalPaymentDate: c.final_payment_date
+      }));
+      setCruises(mapped);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }, [cruises, loading]);
-
-  const addCruise = (data) => {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const startDate = new Date(data.sailingStart);
-    const newCruise = {
-      ...data,
-      id: `CRS-${Date.now()}`,
-      status: data.status || (startDate >= today ? 'Upcoming' : 'Past Date')
-    };
-    setCruises(prev => [newCruise, ...prev]);
   };
 
-  const updateCruise = (id, updatedData) => {
-    setCruises(prev => prev.map(crs => crs.id === id ? { ...crs, ...updatedData } : crs));
+  const addCruise = async (cruiseData) => {
+    try {
+      const newId = `CRU-${Date.now()}`;
+      const { error } = await supabase.from('travelops_cruises').insert([{
+        id: newId,
+        pic_name: cruiseData.picName,
+        route: cruiseData.route,
+        pax_count: cruiseData.paxCount,
+        sailing_start: cruiseData.sailingStart,
+        sailing_end: cruiseData.sailingEnd,
+        cruise_line: cruiseData.cruiseLine,
+        booking_ref: cruiseData.bookingRef,
+        final_payment_date: cruiseData.finalPaymentDate
+      }]);
+      if (error) throw error;
+      await fetchCruises();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const deleteCruise = (id) => {
-    setCruises(prev => prev.filter(crs => crs.id !== id));
+  const updateCruise = async (id, updatedData) => {
+    try {
+      const dbUpdates = {};
+      if (updatedData.picName !== undefined) dbUpdates.pic_name = updatedData.picName;
+      if (updatedData.route !== undefined) dbUpdates.route = updatedData.route;
+      if (updatedData.paxCount !== undefined) dbUpdates.pax_count = updatedData.paxCount;
+      if (updatedData.sailingStart !== undefined) dbUpdates.sailing_start = updatedData.sailingStart;
+      if (updatedData.sailingEnd !== undefined) dbUpdates.sailing_end = updatedData.sailingEnd;
+      if (updatedData.cruiseLine !== undefined) dbUpdates.cruise_line = updatedData.cruiseLine;
+      if (updatedData.bookingRef !== undefined) dbUpdates.booking_ref = updatedData.bookingRef;
+      if (updatedData.finalPaymentDate !== undefined) dbUpdates.final_payment_date = updatedData.finalPaymentDate;
+
+      const { error } = await supabase.from('travelops_cruises').update(dbUpdates).eq('id', id);
+      if (error) throw error;
+      await fetchCruises();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteCruise = async (id) => {
+    try {
+      const { error } = await supabase.from('travelops_cruises').delete().eq('id', id);
+      if (error) throw error;
+      await fetchCruises();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -90,4 +93,4 @@ export const CruiseProvider = ({ children }) => {
   );
 };
 
-export const useCruises = () => useContext(CruiseContext);
+export const useCruise = () => useContext(CruiseContext);

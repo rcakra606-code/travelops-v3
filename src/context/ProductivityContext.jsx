@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const ProductivityContext = createContext(null);
 
@@ -7,81 +8,100 @@ export const ProductivityProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedData = localStorage.getItem('travelops_productivity');
-    if (savedData) {
-      setProductivityData(JSON.parse(savedData));
-    } else {
-      // Mock Data
-      setProductivityData([
-        {
-          id: 'PRD-1001',
-          date: '2026-05',
-          staff: 'Admin TravelOps',
-          category: 'Flight',
-          type: 'Retail',
-          salesAmount: 15000000,
-          profitAmount: 1500000,
-          remarks: 'Roundtrip CGK-SIN'
-        },
-        {
-          id: 'PRD-1002',
-          date: '2026-05',
-          staff: 'Admin TravelOps',
-          category: 'Hotel',
-          type: 'Corporate',
-          salesAmount: 25000000,
-          profitAmount: 3000000,
-          remarks: 'Annual retreat booking'
-        }
-      ]);
-    }
-    setLoading(false);
+    fetchProductivity();
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('travelops_productivity', JSON.stringify(productivityData));
+  const fetchProductivity = async () => {
+    try {
+      const { data, error } = await supabase.from('travelops_productivity').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const mapped = data.map(p => ({
+        id: p.id,
+        date: p.date,
+        staff: p.staff,
+        category: p.category,
+        type: p.type,
+        salesAmount: p.sales_amount,
+        profitAmount: p.profit_amount,
+        remarks: p.remarks
+      }));
+      setProductivityData(mapped);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }, [productivityData, loading]);
-
-  const addRecord = (data) => {
-    const newRecord = {
-      ...data,
-      id: `PRD-${Date.now()}`,
-      salesAmount: Number(data.salesAmount),
-      profitAmount: Number(data.profitAmount)
-    };
-    setProductivityData(prev => [newRecord, ...prev]);
   };
 
-  const updateRecord = (id, updatedData) => {
-    setProductivityData(prev => prev.map(rec => rec.id === id ? { 
-      ...rec, 
-      ...updatedData,
-      salesAmount: Number(updatedData.salesAmount || rec.salesAmount),
-      profitAmount: Number(updatedData.profitAmount || rec.profitAmount)
-    } : rec));
+  const addRecord = async (data) => {
+    try {
+      const newId = `PRD-${Date.now()}`;
+      const { error } = await supabase.from('travelops_productivity').insert([{
+        id: newId,
+        date: data.date,
+        staff: data.staff,
+        category: data.category,
+        type: data.type,
+        sales_amount: Number(data.salesAmount) || 0,
+        profit_amount: Number(data.profitAmount) || 0,
+        remarks: data.remarks
+      }]);
+      if (error) throw error;
+      await fetchProductivity();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const deleteRecord = (id) => {
-    setProductivityData(prev => prev.filter(rec => rec.id !== id));
+  const updateRecord = async (id, updatedData) => {
+    try {
+      const dbUpdates = {};
+      if (updatedData.date !== undefined) dbUpdates.date = updatedData.date;
+      if (updatedData.staff !== undefined) dbUpdates.staff = updatedData.staff;
+      if (updatedData.category !== undefined) dbUpdates.category = updatedData.category;
+      if (updatedData.type !== undefined) dbUpdates.type = updatedData.type;
+      if (updatedData.salesAmount !== undefined) dbUpdates.sales_amount = Number(updatedData.salesAmount);
+      if (updatedData.profitAmount !== undefined) dbUpdates.profit_amount = Number(updatedData.profitAmount);
+      if (updatedData.remarks !== undefined) dbUpdates.remarks = updatedData.remarks;
+
+      const { error } = await supabase.from('travelops_productivity').update(dbUpdates).eq('id', id);
+      if (error) throw error;
+      await fetchProductivity();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const bulkImport = (dataArray) => {
-    const cleaned = dataArray.map((data, index) => ({
-      ...data,
-      id: data.id || `PRD-${Date.now()}-${index}`,
-      salesAmount: Number(data.salesAmount) || 0,
-      profitAmount: Number(data.profitAmount) || 0
-    }));
-    
-    // To avoid duplicates, we could filter out existing IDs, or just prepend them.
-    // We'll filter out existing IDs just in case they export -> edit -> import
-    setProductivityData(prev => {
-      const existingIds = new Set(prev.map(p => p.id));
-      const newItems = cleaned.filter(c => !existingIds.has(c.id));
-      return [...newItems, ...prev];
-    });
+  const deleteRecord = async (id) => {
+    try {
+      const { error } = await supabase.from('travelops_productivity').delete().eq('id', id);
+      if (error) throw error;
+      await fetchProductivity();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const bulkImport = async (dataArray) => {
+    try {
+      const toInsert = dataArray.map((d, i) => ({
+        id: d.id || `PRD-${Date.now()}-${i}`,
+        date: d.date,
+        staff: d.staff,
+        category: d.category,
+        type: d.type,
+        sales_amount: Number(d.salesAmount) || 0,
+        profit_amount: Number(d.profitAmount) || 0,
+        remarks: d.remarks
+      }));
+      // Basic insert, ignores conflicts if IDs somehow match (though we generate new ones mostly)
+      const { error } = await supabase.from('travelops_productivity').insert(toInsert);
+      if (error) throw error;
+      await fetchProductivity();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 
 const ForcePasswordChange = () => {
-  const { user, forceLogoutAll } = useAuth();
+  const { user, setUser } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -10,7 +11,7 @@ const ForcePasswordChange = () => {
 
   if (!user || !user.mustChangePassword) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -24,25 +25,27 @@ const ForcePasswordChange = () => {
       return;
     }
 
-    const savedUsers = localStorage.getItem('travelops_users');
-    if (savedUsers) {
-      const users = JSON.parse(savedUsers);
-      const updatedUsers = users.map(u => {
-        if (u.id === user.id) {
-          return { ...u, password: newPassword, mustChangePassword: false };
-        }
-        return u;
-      });
-      localStorage.setItem('travelops_users', JSON.stringify(updatedUsers));
-      
-      // Update current active user in localStorage
+    try {
+      const { error: updateError } = await supabase
+        .from('travelops_users')
+        .update({ 
+          password_hash: newPassword, 
+          must_change_password: false 
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
       const updatedUser = { ...user, mustChangePassword: false };
-      localStorage.setItem('travelops_user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
       
       setSuccess(true);
       setTimeout(() => {
         window.location.reload();
       }, 1500);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to update password in database.');
     }
   };
 

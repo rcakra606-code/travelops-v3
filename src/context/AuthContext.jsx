@@ -1,6 +1,10 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import { logSystemAction } from '../utils/logger';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
+
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -8,109 +12,133 @@ export const AuthProvider = ({ children }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const savedUser = localStorage.getItem('travelops_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    checkActiveSession();
   }, []);
 
-  const login = (email, password) => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const savedUsers = localStorage.getItem('travelops_users');
-        const users = savedUsers ? JSON.parse(savedUsers) : [];
-        
-        const foundUser = users.find(u => u.email === email);
+  const checkActiveSession = async () => {
+    try {
+      const sessionToken = localStorage.getItem('travelops_session');
+      const userId = localStorage.getItem('travelops_user_id');
+      
+      if (sessionToken && userId) {
+        const { data, error } = await supabase
+          .from('travelops_users')
+          .select('*')
+          .eq('id', userId)
+          .single();
 
-        if (!foundUser) {
-          reject(new Error('Invalid email or password'));
-          return;
+        if (data && !data.is_locked) {
+          // Normalize user object for the frontend
+          setUser({
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            status: data.status,
+            mustChangePassword: data.must_change_password
+          });
+        } else {
+          // User is locked or deleted from DB
+          logout('Account locked or session invalid');
         }
+      }
+    } catch (err) {
+      console.error("Session check failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (foundUser.password && foundUser.password !== password) {
-          reject(new Error('Invalid email or password'));
-          return;
-        }
+  const login = async (email, password) => {
+    try {
+      const { data, error } = await supabase
+        .from('travelops_users')
+        .select('*')
+        .eq('email', email)
+        .eq('password_hash', password)
+        .single();
 
-        if (!foundUser.password && email === 'admin@travelops.com' && password !== 'password') {
-           reject(new Error('Invalid email or password'));
-           return;
-        }
+      if (error || !data) {
+        return { success: false, message: 'Invalid credentials or user not found' };
+      }
 
-        if (foundUser.isLocked) {
-          reject(new Error('Your account has been locked. Please contact admin.'));
-          return;
-        }
+      if (data.status !== 'Active' || data.is_locked) {
+        return { success: false, message: 'Account is locked or inactive. Contact administrator.' };
+      }
 
-        if (foundUser.status === 'Inactive') {
-          reject(new Error('Your account is inactive.'));
-          return;
-        }
+      // Generate a simple session token (in production, use JWT or Supabase Auth)
+      const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      
+      // Update last login
+      await supabase
+        .from('travelops_users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', data.id);
 
-        // Generate a unique session token for this device login
-        const sessionToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
-        
-        // Update last login and session token
-        const updatedUser = { 
-          ...foundUser, 
-          lastLogin: new Date().toISOString(),
-          sessionToken: sessionToken
-        };
-        
-        // Save back to users list
-        const updatedUsers = users.map(u => u.id === foundUser.id ? updatedUser : u);
-        localStorage.setItem('travelops_users', JSON.stringify(updatedUsers));
+      localStorage.setItem('travelops_user_id', data.id);
+      localStorage.setItem('travelops_session', sessionToken);
+      
+      const loggedInUser = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        status: data.status,
+        mustChangePassword: data.must_change_password
+      };
 
-        setUser(updatedUser);
-        localStorage.setItem('travelops_user', JSON.stringify(updatedUser));
-        localStorage.setItem('travelops_session', sessionToken);
-        resolve(updatedUser);
-      }, 800);
-    });
+      setUser(loggedInUser);
+      logSystemAction(loggedInUser, 'Login', 'User successfully logged in via Supabase');
+      
+      return { success: true, user: loggedInUser };
+    } catch (err) {
+      console.error(err);
+      return { success: false, message: 'Server error during login' };
+    }
   };
 
   const logout = (reason = null) => {
     setIsLoggingOut(true);
     setTimeout(() => {
       setUser(null);
-      localStorage.removeItem('travelops_user');
+      localStorage.removeItem('travelops_user_id');
       localStorage.removeItem('travelops_session');
       setIsLoggingOut(false);
       if (reason) {
         alert(`Logged out: ${reason}`);
       }
-    }, 1500); // 1.5 second delay for sweet goodbye message
+    }, 1500);
   };
 
-  const verifySession = () => {
-    if (!user) return true;
-    const localSession = localStorage.getItem('travelops_session');
-    const savedUsers = localStorage.getItem('travelops_users');
-    if (savedUsers) {
-      const users = JSON.parse(savedUsers);
-      const dbUser = users.find(u => u.id === user.id);
-      if (dbUser && dbUser.sessionToken !== localSession) {
-        logout('You have been logged out because your account was accessed from another device.');
-        return false;
-      }
+  const verifySession = async () => {
+    const sessionToken = localStorage.getItem('travelops_session');
+    if (!sessionToken || !user) {
+      logout('Session missing locally');
+      return false;
+    }
+    
+    // Quick DB check to ensure they weren't locked out remotely
+    const { data } = await supabase
+      .from('travelops_users')
+      .select('is_locked')
+      .eq('id', user.id)
+      .single();
+      
+    if (data?.is_locked) {
+      logout('Account has been locked by Administrator');
+      return false;
     }
     return true;
   };
 
-  const forceLogoutAll = () => {
-    const savedUsers = localStorage.getItem('travelops_users');
-    if (savedUsers) {
-      const users = JSON.parse(savedUsers);
-      const updatedUsers = users.map(u => ({ ...u, sessionToken: null }));
-      localStorage.setItem('travelops_users', JSON.stringify(updatedUsers));
-      // Log the action? Maybe from the UI side.
-    }
+  const forceLogoutAll = async () => {
+    // To truly force logout others, you would normally invalidate sessions in the DB.
+    // For now, since we rely on LocalStorage tokens, this is an advanced feature.
+    alert("Force logout requires Supabase Realtime or JWT invalidation (Coming soon in V4.1)");
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, verifySession, forceLogoutAll, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, verifySession, forceLogoutAll, loading, setUser }}>
       {!loading && children}
       {isLoggingOut && (
         <div style={{
@@ -128,5 +156,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);

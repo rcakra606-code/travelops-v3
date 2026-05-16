@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const HotelContext = createContext(null);
 
@@ -7,88 +8,103 @@ export const HotelProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedHotels = localStorage.getItem('travelops_hotels');
-    if (savedHotels) {
-      setHotels(JSON.parse(savedHotels));
-    } else {
-      setHotels([
-        {
-          id: 'HTL-1001',
-          checkIn: '2026-06-01',
-          checkOut: '2026-06-05',
-          hotelName: 'Grand Hyatt Jakarta',
-          region: 'Indonesia',
-          confirmationNumber: 'GHJ-889900',
-          guestList: 'John Doe, Jane Doe',
-          supplierCode: 'AGD',
-          supplierName: 'Agoda',
-          staff: 'Admin TravelOps',
-          status: 'Upcoming'
-        }
-      ]);
-    }
-    setLoading(false);
+    fetchHotels();
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const updatedHotels = hotels.map(htl => {
-        if (htl.status !== 'Cancel') {
-          const inDate = new Date(htl.checkIn);
-          inDate.setHours(0,0,0,0);
-          
-          const outDate = new Date(htl.checkOut);
-          outDate.setHours(0,0,0,0);
-
-          if (outDate < today) {
-            return { ...htl, status: 'Past Date' };
-          } else if (today >= inDate && today <= outDate) {
-            return { ...htl, status: 'Active' };
-          } else if (inDate > today) {
-            return { ...htl, status: 'Upcoming' };
-          }
-        }
-        return htl;
-      });
-
-      const isChanged = JSON.stringify(hotels) !== JSON.stringify(updatedHotels);
-      if (isChanged) {
-        setHotels(updatedHotels);
-      } else {
-        localStorage.setItem('travelops_hotels', JSON.stringify(hotels));
-      }
+  const fetchHotels = async () => {
+    try {
+      const { data, error } = await supabase.from('travelops_hotels').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const mapped = data.map(h => ({
+        id: h.id,
+        hotelName: h.hotel_name,
+        guestList: h.guest_list,
+        checkIn: h.check_in,
+        checkOut: h.check_out,
+        roomType: h.room_type,
+        region: h.region,
+        status: h.status,
+        confirmationNumber: h.confirmation_number,
+        supplierCode: h.supplier_code,
+        supplierName: h.supplier_name,
+        staff: h.staff
+      }));
+      setHotels(mapped);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }, [hotels, loading]);
-
-  const addHotel = (data) => {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const inDate = new Date(data.checkIn);
-    inDate.setHours(0,0,0,0);
-    const outDate = new Date(data.checkOut);
-    outDate.setHours(0,0,0,0);
-    
-    let initialStatus = 'Upcoming';
-    if (outDate < today) initialStatus = 'Past Date';
-    else if (today >= inDate && today <= outDate) initialStatus = 'Active';
-
-    const newHotel = {
-      ...data,
-      id: `HTL-${Date.now()}`,
-      status: initialStatus
-    };
-    setHotels(prev => [newHotel, ...prev]);
   };
 
-  const updateHotel = (id, updatedData) => {
-    setHotels(prev => prev.map(htl => htl.id === id ? { ...htl, ...updatedData } : htl));
+  const addHotel = async (data) => {
+    try {
+      const newId = `HTL-${Date.now()}`;
+      
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const inDate = new Date(data.checkIn);
+      inDate.setHours(0,0,0,0);
+      const outDate = new Date(data.checkOut);
+      outDate.setHours(0,0,0,0);
+      
+      let initialStatus = 'Upcoming';
+      if (outDate < today) initialStatus = 'Past Date';
+      else if (today >= inDate && today <= outDate) initialStatus = 'Active';
+
+      const { error } = await supabase.from('travelops_hotels').insert([{
+        id: newId,
+        hotel_name: data.hotelName,
+        guest_list: data.guestList,
+        check_in: data.checkIn,
+        check_out: data.checkOut,
+        room_type: data.roomType,
+        region: data.region,
+        status: initialStatus,
+        confirmation_number: data.confirmationNumber,
+        supplier_code: data.supplierCode,
+        supplier_name: data.supplierName,
+        staff: data.staff
+      }]);
+      if (error) throw error;
+      await fetchHotels();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const deleteHotel = (id) => {
-    setHotels(prev => prev.filter(htl => htl.id !== id));
+  const updateHotel = async (id, updatedData) => {
+    try {
+      const dbUpdates = {};
+      if (updatedData.hotelName !== undefined) dbUpdates.hotel_name = updatedData.hotelName;
+      if (updatedData.guestList !== undefined) dbUpdates.guest_list = updatedData.guestList;
+      if (updatedData.checkIn !== undefined) dbUpdates.check_in = updatedData.checkIn;
+      if (updatedData.checkOut !== undefined) dbUpdates.check_out = updatedData.checkOut;
+      if (updatedData.roomType !== undefined) dbUpdates.room_type = updatedData.roomType;
+      if (updatedData.region !== undefined) dbUpdates.region = updatedData.region;
+      if (updatedData.status !== undefined) dbUpdates.status = updatedData.status;
+      if (updatedData.confirmationNumber !== undefined) dbUpdates.confirmation_number = updatedData.confirmationNumber;
+      if (updatedData.supplierCode !== undefined) dbUpdates.supplier_code = updatedData.supplierCode;
+      if (updatedData.supplierName !== undefined) dbUpdates.supplier_name = updatedData.supplierName;
+      if (updatedData.staff !== undefined) dbUpdates.staff = updatedData.staff;
+
+      const { error } = await supabase.from('travelops_hotels').update(dbUpdates).eq('id', id);
+      if (error) throw error;
+      await fetchHotels();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteHotel = async (id) => {
+    try {
+      const { error } = await supabase.from('travelops_hotels').delete().eq('id', id);
+      if (error) throw error;
+      await fetchHotels();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (

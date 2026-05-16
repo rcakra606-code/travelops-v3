@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const OvertimeContext = createContext(null);
 
@@ -7,45 +8,76 @@ export const OvertimeProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedOvertimes = localStorage.getItem('travelops_overtimes');
-    if (savedOvertimes) {
-      setOvertimes(JSON.parse(savedOvertimes));
-    } else {
-      setOvertimes([
-        {
-          id: 'OT-1001',
-          staff: 'Admin TravelOps',
-          eventName: 'Weekend tour support',
-          date: '2026-05-10',
-          hours: 4.5,
-          status: 'Pending',
-          remarks: 'Supported group from Singapore'
-        }
-      ]);
-    }
-    setLoading(false);
+    fetchOvertimes();
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('travelops_overtimes', JSON.stringify(overtimes));
+  const fetchOvertimes = async () => {
+    try {
+      const { data, error } = await supabase.from('travelops_overtimes').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const mapped = data.map(o => ({
+        id: o.id,
+        staff: o.staff,
+        eventName: o.event_name,
+        date: o.date,
+        hours: o.hours,
+        status: o.status,
+        remarks: o.remarks
+      }));
+      setOvertimes(mapped);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }, [overtimes, loading]);
-
-  const addOvertime = (data) => {
-    const newOvertime = {
-      ...data,
-      id: `OT-${Date.now()}`
-    };
-    setOvertimes(prev => [newOvertime, ...prev]);
   };
 
-  const updateOvertime = (id, updatedData) => {
-    setOvertimes(prev => prev.map(ot => ot.id === id ? { ...ot, ...updatedData } : ot));
+  const addOvertime = async (data) => {
+    try {
+      const newId = `OT-${Date.now()}`;
+      const { error } = await supabase.from('travelops_overtimes').insert([{
+        id: newId,
+        staff: data.staff,
+        event_name: data.eventName,
+        date: data.date,
+        hours: data.hours,
+        status: data.status || 'Pending',
+        remarks: data.remarks
+      }]);
+      if (error) throw error;
+      await fetchOvertimes();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const deleteOvertime = (id) => {
-    setOvertimes(prev => prev.filter(ot => ot.id !== id));
+  const updateOvertime = async (id, updatedData) => {
+    try {
+      const dbUpdates = {};
+      if (updatedData.staff !== undefined) dbUpdates.staff = updatedData.staff;
+      if (updatedData.eventName !== undefined) dbUpdates.event_name = updatedData.eventName;
+      if (updatedData.date !== undefined) dbUpdates.date = updatedData.date;
+      if (updatedData.hours !== undefined) dbUpdates.hours = updatedData.hours;
+      if (updatedData.status !== undefined) dbUpdates.status = updatedData.status;
+      if (updatedData.remarks !== undefined) dbUpdates.remarks = updatedData.remarks;
+
+      const { error } = await supabase.from('travelops_overtimes').update(dbUpdates).eq('id', id);
+      if (error) throw error;
+      await fetchOvertimes();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteOvertime = async (id) => {
+    try {
+      const { error } = await supabase.from('travelops_overtimes').delete().eq('id', id);
+      if (error) throw error;
+      await fetchOvertimes();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
