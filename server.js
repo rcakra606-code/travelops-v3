@@ -4,6 +4,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dns from 'dns';
+
+// Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
+// which causes ENETUNREACH errors when connecting to smtp.gmail.com
+dns.setDefaultResultOrder('ipv4first');
 
 dotenv.config();
 
