@@ -51,20 +51,48 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      // Fetch user by email only first
       const { data, error } = await supabase
         .from('travelops_users')
         .select('*')
         .eq('email', email)
-        .eq('password_hash', password)
         .single();
 
       if (error || !data) {
         return { success: false, message: 'Invalid credentials or user not found' };
       }
 
-      if (data.status !== 'Active' || data.is_locked) {
-        return { success: false, message: 'Account is locked or inactive. Contact administrator.' };
+      if (data.status !== 'Active') {
+        return { success: false, message: 'Your account is inactive. Contact administrator.' };
       }
+
+      if (data.is_locked) {
+        return { success: false, message: 'Account is locked! Please contact your administrator.' };
+      }
+
+      // Check password
+      if (data.password_hash !== password) {
+        // Track failed attempts
+        const attemptsKey = `login_attempts_${email}`;
+        const currentAttempts = parseInt(localStorage.getItem(attemptsKey) || '0', 10) + 1;
+        
+        if (currentAttempts >= 3) {
+          // Lock the account in database
+          await supabase
+            .from('travelops_users')
+            .update({ is_locked: true })
+            .eq('id', data.id);
+            
+          localStorage.removeItem(attemptsKey);
+          return { success: false, message: 'Account locked due to 3 failed password attempts!' };
+        } else {
+          localStorage.setItem(attemptsKey, currentAttempts.toString());
+          return { success: false, message: `Incorrect password! You have ${3 - currentAttempts} attempts left.` };
+        }
+      }
+
+      // If password matches, clear attempts
+      localStorage.removeItem(`login_attempts_${email}`);
 
       // Generate a simple session token (in production, use JWT or Supabase Auth)
       const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;

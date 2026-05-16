@@ -17,10 +17,14 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      await login(email, password);
-      navigate('/');
+      const result = await login(email, password);
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.message);
+      }
     } catch (err) {
-      setError(err.message);
+      setError('An unexpected error occurred during login.');
     } finally {
       setIsLoading(false);
     }

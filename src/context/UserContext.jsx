@@ -70,6 +70,11 @@ export const UserProvider = ({ children }) => {
   };
 
   const updateUser = async (id, updates) => {
+    if (!id) {
+      console.error("No ID provided to updateUser!");
+      return { success: false, error: 'No ID provided' };
+    }
+    
     try {
       const dbUpdates = {};
       if (updates.name) dbUpdates.name = updates.name;
