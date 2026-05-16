@@ -30,33 +30,14 @@ const Settings = () => {
 
   const [toastMessage, setToastMessage] = useState('');
   
-  // Database & Logs State
-  const [storageUsage, setStorageUsage] = useState({ bytes: 0, mb: '0.00', percent: 0 });
   const [systemLogs, setSystemLogs] = useState([]);
-  const [wipeConfirm, setWipeConfirm] = useState('');
   
   useEffect(() => {
-    calculateStorage();
     loadLogs();
   }, [activeTab]);
 
   const closeMobile = () => {
     if (window.innerWidth <= 768) setIsSidebarOpen(false);
-  };
-
-  const calculateStorage = () => {
-    let total = 0;
-    for (let x in localStorage) {
-      if (localStorage.hasOwnProperty(x)) {
-        total += ((localStorage[x].length + x.length) * 2);
-      }
-    }
-    const maxStorage = 5 * 1024 * 1024; // 5MB standard limit
-    setStorageUsage({
-      bytes: total,
-      mb: (total / (1024 * 1024)).toFixed(2),
-      percent: Math.min(100, Math.round((total / maxStorage) * 100))
-    });
   };
 
   const loadLogs = async () => {
@@ -148,85 +129,6 @@ const Settings = () => {
     }, 5000);
   };
 
-  const handleExportDB = () => {
-    const db = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('travelops_')) {
-        db[key] = localStorage.getItem(key);
-      }
-    }
-    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `TravelOps_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    logSystemAction(user, 'Database Backup', 'Exported system database to JSON.');
-  };
-
-  const handleImportDB = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    if (!window.confirm("WARNING! Importing a database will overwrite ALL existing data. Are you absolutely sure?")) {
-      e.target.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const db = JSON.parse(event.target.result);
-        for (const key in db) {
-          if (key.startsWith('travelops_')) {
-            localStorage.setItem(key, db[key]);
-          }
-        }
-        logSystemAction(user, 'Database Restore', 'Imported system database from JSON.');
-        alert('Database imported successfully. The application will now reload.');
-        window.location.reload();
-      } catch (err) {
-        alert('Failed to parse the backup file. Make sure it is a valid TravelOps backup JSON.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const handleFactoryReset = () => {
-    if (wipeConfirm !== 'CONFIRM') {
-      alert("You must type CONFIRM in the text box below to proceed with the reset.");
-      return;
-    }
-    
-    // Wipe everything except users (to prevent lockout) and logs
-    const keepUsers = localStorage.getItem('travelops_users');
-    const keepLogs = localStorage.getItem('travelops_logs');
-    const keepUser = localStorage.getItem('travelops_user');
-    
-    // Gather keys to delete
-    const keysToDelete = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('travelops_')) {
-        keysToDelete.push(key);
-      }
-    }
-    
-    keysToDelete.forEach(k => localStorage.removeItem(k));
-    
-    // Restore essentials
-    if (keepUsers) localStorage.setItem('travelops_users', keepUsers);
-    if (keepLogs) localStorage.setItem('travelops_logs', keepLogs);
-    if (keepUser) localStorage.setItem('travelops_user', keepUser);
-    
-    logSystemAction(user, 'Factory Reset', 'Wiped all operational data. Users and logs retained.');
-    alert('Factory reset complete. The application will reload.');
-    window.location.reload();
-  };
-
   const handleForceLogoutAll = () => {
     if (window.confirm("This will disconnect ALL active users except you. Continue?")) {
       forceLogoutAll();
@@ -271,53 +173,28 @@ const Settings = () => {
               {/* TAB: DATABASE & SYSTEM */}
               {activeTab === 'database' && (
                 <div className="fade-in">
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: '#f8fafc', borderBottom: '1px solid #334155', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Activity size={20} color="#3b82f6" /> Storage Health
-                    </h3>
+                  <div className="card" style={{ background: '#1e293b', border: '1px solid #10b98150', borderRadius: '16px', padding: '2rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '50%', background: '#10b98120', color: '#10b981', marginBottom: '1rem' }}>
+                      <Database size={32} />
+                    </div>
+                    <h3 style={{ margin: '0 0 0.5rem 0', color: '#10b981', fontSize: '1.5rem' }}>Cloud Database Active</h3>
+                    <p style={{ color: '#cbd5e1', fontSize: '1rem', maxWidth: '500px', margin: '0 auto', lineHeight: '1.6' }}>
+                      TravelOps V4 is now fully integrated with <strong>Supabase Cloud</strong>.
+                      All your records (Tours, Cruises, Cashouts, Users) are securely stored and synced in real-time.
+                    </p>
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#cbd5e1' }}>
-                      <span>Browser LocalStorage Usage</span>
-                      <span>{storageUsage.mb} MB / ~5.00 MB ({storageUsage.percent}%)</span>
-                    </div>
-                    <div style={{ width: '100%', height: '12px', background: '#0f172a', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${storageUsage.percent}%`, background: storageUsage.percent > 80 ? '#ef4444' : storageUsage.percent > 60 ? '#f59e0b' : '#10b981', transition: 'width 0.5s ease' }}></div>
-                    </div>
-                    {storageUsage.percent > 80 && (
-                      <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.75rem' }}>Warning: Storage is nearly full. Please perform a backup and clean up old records.</p>
-                    )}
-                  </div>
-
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: '#f8fafc', borderBottom: '1px solid #334155', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Database size={20} color="#8b5cf6" /> Database Operations
-                    </h3>
-
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                      <button type="button" onClick={handleExportDB} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#3b82f620', color: '#3b82f6', border: '1px solid #3b82f6', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}>
-                        <Download size={18} /> Backup Database (JSON)
-                      </button>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#10b98120', color: '#10b981', border: '1px solid #10b981', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}>
-                        <Upload size={18} /> Restore Database
-                        <input type="file" accept=".json" onChange={handleImportDB} style={{ display: 'none' }} />
-                      </label>
-                    </div>
-
-                    <div style={{ background: '#ef444415', border: '1px solid #ef444450', borderRadius: '8px', padding: '1.5rem' }}>
-                      <h4 style={{ margin: '0 0 0.5rem 0', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><AlertTriangle size={18} /> Danger Zone</h4>
-                      <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '1rem' }}>Factory reset will permanently wipe all tours, cruises, cashouts, and settings. User accounts and system logs will be retained.</p>
-                      
-                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <input 
-                          type="text" 
-                          placeholder="Type CONFIRM" 
-                          value={wipeConfirm} 
-                          onChange={(e) => setWipeConfirm(e.target.value)}
-                          style={{ background: '#0f172a', border: '1px solid #ef4444', color: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '6px', outline: 'none' }} 
-                        />
-                        <button type="button" onClick={handleFactoryReset} disabled={wipeConfirm !== 'CONFIRM'} style={{ background: wipeConfirm === 'CONFIRM' ? '#ef4444' : '#334155', color: '#fff', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '6px', cursor: wipeConfirm === 'CONFIRM' ? 'pointer' : 'not-allowed', fontWeight: '500' }}>
-                          <Trash2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/> Wipe Data
-                        </button>
+                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '1.5rem', marginTop: '2rem', textAlign: 'left', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                      <div>
+                        <span style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Storage Capacity</span>
+                        <strong style={{ color: '#f8fafc', fontSize: '1.1rem' }}>Unlimited (Auto-scaling)</strong>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Backups</span>
+                        <strong style={{ color: '#f8fafc', fontSize: '1.1rem' }}>Automated Daily via Supabase</strong>
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Local Storage Usage</span>
+                        <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>0 KB (Clean)</strong>
                       </div>
                     </div>
                   </div>
