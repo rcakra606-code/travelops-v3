@@ -26,7 +26,11 @@ export const TourProvider = ({ children }) => {
         status: t.status,
         financials: t.financials || {},
         paxInfo: t.pax_info || [],
-        internals: t.internals || {}
+        internals: t.internals || {},
+        tourCode: t.internals?.tourCode || '',
+        bookingCode: t.internals?.bookingCode || '',
+        paxCount: t.internals?.paxCount || 1,
+        staffName: t.internals?.staffName || ''
       }));
       setTours(mapped);
     } catch (err) {
@@ -49,7 +53,13 @@ export const TourProvider = ({ children }) => {
         status: tourData.status || 'Pending',
         financials: tourData.financials,
         pax_info: tourData.paxInfo,
-        internals: tourData.internals
+        internals: {
+          ...(tourData.internals || {}),
+          tourCode: tourData.tourCode,
+          bookingCode: tourData.bookingCode,
+          paxCount: tourData.paxCount,
+          staffName: tourData.staffName
+        }
       }]);
       if (error) throw error;
       await fetchTours();
@@ -69,7 +79,15 @@ export const TourProvider = ({ children }) => {
       if (updatedData.status !== undefined) dbUpdates.status = updatedData.status;
       if (updatedData.financials !== undefined) dbUpdates.financials = updatedData.financials;
       if (updatedData.paxInfo !== undefined) dbUpdates.pax_info = updatedData.paxInfo;
-      if (updatedData.internals !== undefined) dbUpdates.internals = updatedData.internals;
+      
+      if (updatedData.internals !== undefined || updatedData.tourCode !== undefined || updatedData.bookingCode !== undefined || updatedData.paxCount !== undefined || updatedData.staffName !== undefined) {
+        let newInternals = { ...(updatedData.internals || {}) };
+        if (updatedData.tourCode !== undefined) newInternals.tourCode = updatedData.tourCode;
+        if (updatedData.bookingCode !== undefined) newInternals.bookingCode = updatedData.bookingCode;
+        if (updatedData.paxCount !== undefined) newInternals.paxCount = updatedData.paxCount;
+        if (updatedData.staffName !== undefined) newInternals.staffName = updatedData.staffName;
+        dbUpdates.internals = newInternals;
+      }
 
       const { error } = await supabase.from('travelops_tours').update(dbUpdates).eq('id', id);
       if (error) throw error;

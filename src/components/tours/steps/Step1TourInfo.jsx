@@ -35,6 +35,10 @@ const Step1TourInfo = ({ data, updateData }) => {
   }, [data.returnDate]);
 
   useEffect(() => {
+    setCountrySearch(data.country || '');
+  }, [data.country]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
