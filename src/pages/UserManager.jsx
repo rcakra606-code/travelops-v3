@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useUsers } from '../context/UserContext';
-import { Edit2, Trash2, Plus, X, Lock, Unlock, Key } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Lock, Unlock, Key, User, Mail, Shield, Activity } from 'lucide-react';
 
 const UserManager = () => {
   const { users, addUser, updateUser, deleteUser } = useUsers();
@@ -91,6 +91,26 @@ const UserManager = () => {
     }
   };
 
+  const inputStyle = {
+    paddingLeft: '2.5rem',
+    background: '#0f172a',
+    border: '1px solid #334155',
+    color: '#f8fafc',
+    borderRadius: '0.5rem',
+    width: '100%',
+    padding: '0.75rem 1rem 0.75rem 2.5rem',
+    outline: 'none'
+  };
+
+  const iconStyle = {
+    position: 'absolute',
+    left: '0.75rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#64748b',
+    pointerEvents: 'none'
+  };
+
   return (
     <div className="app-container fade-in">
       <div className={`overlay ${isSidebarOpen ? '' : 'hidden'}`} onClick={closeMobile}></div>
@@ -103,7 +123,7 @@ const UserManager = () => {
           <div className="page-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <h1 className="section-title" style={{ margin: 0 }}>User Management</h1>
-            <button className="btn-primary" onClick={() => handleOpenModal()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button className="btn btn-primary" onClick={() => handleOpenModal()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Plus size={18} /> Add New User
             </button>
           </div>
@@ -148,16 +168,16 @@ const UserManager = () => {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button onClick={() => handleToggleLock(user)} style={{ background: user.isLocked ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: user.isLocked ? 'var(--success)' : 'var(--danger)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title={user.isLocked ? "Unlock User" : "Lock User"}>
+                          <button className="btn" onClick={() => handleToggleLock(user)} style={{ padding: '0.5rem', background: user.isLocked ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: user.isLocked ? 'var(--success)' : 'var(--danger)' }} title={user.isLocked ? "Unlock User" : "Lock User"}>
                             {user.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
                           </button>
-                          <button onClick={() => handleOpenResetModal(user)} style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Reset Password">
+                          <button className="btn" onClick={() => handleOpenResetModal(user)} style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }} title="Reset Password">
                             <Key size={16} />
                           </button>
-                          <button onClick={() => handleOpenModal(user)} style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
+                          <button className="btn" onClick={() => handleOpenModal(user)} style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }} title="Edit">
                             <Edit2 size={16} />
                           </button>
-                          <button onClick={() => handleDelete(user.id)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
+                          <button className="btn" onClick={() => handleDelete(user.id)} style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} title="Delete">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -178,55 +198,108 @@ const UserManager = () => {
       </div>
 
       {isModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal-content fade-in" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <button onClick={handleCloseModal} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-              <X size={24} />
-            </button>
-            <h2 style={{ marginBottom: '1.5rem' }}>{editingUser ? 'Edit User' : 'Add New User'}</h2>
+        <div className="modal-overlay">
+          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: '#1e293b', padding: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
+                <User size={24} color="#eab308" /> {editingUser ? 'Edit User' : 'Add New User'}
+              </h2>
+              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={24} />
+              </button>
+            </div>
             
-            <form onSubmit={handleSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Full Name</label>
-                  <input type="text" name="name" value={formData.name} onChange={handleChange} required placeholder="John Doe" />
+            <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+              <div className="form-grid">
+                <div className="input-group">
+                  <label>Full Name<span style={{color: '#ef4444'}}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={16} style={{...iconStyle, color: '#8b5cf6'}} />
+                    <input 
+                      type="text" 
+                      name="name" 
+                      value={formData.name} 
+                      onChange={handleChange} 
+                      required 
+                      placeholder="John Doe" 
+                      style={inputStyle}
+                    />
+                  </div>
                 </div>
                 
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Email Address</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="john@example.com" />
+                <div className="input-group">
+                  <label>Email Address<span style={{color: '#ef4444'}}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} style={{...iconStyle, color: '#3b82f6'}} />
+                    <input 
+                      type="email" 
+                      name="email" 
+                      value={formData.email} 
+                      onChange={handleChange} 
+                      required 
+                      placeholder="john@example.com" 
+                      style={inputStyle}
+                    />
+                  </div>
                 </div>
                 
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Role</label>
-                  <select name="role" value={formData.role} onChange={handleChange}>
-                    <option value="Admin">Admin</option>
-                    <option value="Manager">Manager</option>
-                    <option value="Staff">Staff</option>
-                  </select>
+                <div className="input-group">
+                  <label>Role<span style={{color: '#ef4444'}}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Shield size={16} style={{...iconStyle, color: '#eab308'}} />
+                    <select 
+                      name="role" 
+                      value={formData.role} 
+                      onChange={handleChange}
+                      style={{ ...inputStyle, appearance: 'none' }}
+                    >
+                      <option value="Admin">Admin</option>
+                      <option value="Manager">Manager</option>
+                      <option value="Staff">Staff</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Status</label>
-                  <select name="status" value={formData.status} onChange={handleChange}>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                <div className="input-group">
+                  <label>Status<span style={{color: '#ef4444'}}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Activity size={16} style={{...iconStyle, color: '#10b981'}} />
+                    <select 
+                      name="status" 
+                      value={formData.status} 
+                      onChange={handleChange}
+                      style={{ ...inputStyle, appearance: 'none' }}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
 
                 {!editingUser && (
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Password</label>
-                    <input type="password" name="password" value={formData.password || ''} onChange={handleChange} required placeholder="Enter temporary password" />
+                  <div className="input-group">
+                    <label>Password<span style={{color: '#ef4444'}}>*</span></label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={16} style={{...iconStyle, color: '#ef4444'}} />
+                      <input 
+                        type="password" 
+                        name="password" 
+                        value={formData.password || ''} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="Enter temporary password" 
+                        style={inputStyle}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button type="button" onClick={handleCloseModal} style={{ padding: '0.75rem 1.5rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.5rem', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" style={{ padding: '0.75rem 1.5rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
                   {editingUser ? 'Save Changes' : 'Create User'}
                 </button>
               </div>
@@ -236,26 +309,40 @@ const UserManager = () => {
       )}
 
       {isResetModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseResetModal}>
-          <div className="modal-content fade-in" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
-            <button onClick={handleCloseResetModal} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-              <X size={24} />
-            </button>
-            <h2 style={{ marginBottom: '1.5rem' }}>Reset Password</h2>
+        <div className="modal-overlay">
+          <div className="modal-content fade-in" style={{ maxWidth: '500px', background: '#1e293b', padding: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
+                <Key size={24} color="#eab308" /> Reset Password
+              </h2>
+              <button onClick={handleCloseResetModal} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={24} />
+              </button>
+            </div>
             
-            <form onSubmit={handleResetPassword}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>New Password</label>
-                  <input type="password" value={resetPasswordData.newPassword} onChange={(e) => setResetPasswordData({...resetPasswordData, newPassword: e.target.value})} required placeholder="Enter new password" />
+            <form onSubmit={handleResetPassword} style={{ padding: '1.5rem' }}>
+              <div className="form-grid">
+                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>New Password<span style={{color: '#ef4444'}}>*</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={16} style={{...iconStyle, color: '#ef4444'}} />
+                    <input 
+                      type="password" 
+                      value={resetPasswordData.newPassword} 
+                      onChange={(e) => setResetPasswordData({...resetPasswordData, newPassword: e.target.value})} 
+                      required 
+                      placeholder="Enter new password" 
+                      style={inputStyle}
+                    />
+                  </div>
                 </div>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button type="button" onClick={handleCloseResetModal} style={{ padding: '0.75rem 1.5rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.5rem', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
+                <button type="button" className="btn" onClick={handleCloseResetModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" style={{ padding: '0.75rem 1.5rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
                   Reset Password
                 </button>
               </div>
