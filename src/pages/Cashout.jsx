@@ -13,7 +13,8 @@ const COLORS = {
 };
 
 const Cashout = () => {
-  const { cashouts, addCashout, updateCashout, deleteCashout, updateStatus } = useContext(CashoutContext);
+  const { cashoutRequests: cashouts, addCashoutRequest: addCashout, updateCashoutRequest: updateCashout, deleteCashoutRequest: deleteCashout } = useContext(CashoutContext);
+  const updateStatus = (id, newStatus) => updateCashout(id, { status: newStatus });
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
   

@@ -16,7 +16,7 @@ const formatPercent = (value) => {
 };
 
 const SalesInput = () => {
-  const { salesData, addSale, updateSale, deleteSale } = useSales();
+  const { sales: salesData, addSale, updateSale, deleteSale } = useSales();
   const { users } = useUsers();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database'); // 'dashboard', 'database'
