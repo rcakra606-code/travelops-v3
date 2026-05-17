@@ -175,10 +175,12 @@ const DatabaseTable = ({ onEdit }) => {
             <h2 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Tour Details</h2>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-              <div><strong>Tour Code:</strong> <br/>{viewingTour.tourCode}</div>
-              <div><strong>Booking Code:</strong> <br/>{viewingTour.bookingCode}</div>
-              <div><strong>Country:</strong> <br/>{viewingTour.country}</div>
+              <div><strong>Tour Code:</strong> <br/>{viewingTour.tourCode || '-'}</div>
+              <div><strong>Booking Code:</strong> <br/>{viewingTour.bookingCode || '-'}</div>
+              <div><strong>Country:</strong> <br/>{viewingTour.country || '-'}</div>
               <div><strong>Dates:</strong> <br/>{viewingTour.departureDate} - {viewingTour.returnDate}</div>
+              <div><strong>Pax Count:</strong> <br/>{viewingTour.paxCount} Pax</div>
+              <div><strong>Staff:</strong> <br/>{viewingTour.staffName || '-'}</div>
               <div><strong>Status:</strong> <br/><span className={`badge ${getStatusBadge(viewingTour.status)}`}>{viewingTour.status}</span></div>
             </div>
 
