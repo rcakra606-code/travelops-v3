@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useTelecoms } from '../context/TelecomContext';
@@ -11,6 +11,19 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
 
+const COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+  "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+  "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia",
+  "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France",
+  "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+  "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg",
+  "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+  "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+  "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+  "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
+
 const Telecom = () => {
   const { telecoms, addTelecom, updateTelecom, deleteTelecom } = useTelecoms();
   const { users } = useUsers();
@@ -20,6 +33,10 @@ const Telecom = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTel, setEditingTel] = useState(null);
+  
+  const [countrySearch, setCountrySearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
   
   const initialFormData = {
     nama: '',
@@ -48,9 +65,11 @@ const Telecom = () => {
     if (tel) {
       setEditingTel(tel);
       setFormData(tel);
+      setCountrySearch(tel.region || '');
     } else {
       setEditingTel(null);
       setFormData(initialFormData);
+      setCountrySearch(initialFormData.region || '');
     }
     setIsModalOpen(true);
   };
@@ -58,6 +77,25 @@ const Telecom = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingTel(null);
+    setShowDropdown(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
+
+  const handleCountrySelect = (country) => {
+    setCountrySearch(country);
+    setFormData({...formData, region: country});
+    setShowDropdown(false);
   };
 
   const handleSubmit = (e) => {
@@ -364,24 +402,43 @@ const Telecom = () => {
                   </div>
                 </div>
 
-                <div className="input-group">
+                <div className="input-group" ref={dropdownRef} style={{ position: 'relative' }}>
                   <label>Region<span style={{color: '#ef4444'}}>*</span></label>
-                  <select 
-                    required 
-                    value={formData.region} 
-                    onChange={e => setFormData({...formData, region: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #10b981', color: '#f8fafc', padding: '0.75rem 1rem' }}
-                  >
-                    <option value="Afghanistan">Afghanistan</option>
-                    <option value="Albania">Albania</option>
-                    <option value="Algeria">Algeria</option>
-                    <option value="Japan">Japan</option>
-                    <option value="Indonesia">Indonesia</option>
-                    <option value="Malaysia">Malaysia</option>
-                    <option value="Singapore">Singapore</option>
-                    <option value="Saudi Arabia">Saudi Arabia</option>
-                    <option value="United Arab Emirates">United Arab Emirates</option>
-                  </select>
+                  <input 
+                    type="text" 
+                    required
+                    value={countrySearch} 
+                    onChange={(e) => {
+                      setCountrySearch(e.target.value);
+                      setFormData({...formData, region: e.target.value});
+                      setShowDropdown(true);
+                    }} 
+                    onFocus={() => setShowDropdown(true)}
+                    placeholder="Search country..." 
+                    style={{ background: '#0f172a', border: '1px solid #10b981', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none', width: '100%' }}
+                  />
+                  {showDropdown && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0, 
+                      background: 'var(--bg-card)', border: '1px solid var(--border)',
+                      borderRadius: '0.5rem', maxHeight: '200px', overflowY: 'auto', zIndex: 10,
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                    }}>
+                      {filteredCountries.length > 0 ? filteredCountries.map(country => (
+                        <div 
+                          key={country} 
+                          style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                          onClick={() => handleCountrySelect(country)}
+                          onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                        >
+                          {country}
+                        </div>
+                      )) : (
+                        <div style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>No matches found</div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Row 3 */}
