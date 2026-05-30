@@ -1,0 +1,81 @@
+{
+  "tables": {
+    "travelops_hotels": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "hotel_name": "VARCHAR(255)",
+      "guest_list": "TEXT",
+      "check_in": "DATE",
+      "check_out": "DATE",
+      "room_type": "VARCHAR(100)",
+      "region": "VARCHAR(100)",
+      "status": "VARCHAR(50) DEFAULT 'Upcoming'",
+      "confirmation_number": "VARCHAR(100)",
+      "supplier_code": "VARCHAR(100)",
+      "supplier_name": "VARCHAR(255)",
+      "staff": "VARCHAR(255)",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_tours": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "country": "VARCHAR(255)",
+      "category": "VARCHAR(50)",
+      "departure_date": "DATE",
+      "return_date": "DATE",
+      "max_capacity": "INTEGER",
+      "status": "VARCHAR(50) DEFAULT 'Pending'",
+      "financials": "JSONB",
+      "pax_info": "JSONB",
+      "internals": "JSONB",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_cruises": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "pic_name": "VARCHAR(255)",
+      "route": "VARCHAR(255)",
+      "pax_count": "INTEGER",
+      "sailing_start": "DATE",
+      "sailing_end": "DATE",
+      "cruise_line": "VARCHAR(255)",
+      "booking_ref": "VARCHAR(100)",
+      "final_payment_date": "DATE",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_documents": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "doc_type": "VARCHAR(50)",
+      "guest_name": "VARCHAR(255)",
+      "country": "VARCHAR(100)",
+      "receive_date": "DATE",
+      "estimated_done": "DATE",
+      "send_date": "DATE",
+      "price": "DECIMAL",
+      "supplier": "VARCHAR(255)",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_telecoms": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "type": "VARCHAR(50)",
+      "nama": "VARCHAR(255)",
+      "region": "VARCHAR(100)",
+      "no_telp": "VARCHAR(50)",
+      "tanggal_mulai": "DATE",
+      "tanggal_selesai": "DATE",
+      "jumlah_deposit": "DECIMAL",
+      "metode_deposit": "VARCHAR(100)",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_cashouts": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "staff_name": "VARCHAR(255)",
+      "division": "VARCHAR(100)",
+      "total_amount": "DECIMAL",
+      "request_date": "DATE",
+      "status": "VARCHAR(50) DEFAULT 'Pending'",
+      "needs_approval": "BOOLEAN DEFAULT true",
+      "request_items": "JSONB",
+      "approved_by": "VARCHAR(255)",
+      "approve_date": "TIMESTAMP WITH TIME ZONE",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { logSystemAction } from '../utils/logger';
 
@@ -12,23 +12,27 @@ export const AuthProvider = ({ children }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    checkActiveSession();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkActiveSession = async () => {
-    try {
-      const sessionToken = localStorage.getItem('travelops_session');
-      const userId = localStorage.getItem('travelops_user_id');
-      
-      if (sessionToken && userId) {
+  const handleSession = async (session) => {
+    if (session && session.user) {
+      try {
         const { data, error } = await supabase
           .from('travelops_users')
           .select('*')
-          .eq('id', userId)
+          .ilike('email', session.user.email)
           .single();
 
         if (data && !data.is_locked) {
-          // Normalize user object for the frontend
           setUser({
             id: data.id,
             name: data.name,
@@ -38,74 +42,59 @@ export const AuthProvider = ({ children }) => {
             mustChangePassword: data.must_change_password
           });
         } else {
-          // User is locked or deleted from DB
-          logout('Account locked or session invalid');
+          await supabase.auth.signOut();
+          setUser(null);
         }
+      } catch (err) {
+        console.error("Failed to load user profile", err);
+        setUser(null);
       }
-    } catch (err) {
-      console.error("Session check failed:", err);
-    } finally {
-      setLoading(false);
+    } else {
+      setUser(null);
     }
+    setLoading(false);
   };
 
   const login = async (email, password) => {
     try {
-      // Fetch user by email only first
+      const loginEmail = email.trim();
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: password,
+      });
+
+      if (authError) {
+        return { success: false, message: authError.message };
+      }
+
+      // Fetch user by email to verify they are active in our system
       const { data, error } = await supabase
         .from('travelops_users')
         .select('*')
-        .eq('email', email)
+        .ilike('email', loginEmail)
         .single();
 
       if (error || !data) {
-        return { success: false, message: 'Invalid credentials or user not found' };
+        await supabase.auth.signOut();
+        return { success: false, message: 'User profile not found in system.' };
       }
 
       if (data.status !== 'Active') {
+        await supabase.auth.signOut();
         return { success: false, message: 'Your account is inactive. Contact administrator.' };
       }
 
       if (data.is_locked) {
+        await supabase.auth.signOut();
         return { success: false, message: 'Account is locked! Please contact your administrator.' };
       }
 
-      // Check password
-      if (data.password_hash !== password) {
-        // Track failed attempts
-        const attemptsKey = `login_attempts_${email}`;
-        const currentAttempts = parseInt(localStorage.getItem(attemptsKey) || '0', 10) + 1;
-        
-        if (currentAttempts >= 3) {
-          // Lock the account in database
-          await supabase
-            .from('travelops_users')
-            .update({ is_locked: true })
-            .eq('id', data.id);
-            
-          localStorage.removeItem(attemptsKey);
-          return { success: false, message: 'Account locked due to 3 failed password attempts!' };
-        } else {
-          localStorage.setItem(attemptsKey, currentAttempts.toString());
-          return { success: false, message: `Incorrect password! You have ${3 - currentAttempts} attempts left.` };
-        }
-      }
-
-      // If password matches, clear attempts
-      localStorage.removeItem(`login_attempts_${email}`);
-
-      // Generate a simple session token (in production, use JWT or Supabase Auth)
-      const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      
       // Update last login
       await supabase
         .from('travelops_users')
         .update({ last_login: new Date().toISOString() })
         .eq('id', data.id);
 
-      localStorage.setItem('travelops_user_id', data.id);
-      localStorage.setItem('travelops_session', sessionToken);
-      
       const loggedInUser = {
         id: data.id,
         name: data.name,
@@ -116,7 +105,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       setUser(loggedInUser);
-      logSystemAction(loggedInUser, 'Login', 'User successfully logged in via Supabase');
+      logSystemAction(loggedInUser, 'Login', 'User successfully logged in via Supabase Auth');
       
       return { success: true, user: loggedInUser };
     } catch (err) {
@@ -125,23 +114,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = (reason = null) => {
+  const logout = useCallback(async (reason = null) => {
     setIsLoggingOut(true);
+    await supabase.auth.signOut();
     setTimeout(() => {
       setUser(null);
-      localStorage.removeItem('travelops_user_id');
-      localStorage.removeItem('travelops_session');
       setIsLoggingOut(false);
       if (reason) {
         alert(`Logged out: ${reason}`);
       }
     }, 1500);
-  };
+  }, []);
 
   const verifySession = async () => {
-    const sessionToken = localStorage.getItem('travelops_session');
-    if (!sessionToken || !user) {
-      logout('Session missing locally');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !user) {
+      logout('Session expired or missing');
       return false;
     }
     
@@ -160,9 +148,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const forceLogoutAll = async () => {
-    // To truly force logout others, you would normally invalidate sessions in the DB.
-    // For now, since we rely on LocalStorage tokens, this is an advanced feature.
-    alert("Force logout requires Supabase Realtime or JWT invalidation (Coming soon in V4.1)");
+    alert("Force logout will be managed via Supabase Admin Dashboard in V4.1");
   };
 
   return (

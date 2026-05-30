@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dns from 'dns';
+import { syncDatabase } from './scripts/db-sync.js';
 
 // Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
 // which causes ENETUNREACH errors when connecting to smtp.gmail.com
@@ -46,7 +47,7 @@ app.use(express.json());
 
 // API Route for sending emails
 app.post('/api/send-email', emailLimiter, (req, res) => {
-  const { to, subject, text, html, smtpConfig } = req.body;
+  const { to, subject, text, html } = req.body;
 
   // 1. Return immediately to prevent UI hanging
   res.status(200).json({ success: true, message: 'Email successfully queued for background delivery.' });
@@ -55,17 +56,17 @@ app.post('/api/send-email', emailLimiter, (req, res) => {
   (async () => {
     try {
       const transporter = nodemailer.createTransport({
-        host: smtpConfig.host || 'smtp.gmail.com',
-        port: smtpConfig.port || 587,
-        secure: smtpConfig.port == 465, // true for 465, false for other ports
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: process.env.SMTP_PORT || 587,
+        secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
         auth: {
-          user: smtpConfig.user,
-          pass: smtpConfig.pass
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
         }
       });
 
       const info = await transporter.sendMail({
-        from: `"TravelOps System" <${smtpConfig.user}>`,
+        from: `"TravelOps System" <${process.env.SMTP_USER}>`,
         to,
         subject: subject || 'TravelOps Test Email',
         text: text || 'This is a test email from TravelOps.',
@@ -86,6 +87,9 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
+// Run schema sync before starting the server
+syncDatabase().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 });

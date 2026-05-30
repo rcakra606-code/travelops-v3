@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -8,69 +8,60 @@ const AutoLogout = ({ children }) => {
   const [showWarning, setShowWarning] = useState(false);
   const [countdown, setCountdown] = useState(30);
   
-  const activityTimer = useRef(null);
-  const warningTimer = useRef(null);
-  const sessionCheckTimer = useRef(null);
+  const lastActivityTime = useRef(Date.now());
 
   const idleTimeoutMs = (settings?.idleTimeout || 15) * 60 * 1000;
   const warningTimeMs = 30 * 1000; // 30 seconds before logout
 
-  const resetActivity = useCallback(() => {
-    if (!user) return;
-    
-    // If warning is already showing, do not reset via mouse movements
-    if (showWarning) return;
-
-    if (activityTimer.current) clearTimeout(activityTimer.current);
-    
-    // Set timer to show warning
-    activityTimer.current = setTimeout(() => {
-      setShowWarning(true);
-      setCountdown(30);
-    }, idleTimeoutMs - warningTimeMs);
-  }, [user, idleTimeoutMs, warningTimeMs, showWarning]);
-
   const confirmActive = () => {
     setShowWarning(false);
-    if (warningTimer.current) clearInterval(warningTimer.current);
-    resetActivity();
+    lastActivityTime.current = Date.now();
   };
 
   useEffect(() => {
     if (!user) {
-      if (activityTimer.current) clearTimeout(activityTimer.current);
-      if (warningTimer.current) clearInterval(warningTimer.current);
-      if (sessionCheckTimer.current) clearInterval(sessionCheckTimer.current);
       setShowWarning(false);
       return;
     }
 
-    // Single Device Login periodic check
-    sessionCheckTimer.current = setInterval(() => {
-      verifySession();
-    }, 15000); // check every 15 seconds
+    const handleActivity = () => {
+      if (!showWarning) {
+        lastActivityTime.current = Date.now();
+      }
+    };
 
-    // Add activity listeners
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    events.forEach(e => document.addEventListener(e, resetActivity));
-    
-    // Start initial timer
-    resetActivity();
+    events.forEach(e => document.addEventListener(e, handleActivity));
+
+    // Single Device Login periodic check (every 3 minutes instead of 15 seconds)
+    const sessionCheckTimer = setInterval(() => {
+      verifySession();
+    }, 3 * 60 * 1000);
+
+    // Idle check interval (checks every 5 seconds)
+    const idleCheckTimer = setInterval(() => {
+      if (showWarning) return;
+      const now = Date.now();
+      if (now - lastActivityTime.current >= idleTimeoutMs - warningTimeMs) {
+        setShowWarning(true);
+        setCountdown(30);
+      }
+    }, 5000);
 
     return () => {
-      events.forEach(e => document.removeEventListener(e, resetActivity));
-      if (activityTimer.current) clearTimeout(activityTimer.current);
-      if (warningTimer.current) clearInterval(warningTimer.current);
-      if (sessionCheckTimer.current) clearInterval(sessionCheckTimer.current);
+      events.forEach(e => document.removeEventListener(e, handleActivity));
+      clearInterval(sessionCheckTimer);
+      clearInterval(idleCheckTimer);
     };
-  }, [user, resetActivity, verifySession]);
+  }, [user, showWarning, idleTimeoutMs, verifySession]);
 
   useEffect(() => {
+    let warningTimer;
     if (showWarning) {
-      warningTimer.current = setInterval(() => {
+      warningTimer = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
-            clearInterval(warningTimer.current);
+            clearInterval(warningTimer);
             logout('You were logged out due to inactivity.');
             setShowWarning(false);
             return 0;
@@ -78,11 +69,9 @@ const AutoLogout = ({ children }) => {
           return prev - 1;
         });
       }, 1000);
-    } else {
-      if (warningTimer.current) clearInterval(warningTimer.current);
     }
     return () => {
-      if (warningTimer.current) clearInterval(warningTimer.current);
+      if (warningTimer) clearInterval(warningTimer);
     };
   }, [showWarning, logout]);
 
