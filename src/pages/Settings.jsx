@@ -67,6 +67,8 @@ const Settings = () => {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
+  const handleSendTestEmail = async () => {
+    if (!testEmailTarget) return alert("Please enter an email address");
     setTestEmailStatus('sending');
     
     try {
