@@ -33,6 +33,18 @@ const Hotel = () => {
   const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+
+  const canAdd = true;
+  const canDelete = isAdmin;
+  const canEditRecord = (recordStaff) => {
+    if (isAdmin || isManager) return true;
+    if (isStaff && recordStaff === user?.name) return true;
+    return false;
+  };
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
