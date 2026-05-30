@@ -646,12 +646,12 @@ const Documents = () => {
                   <textarea 
                     rows="4"
                     maxLength="500"
-                    value={formData.notes} 
+                    value={formData.notes || ''} 
                     onChange={e => setFormData({...formData, notes: e.target.value})}
                     style={{ background: '#0f172a', border: '1px solid #334155', width: '100%', resize: 'vertical' }}
                   ></textarea>
                   <div style={{ position: 'absolute', bottom: '0.5rem', right: '1rem', fontSize: '0.75rem', color: '#64748b' }}>
-                    {formData.notes.length} / 500
+                    {(formData.notes || '').length} / 500
                   </div>
                 </div>
               </div>
