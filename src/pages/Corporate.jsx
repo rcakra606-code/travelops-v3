@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useCorporate } from '../context/CorporateContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Building, Briefcase, Plus, Edit2, Trash2, X, BarChart2, PieChart as PieChartIcon, 
   FileText, Database, TrendingUp, DollarSign, Activity, Calendar, Download, Upload, Users,
@@ -20,6 +21,7 @@ const Corporate = () => {
     corporateAccounts, addAccount, updateAccount, deleteAccount, bulkImportAccounts,
     corporateSales, addSales, updateSales, deleteSales, bulkImportSales 
   } = useCorporate();
+  const { user } = useAuth();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -63,6 +65,14 @@ const Corporate = () => {
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeMobile = () => window.innerWidth <= 768 && setIsSidebarOpen(false);
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canAdd = isAdmin || isManager;
 
   // Filtering Sales
   const filteredSales = useMemo(() => {
@@ -924,9 +934,11 @@ const Corporate = () => {
               <div className="card fade-in" style={{ overflowX: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                   <h3 style={{ margin: 0 }}>Corporate Accounts Database</h3>
-                  <button className="btn btn-primary" onClick={() => handleOpenAccountModal()}>
-                    <Plus size={16} /> New Account
-                  </button>
+                  {canAdd && (
+                    <button className="btn btn-primary" onClick={() => handleOpenAccountModal()}>
+                      <Plus size={16} /> New Account
+                    </button>
+                  )}
                 </div>
                 <table className="data-table">
                   <thead>
@@ -957,8 +969,12 @@ const Corporate = () => {
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button className="action-btn view" onClick={() => setViewingAccount(acc)} title="View Detail" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}><Eye size={16} /></button>
-                            <button className="action-btn edit" onClick={() => handleOpenAccountModal(acc)} title="Edit"><Edit2 size={16} /></button>
-                            <button className="action-btn delete" onClick={() => window.confirm('Delete account?') && deleteAccount(acc.id)} title="Delete"><Trash2 size={16} /></button>
+                            {canEditAny && (
+                              <button className="action-btn edit" onClick={() => handleOpenAccountModal(acc)} title="Edit"><Edit2 size={16} /></button>
+                            )}
+                            {canDelete && (
+                              <button className="action-btn delete" onClick={() => window.confirm('Delete account?') && deleteAccount(acc.id)} title="Delete"><Trash2 size={16} /></button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -980,13 +996,17 @@ const Corporate = () => {
                     <button className="btn" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid #3b82f6' }} onClick={handleExportSales}>
                       <Download size={16} /> Export CSV
                     </button>
-                    <button className="btn" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981' }} onClick={() => fileInputSalesRef.current?.click()}>
-                      <Upload size={16} /> Import CSV
-                    </button>
-                    <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputSalesRef} onChange={handleImportSales} />
-                    <button className="btn btn-primary" onClick={() => handleOpenSalesModal()}>
-                      <Plus size={16} /> Add Sales
-                    </button>
+                    {canAdd && (
+                      <>
+                        <button className="btn" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981' }} onClick={() => fileInputSalesRef.current?.click()}>
+                          <Upload size={16} /> Import CSV
+                        </button>
+                        <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputSalesRef} onChange={handleImportSales} />
+                        <button className="btn btn-primary" onClick={() => handleOpenSalesModal()}>
+                          <Plus size={16} /> Add Sales
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 <table className="data-table">
@@ -1010,8 +1030,12 @@ const Corporate = () => {
                         <td style={{ color: '#f59e0b', fontWeight: '500' }}>{formatCurrency(rec.profitAmount)}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="action-btn edit" onClick={() => handleOpenSalesModal(rec)}><Edit2 size={16} /></button>
-                            <button className="action-btn delete" onClick={() => window.confirm('Delete?') && deleteSales(rec.id)}><Trash2 size={16} /></button>
+                            {canEditAny && (
+                              <button className="action-btn edit" onClick={() => handleOpenSalesModal(rec)}><Edit2 size={16} /></button>
+                            )}
+                            {canDelete && (
+                              <button className="action-btn delete" onClick={() => window.confirm('Delete?') && deleteSales(rec.id)}><Trash2 size={16} /></button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1275,9 +1299,11 @@ const Corporate = () => {
               )}
             </div>
             <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid #334155', background: '#1e293b', display: 'flex', justifyContent: 'flex-end', borderRadius: '0 0 8px 8px' }}>
-               <button className="btn btn-primary" onClick={() => { setViewingAccount(null); handleOpenAccountModal(viewingAccount); }}>
-                 <Edit2 size={16} /> Edit Account
-               </button>
+               {canEditAny && (
+                 <button className="btn btn-primary" onClick={() => { setViewingAccount(null); handleOpenAccountModal(viewingAccount); }}>
+                   <Edit2 size={16} /> Edit Account
+                 </button>
+               )}
             </div>
           </div>
         </div>

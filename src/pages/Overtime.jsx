@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useOvertimes } from '../context/OvertimeContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, Clock, Calendar, FileText, 
   BarChart2, CheckCircle, AlertCircle, User, ArrowUpDown
@@ -16,6 +17,7 @@ import Pagination from '../components/Pagination';
 const Overtime = () => {
   const { overtimes, addOvertime, updateOvertime, deleteOvertime } = useOvertimes();
   const { users } = useUsers();
+  const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -112,6 +114,14 @@ const Overtime = () => {
     totalItems,
     itemsPerPage
   } = useDataTable(overtimes, { key: 'date', direction: 'desc' }, 10);
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   const statusMap = {};
   overtimes.forEach(o => {
@@ -326,20 +336,24 @@ const Overtime = () => {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button 
-                              className="btn" 
-                              style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
-                              onClick={() => handleOpenModal(ot)}
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              className="btn" 
-                              style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                              onClick={() => handleDelete(ot.id)}
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {canEditRecord(ot.staff) && (
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
+                                onClick={() => handleOpenModal(ot)}
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                                onClick={() => handleDelete(ot.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

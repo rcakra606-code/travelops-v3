@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useHotels } from '../context/HotelContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, Building, Tag, Users as UsersIcon, Map as MapIcon, 
   BarChart2, FileText, Calendar, CheckSquare, Clock, Eye, ArrowUpDown
@@ -29,6 +30,7 @@ const COUNTRIES = [
 const Hotel = () => {
   const { hotels, addHotel, updateHotel, deleteHotel } = useHotels();
   const { users } = useUsers();
+  const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -366,32 +368,32 @@ const Hotel = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedData.map(htl => (
-                      <tr key={htl.id}>
+                      {paginatedData.map(h => (
+                      <tr key={h.id}>
                         <td>
-                          <div style={{ fontWeight: '500' }}>{htl.hotelName}</div>
-                          {htl.confirmationNumber && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Ref: {htl.confirmationNumber}</div>
+                          <div style={{ fontWeight: '500' }}>{h.hotelName}</div>
+                          {h.confirmationNumber && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Ref: {h.confirmationNumber}</div>
                           )}
                         </td>
                         <td>
-                          <div>{htl.checkIn}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>to {htl.checkOut}</div>
+                          <div>{h.checkIn}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>to {h.checkOut}</div>
                         </td>
-                        <td>{htl.region}</td>
+                        <td>{h.region}</td>
                         <td>
-                          <div style={{ maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={htl.guestList}>
-                            {htl.guestList || '-'}
+                          <div style={{ maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={h.guestList}>
+                            {h.guestList || '-'}
                           </div>
                         </td>
                         <td>
-                          <div style={{ fontWeight: '500' }}>{htl.supplierName || '-'}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{htl.supplierCode}</div>
+                          <div style={{ fontWeight: '500' }}>{h.supplierName || '-'}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{h.supplierCode}</div>
                         </td>
-                        <td>{htl.staff}</td>
+                        <td>{h.staff}</td>
                         <td>
-                          <span className={`badge ${getStatusBadge(htl.status)}`}>
-                            {htl.status || 'Upcoming'}
+                          <span className={`badge ${getStatusBadge(h.status)}`}>
+                            {h.status || 'Upcoming'}
                           </span>
                         </td>
                         <td>
@@ -399,27 +401,31 @@ const Hotel = () => {
                             <button 
                               className="btn" 
                               style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
-                              onClick={() => handleOpenPreview(htl)}
+                              onClick={() => handleOpenPreview(h)}
                               title="Preview Data"
                             >
                               <Eye size={16} />
                             </button>
-                            <button 
-                              className="btn" 
-                              style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
-                              onClick={() => handleOpenModal(htl)}
-                              title="Edit Booking"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              className="btn" 
-                              style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                              onClick={() => handleDelete(htl.id)}
-                              title="Delete Booking"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {canEditRecord(h.staff) && (
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
+                                onClick={() => handleOpenModal(h)}
+                                title="Edit Booking"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                                onClick={() => handleDelete(h.id)}
+                                title="Delete Booking"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

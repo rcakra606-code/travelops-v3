@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useCruises } from '../context/CruiseContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, Ship, Anchor, Map as MapIcon, User, Phone, Mail, Ticket,
   BarChart2, FileText, Users, Calendar, ShipWheel, Eye, ArrowUpDown
@@ -16,6 +17,7 @@ import Pagination from '../components/Pagination';
 const Cruise = () => {
   const { cruises, addCruise, updateCruise, deleteCruise } = useCruises();
   const { users } = useUsers();
+  const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -126,6 +128,14 @@ const Cruise = () => {
     color: '#64748b',
     pointerEvents: 'none'
   };
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   // Dashboard Metrics
   const today = new Date();
@@ -392,22 +402,26 @@ const Cruise = () => {
                             >
                               <Eye size={16} />
                             </button>
-                            <button 
-                              className="btn" 
-                              style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
-                              onClick={() => handleOpenModal(crs)}
-                              title="Edit Booking"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              className="btn" 
-                              style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                              onClick={() => handleDelete(crs.id)}
-                              title="Delete Booking"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {canEditRecord(crs.staff) && (
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
+                                onClick={() => handleOpenModal(crs)}
+                                title="Edit Booking"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                                onClick={() => handleDelete(crs.id)}
+                                title="Delete Booking"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

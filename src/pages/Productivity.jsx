@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useProductivity } from '../context/ProductivityContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, BarChart2, PieChart as PieChartIcon, 
   FileText, Database, TrendingUp, DollarSign, Activity, Calendar, Download, Upload
@@ -21,6 +22,7 @@ const TYPES = ['Retail', 'Corporate'];
 const Productivity = () => {
   const { productivityData, addRecord, updateRecord, deleteRecord, bulkImport } = useProductivity();
   const { users } = useUsers();
+  const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -65,6 +67,14 @@ const Productivity = () => {
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeMobile = () => window.innerWidth <= 768 && setIsSidebarOpen(false);
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canAdd = isAdmin || isManager;
 
   const handleOpenModal = (rec = null) => {
     if (rec) {
@@ -360,9 +370,11 @@ const Productivity = () => {
                     {activeStaff.map(user => <option key={user.id} value={user.name} style={{ background: '#1e293b', color: '#f8fafc' }}>{user.name}</option>)}
                   </select>
                 </div>
-                <button className="btn btn-primary" onClick={() => handleOpenModal()}>
-                  <Plus size={20} /> Add Record
-                </button>
+                {canAdd && (
+                  <button className="btn btn-primary" onClick={() => handleOpenModal()}>
+                    <Plus size={20} /> Add Record
+                  </button>
+                )}
               </div>
             </div>
 
@@ -598,10 +610,14 @@ const Productivity = () => {
                     <button className="btn" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid #3b82f6' }} onClick={handleExport}>
                       <Download size={16} /> Export CSV
                     </button>
-                    <button className="btn" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981' }} onClick={() => fileInputRef.current?.click()}>
-                      <Upload size={16} /> Import CSV
-                    </button>
-                    <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputRef} onChange={handleImport} />
+                    {canAdd && (
+                      <>
+                        <button className="btn" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981' }} onClick={() => fileInputRef.current?.click()}>
+                          <Upload size={16} /> Import CSV
+                        </button>
+                        <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputRef} onChange={handleImport} />
+                      </>
+                    )}
                   </div>
                 </div>
                 <table className="data-table">
@@ -631,12 +647,16 @@ const Productivity = () => {
                         <td style={{ color: '#3b82f6', fontWeight: '500' }}>{formatCurrency(rec.profitAmount)}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="btn" style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }} onClick={() => handleOpenModal(rec)}>
-                              <Edit2 size={16} />
-                            </button>
-                            <button className="btn" style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(rec.id)}>
-                              <Trash2 size={16} />
-                            </button>
+                            {canEditAny && (
+                              <button className="btn" style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }} onClick={() => handleOpenModal(rec)}>
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button className="btn" style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(rec.id)}>
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

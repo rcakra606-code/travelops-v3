@@ -3,9 +3,10 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useTelecoms } from '../context/TelecomContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, User, Phone, Package, CreditCard, Building,
-  BarChart2, FileText, CheckCircle, Clock, DollarSign, AlertCircle, ArrowUpDown
+  BarChart2, FileText, CheckCircle, Clock, DollarSign, AlertCircle, ArrowUpDown, Eye
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -29,6 +30,7 @@ const COUNTRIES = [
 const Telecom = () => {
   const { telecoms, addTelecom, updateTelecom, deleteTelecom } = useTelecoms();
   const { users } = useUsers();
+  const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -59,6 +61,14 @@ const Telecom = () => {
   };
 
   const [formData, setFormData] = useState(initialFormData);
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeMobile = () => window.innerWidth <= 768 && setIsSidebarOpen(false);
@@ -380,20 +390,24 @@ const Telecom = () => {
                       <td>{renderBadge(tel.depositStatus)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button 
-                            className="btn" 
-                            style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
-                            onClick={() => handleOpenModal(tel)}
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            className="btn" 
-                            style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                            onClick={() => handleDelete(tel.id)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canEditRecord(tel.staff) && (
+                            <button 
+                              className="btn" 
+                              style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
+                              onClick={() => handleOpenModal(tel)}
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button 
+                              className="btn" 
+                              style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                              onClick={() => handleDelete(tel.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                           </div>
                         </td>
                       </tr>

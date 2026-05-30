@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useSales } from '../context/SalesContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from 'recharts';
 import { Edit2, Trash2, ChevronUp, ChevronDown, FileText, Plus, BarChart2, DollarSign, Target, TrendingUp, PieChart, Download, Printer, Award } from 'lucide-react';
 
@@ -18,6 +19,7 @@ const formatPercent = (value) => {
 const SalesInput = () => {
   const { sales: salesData, addSale, updateSale, deleteSale } = useSales();
   const { users } = useUsers();
+  const { user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database'); // 'dashboard', 'database'
   const [selectedPeriod, setSelectedPeriod] = useState('2026-05');
@@ -34,6 +36,14 @@ const SalesInput = () => {
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeMobile = () => window.innerWidth <= 768 && setIsSidebarOpen(false);
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canAdd = isAdmin || isManager;
 
   const handleInputChange = (e) => {
     // If it's a number field, we might want to strip non-digits, but let's keep it simple for now
@@ -348,13 +358,14 @@ const SalesInput = () => {
             {activeTab === 'database' && (
               <div className="fade-in">
                 {/* Quick Sales Input Card */}
-                <div className="card" style={{ marginBottom: '1.5rem', background: '#1e293b' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFormOpen ? '1.5rem' : '0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem' }}>
-                        <FileText size={20} color="#f87171" /> Quick Sales Input
-                      </h2>
-                    </div>
+                {canAdd && (
+                  <div className="card" style={{ marginBottom: '1.5rem', background: '#1e293b' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFormOpen ? '1.5rem' : '0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem' }}>
+                          <FileText size={20} color="#f87171" /> Quick Sales Input
+                        </h2>
+                      </div>
                 <button 
                   onClick={() => setIsFormOpen(!isFormOpen)} 
                   style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'var(--text-main)', padding: '0.4rem 0.8rem', borderRadius: '0.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem' }}
@@ -439,6 +450,7 @@ const SalesInput = () => {
                 </form>
               )}
             </div>
+            )}
 
             {/* Data Table Card */}
             <div className="card" style={{ padding: 0, overflowX: 'auto', background: '#1e293b' }}>
@@ -471,12 +483,16 @@ const SalesInput = () => {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button onClick={() => handleEdit(sale)} style={{ background: '#fbbf24', color: '#111827', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
-                            <Edit2 size={14} />
-                          </button>
-                          <button onClick={() => handleDelete(sale.id)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
-                            <Trash2 size={14} />
-                          </button>
+                          {canEditAny && (
+                            <button onClick={() => handleEdit(sale)} style={{ background: '#fbbf24', color: '#111827', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(sale.id)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

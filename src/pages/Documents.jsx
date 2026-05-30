@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useDocuments } from '../context/DocumentContext';
 import { useUsers } from '../context/UserContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, User, Globe, Clipboard, 
   Receipt, Phone, Ticket, BarChart2, FileText, AlertCircle, Clock, CheckCircle, AlertTriangle,
@@ -17,6 +18,7 @@ import Pagination from '../components/Pagination';
 const Documents = () => {
   const { documents, addDocument, updateDocument, deleteDocument } = useDocuments();
   const { users } = useUsers();
+  const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -165,6 +167,14 @@ const Documents = () => {
     color: '#64748b',
     pointerEvents: 'none'
   };
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   // Dashboard Calculations
   const activeDocs = documents.filter(d => d.shippingStatus !== 'Received');
@@ -489,42 +499,48 @@ const Documents = () => {
                           <td>{doc.staff}</td>
                           <td>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              {doc.shippingStatus !== 'Sent' && doc.shippingStatus !== 'Received' && (
+                              {canEditRecord(doc.staff) && (
+                                <>
+                                  {doc.shippingStatus !== 'Sent' && doc.shippingStatus !== 'Received' && (
+                                    <button 
+                                      className="btn" 
+                                      style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}
+                                      onClick={() => handleOpenShipping(doc)}
+                                      title="Kirim Dokumen"
+                                    >
+                                      <Truck size={16} />
+                                    </button>
+                                  )}
+                                  {doc.shippingStatus === 'Sent' && (
+                                    <button 
+                                      className="btn" 
+                                      style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
+                                      onClick={() => handleOpenReceive(doc)}
+                                      title="Terima Dokumen"
+                                    >
+                                      <Inbox size={16} />
+                                    </button>
+                                  )}
+                                  <button 
+                                    className="btn" 
+                                    style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
+                                    onClick={() => handleOpenModal(doc)}
+                                    title="Edit Dokumen"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                </>
+                              )}
+                              {canDelete && (
                                 <button 
                                   className="btn" 
-                                  style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}
-                                  onClick={() => handleOpenShipping(doc)}
-                                  title="Kirim Dokumen"
+                                  style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                                  onClick={() => handleDelete(doc.id)}
+                                  title="Hapus Dokumen"
                                 >
-                                  <Truck size={16} />
+                                  <Trash2 size={16} />
                                 </button>
                               )}
-                              {doc.shippingStatus === 'Sent' && (
-                                <button 
-                                  className="btn" 
-                                  style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
-                                  onClick={() => handleOpenReceive(doc)}
-                                  title="Terima Dokumen"
-                                >
-                                  <Inbox size={16} />
-                                </button>
-                              )}
-                              <button 
-                                className="btn" 
-                                style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
-                                onClick={() => handleOpenModal(doc)}
-                                title="Edit Dokumen"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                              <button 
-                                className="btn" 
-                                style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                                onClick={() => handleDelete(doc.id)}
-                                title="Hapus Dokumen"
-                              >
-                                <Trash2 size={16} />
-                              </button>
                             </div>
                           </td>
                         </tr>

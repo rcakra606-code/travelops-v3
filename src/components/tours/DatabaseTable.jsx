@@ -5,9 +5,11 @@ import { formatCurrency } from '../../utils/currency';
 import { Eye, Edit2, Trash2, ArrowUpDown, X } from 'lucide-react';
 import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
+import { useAuth } from '../../context/AuthContext';
 
 const DatabaseTable = ({ onEdit }) => {
   const { tours, deleteTour } = useTours();
+  const { user } = useAuth();
   const [viewingTour, setViewingTour] = useState(null);
 
   // Flatten nested properties (like totalOmset) so useDataTable can sort it
@@ -36,9 +38,16 @@ const DatabaseTable = ({ onEdit }) => {
       case 'Pending': return 'badge-warning';
       case 'Cancel': return 'badge-danger';
       case 'Past Date': return 'badge-primary';
-      default: return 'badge-primary';
     }
   };
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   return (
     <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
@@ -115,12 +124,16 @@ const DatabaseTable = ({ onEdit }) => {
                     <button onClick={() => setViewingTour(tour)} style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="View">
                       <Eye size={16} />
                     </button>
-                    <button onClick={() => onEdit(tour)} style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
-                      <Edit2 size={16} />
-                    </button>
-                    <button onClick={() => { if(window.confirm('Are you sure you want to delete this tour?')) deleteTour(tour.id) }} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
-                      <Trash2 size={16} />
-                    </button>
+                    {canEditRecord(tour.staffName) && (
+                      <button onClick={() => onEdit(tour)} style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
+                        <Edit2 size={16} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button onClick={() => { if(window.confirm('Are you sure you want to delete this tour?')) deleteTour(tour.id) }} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

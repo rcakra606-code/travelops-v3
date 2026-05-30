@@ -6,6 +6,7 @@ import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
 import { useDataTable } from '../hooks/useDataTable';
 import Pagination from '../components/Pagination';
+import { useAuth } from '../context/AuthContext';
 
 const COLORS = {
   Pending: '#f59e0b',
@@ -16,9 +17,15 @@ const COLORS = {
 
 const Cashout = () => {
   const { cashoutRequests: cashouts, addCashoutRequest: addCashout, updateCashoutRequest: updateCashout, deleteCashoutRequest: deleteCashout } = useContext(CashoutContext);
+  const { user } = useAuth();
   const updateStatus = (id, newStatus) => updateCashout(id, { status: newStatus });
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({});
+  const closeMobile = () => setIsSidebarOpen(false);
+
+  const formatCurrency = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
   
   // Setup DataTable hook
   const {
@@ -34,6 +41,14 @@ const Cashout = () => {
     totalItems,
     itemsPerPage
   } = useDataTable(cashouts, { key: 'requestDate', direction: 'desc' }, 10);
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   const kpis = useMemo(() => {
     let totalCompleted = 0;
@@ -262,10 +277,17 @@ const Cashout = () => {
                         <td style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>{c.completionDate || '-'}</td>
                         <td style={{ padding: '1rem' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <button onClick={() => openModal(c)} title="Edit" style={{ background: '#334155', color: '#f8fafc', border: 'none', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                              <Edit2 size={14} />
-                            </button>
-                            {c.status === 'Pending' && (
+                            {canEditRecord(c.staffName) && (
+                              <button onClick={() => openModal(c)} title="Edit" style={{ background: '#334155', color: '#f8fafc', border: 'none', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                <Edit2 size={14} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button onClick={() => deleteCashout(c.id)} title="Delete" style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef4444', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                            {c.status === 'Pending' && canEditAny && (
                               <>
                                 <button onClick={() => updateStatus(c.id, 'Approved')} title="Approve" style={{ background: '#3b82f620', color: '#3b82f6', border: '1px solid #3b82f6', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                                   <Check size={14} />
