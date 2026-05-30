@@ -158,6 +158,15 @@ app.delete('/api/admin/users/:id', requireSupabaseAdmin, async (req, res) => {
 app.post('/api/send-email', emailLimiter, (req, res) => {
   const { to, subject, text, html } = req.body;
 
+  // Verify that SMTP variables are actually loaded
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.error("[EMAIL ERROR] SMTP_USER or SMTP_PASS is undefined in process.env!");
+    return res.status(500).json({ 
+      success: false, 
+      error: 'SMTP Configuration Missing. Please check Railway Environment Variables.' 
+    });
+  }
+
   // 1. Return immediately to prevent UI hanging
   res.status(200).json({ success: true, message: 'Email successfully queued for background delivery.' });
 
