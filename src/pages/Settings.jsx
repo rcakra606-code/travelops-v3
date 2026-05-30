@@ -297,7 +297,7 @@ const Settings = () => {
                       />
                       <button 
                         type="button" 
-                        onClick={handleTestEmail} 
+                        onClick={handleSendTestEmail} 
                         disabled={testEmailStatus === 'sending'}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#0f172a', color: testEmailStatus === 'sending' ? '#94a3b8' : '#10b981', border: `1px solid ${testEmailStatus === 'sending' ? '#334155' : '#10b981'}`, padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: testEmailStatus === 'sending' ? 'not-allowed' : 'pointer', fontWeight: '500', whiteSpace: 'nowrap', transition: 'all 0.3s' }}
                       >
