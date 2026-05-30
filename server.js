@@ -32,6 +32,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust the first proxy (Railway load balancer) so express-rate-limit can accurately get IPs
+app.set('trust proxy', 1);
+
 // Security Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Disabled for React inline scripts compatibility if needed
