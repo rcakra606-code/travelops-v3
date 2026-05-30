@@ -5,11 +5,13 @@ import { useCruises } from '../context/CruiseContext';
 import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, Ship, Anchor, Map as MapIcon, User, Phone, Mail, Ticket,
-  BarChart2, FileText, Users, Calendar, ShipWheel, Eye
+  BarChart2, FileText, Users, Calendar, ShipWheel, Eye, ArrowUpDown
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
+import { useDataTable } from '../hooks/useDataTable';
+import Pagination from '../components/Pagination';
 
 const Cruise = () => {
   const { cruises, addCruise, updateCruise, deleteCruise } = useCruises();
@@ -136,6 +138,19 @@ const Cruise = () => {
   });
 
   const totalParticipants = cruises.reduce((sum, c) => sum + 1 + (c.participants?.length || 0), 0);
+
+  // Setup DataTable hook
+  const {
+    filters,
+    handleSort,
+    handleFilterChange,
+    paginatedData,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    totalItems,
+    itemsPerPage
+  } = useDataTable(cruises, { key: 'sailingStart', direction: 'desc' }, 10);
 
   const brandMap = {};
   cruises.forEach(c => {
@@ -274,22 +289,79 @@ const Cruise = () => {
                 </div>
               </div>
             ) : (
-              <div className="card fade-in" style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>BRAND & SHIP</th>
-                      <th>SAILING DATES</th>
-                      <th>ROUTE</th>
-                      <th>PIC</th>
-                      <th>PAX</th>
-                      <th>STAFF</th>
-                      <th>STATUS</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cruises.map(crs => (
+              <div className="card fade-in" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+                  <table className="data-table">
+                    <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
+                      <tr>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('cruiseBrand')}>
+                              BRAND & SHIP <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.cruiseBrand || ''} onChange={(e) => handleFilterChange('cruiseBrand', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('sailingStart')}>
+                              SAILING DATES <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('route')}>
+                              ROUTE <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.route || ''} onChange={(e) => handleFilterChange('route', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('picName')}>
+                              PIC <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.picName || ''} onChange={(e) => handleFilterChange('picName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              PAX
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('staff')}>
+                              STAFF <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.staff || ''} onChange={(e) => handleFilterChange('staff', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('status')}>
+                              STATUS <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              ACTIONS
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map(crs => (
                       <tr key={crs.id}>
                         <td>
                           <div style={{ fontWeight: '500' }}>{crs.cruiseBrand}</div>
@@ -347,9 +419,24 @@ const Cruise = () => {
                         </td>
                       </tr>
                     )}
+                    {cruises.length > 0 && paginatedData.length === 0 && (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          No matching records found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+              />
+            </div>
             )}
           </div>
         </div>

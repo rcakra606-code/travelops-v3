@@ -5,11 +5,13 @@ import { useOvertimes } from '../context/OvertimeContext';
 import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, Clock, Calendar, FileText, 
-  BarChart2, CheckCircle, AlertCircle, User
+  BarChart2, CheckCircle, AlertCircle, User, ArrowUpDown
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
+import { useDataTable } from '../hooks/useDataTable';
+import Pagination from '../components/Pagination';
 
 const Overtime = () => {
   const { overtimes, addOvertime, updateOvertime, deleteOvertime } = useOvertimes();
@@ -97,6 +99,19 @@ const Overtime = () => {
   // Dashboard Metrics
   const pendingCount = overtimes.filter(o => o.status === 'Pending').length;
   const approvedHours = overtimes.filter(o => o.status === 'Approved').reduce((sum, o) => sum + parseFloat(o.hours || 0), 0);
+
+  // Setup DataTable hook
+  const {
+    filters,
+    handleSort,
+    handleFilterChange,
+    paginatedData,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    totalItems,
+    itemsPerPage
+  } = useDataTable(overtimes, { key: 'date', direction: 'desc' }, 10);
 
   const statusMap = {};
   overtimes.forEach(o => {
@@ -229,21 +244,71 @@ const Overtime = () => {
                 </div>
               </div>
             ) : (
-              <div className="card fade-in" style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>STAFF</th>
-                      <th>EVENT NAME</th>
-                      <th>DATE</th>
-                      <th>HOURS</th>
-                      <th>STATUS</th>
-                      <th>REMARKS</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {overtimes.map(ot => (
+              <div className="card fade-in" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+                  <table className="data-table">
+                    <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
+                      <tr>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('staff')}>
+                              STAFF <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.staff || ''} onChange={(e) => handleFilterChange('staff', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('eventName')}>
+                              EVENT NAME <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.eventName || ''} onChange={(e) => handleFilterChange('eventName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('date')}>
+                              DATE <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('hours')}>
+                              HOURS <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('status')}>
+                              STATUS <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              REMARKS
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              ACTIONS
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map(ot => (
                       <tr key={ot.id}>
                         <td style={{ fontWeight: '500' }}>{ot.staff}</td>
                         <td>{ot.eventName}</td>
@@ -286,9 +351,24 @@ const Overtime = () => {
                         </td>
                       </tr>
                     )}
+                    {overtimes.length > 0 && paginatedData.length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          No matching records found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+              />
+            </div>
             )}
           </div>
         </div>

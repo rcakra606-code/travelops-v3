@@ -1,9 +1,11 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { CashoutContext } from '../context/CashoutContext';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, BarChart, CartesianGrid, XAxis, YAxis, Bar } from 'recharts';
-import { Activity, CreditCard, Search, Plus, Filter, FileText, CheckCircle, XCircle, Clock, Wallet, Edit2, Check, X } from 'lucide-react';
+import { Activity, CreditCard, Search, Plus, Filter, FileText, CheckCircle, XCircle, Clock, Wallet, Edit2, Check, X, ArrowUpDown } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
+import { useDataTable } from '../hooks/useDataTable';
+import Pagination from '../components/Pagination';
 
 const COLORS = {
   Pending: '#f59e0b',
@@ -18,40 +20,20 @@ const Cashout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  // Table Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    id: '',
-    requestDate: new Date().toISOString().split('T')[0],
-    staffName: '',
-    amount: '',
-    custCode: '',
-    purpose: '',
-    ticketId: '',
-    completionDate: '',
-    status: 'Pending'
-  });
-
-  const closeMobile = () => {
-    if (window.innerWidth <= 768) setIsSidebarOpen(false);
-  };
-
-  const formatCurrency = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
-
-  // Derived Data
-  const filteredCashouts = useMemo(() => {
-    return cashouts.filter(c => {
-      const matchSearch = c.staffName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          c.custCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          c.ticketId.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = statusFilter === 'All' || c.status === statusFilter;
-      return matchSearch && matchStatus;
-    }).sort((a, b) => b.requestDate.localeCompare(a.requestDate));
-  }, [cashouts, searchTerm, statusFilter]);
+  // Setup DataTable hook
+  const {
+    filters,
+    handleSort,
+    handleFilterChange,
+    globalSearch,
+    setGlobalSearch,
+    paginatedData,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    totalItems,
+    itemsPerPage
+  } = useDataTable(cashouts, { key: 'requestDate', direction: 'desc' }, 10);
 
   const kpis = useMemo(() => {
     let totalCompleted = 0;
@@ -223,12 +205,12 @@ const Cashout = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
                   <div className="search-bar" style={{ display: 'flex', alignItems: 'center', background: '#0f172a', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #334155', width: '300px' }}>
                     <Search size={18} color="#64748b" />
-                    <input type="text" placeholder="Search staff, ticket, code..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ background: 'none', border: 'none', outline: 'none', color: '#f8fafc', marginLeft: '0.5rem', width: '100%' }} />
+                    <input type="text" placeholder="Global search..." value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} style={{ background: 'none', border: 'none', outline: 'none', color: '#f8fafc', marginLeft: '0.5rem', width: '100%' }} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Filter size={18} color="#64748b" />
-                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '8px', outline: 'none', cursor: 'pointer' }}>
-                      <option value="All">All Status</option>
+                    <select value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '8px', outline: 'none', cursor: 'pointer' }}>
+                      <option value="">All Status</option>
                       <option value="Pending">Pending</option>
                       <option value="Approved">Approved</option>
                       <option value="Completed">Completed</option>
@@ -240,19 +222,31 @@ const Cashout = () => {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr style={{ background: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #334155' }}>
-                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500' }}>Req Date</th>
-                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500' }}>Staff</th>
-                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500' }}>Cust Code</th>
-                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500' }}>Ticket ID</th>
+                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleSort('requestDate')}>
+                        Req Date <ArrowUpDown size={12} style={{ marginLeft: '4px' }} />
+                      </th>
+                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleSort('staffName')}>
+                        Staff <ArrowUpDown size={12} style={{ marginLeft: '4px' }} />
+                      </th>
+                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleSort('custCode')}>
+                        Cust Code <ArrowUpDown size={12} style={{ marginLeft: '4px' }} />
+                      </th>
+                      <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleSort('ticketId')}>
+                        Ticket ID <ArrowUpDown size={12} style={{ marginLeft: '4px' }} />
+                      </th>
                       <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '500' }}>Purpose</th>
-                      <th style={{ padding: '1rem', textAlign: 'right', fontWeight: '500' }}>Amount</th>
+                      <th style={{ padding: '1rem', textAlign: 'right', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleSort('amount')}>
+                        Amount <ArrowUpDown size={12} style={{ marginLeft: '4px' }} />
+                      </th>
                       <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '500' }}>Status</th>
-                      <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '500' }}>Comp Date</th>
+                      <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '500', cursor: 'pointer' }} onClick={() => handleSort('completionDate')}>
+                        Comp Date <ArrowUpDown size={12} style={{ marginLeft: '4px' }} />
+                      </th>
                       <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '500' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCashouts.map(c => (
+                    {paginatedData.map(c => (
                       <tr key={c.id} style={{ borderBottom: '1px solid #334155' }}>
                         <td style={{ padding: '1rem', color: '#f8fafc' }}>{c.requestDate}</td>
                         <td style={{ padding: '1rem', color: '#f8fafc', fontWeight: '500' }}>{c.staffName}</td>
@@ -290,13 +284,25 @@ const Cashout = () => {
                         </td>
                       </tr>
                     ))}
-                    {filteredCashouts.length === 0 && (
+                    {cashouts.length === 0 && (
                       <tr>
                         <td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No cashout requests found.</td>
                       </tr>
                     )}
+                    {cashouts.length > 0 && paginatedData.length === 0 && (
+                      <tr>
+                        <td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No matching records found.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
+                <Pagination 
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                />
               </div>
             )}
           </div>

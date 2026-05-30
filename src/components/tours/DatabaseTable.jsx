@@ -3,60 +3,32 @@ import { createPortal } from 'react-dom';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
 import { Eye, Edit2, Trash2, ArrowUpDown, X } from 'lucide-react';
+import { useDataTable } from '../../hooks/useDataTable';
+import Pagination from '../Pagination';
 
 const DatabaseTable = ({ onEdit }) => {
   const { tours, deleteTour } = useTours();
-  const [sortConfig, setSortConfig] = useState({ key: 'departureDate', direction: 'desc' });
-  const [filters, setFilters] = useState({
-    tourCode: '',
-    bookingCode: '',
-    country: '',
-    status: ''
-  });
   const [viewingTour, setViewingTour] = useState(null);
 
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
+  // Flatten nested properties (like totalOmset) so useDataTable can sort it
+  const flatTours = useMemo(() => {
+    return tours.map(t => ({
+      ...t,
+      totalOmset: t.financials?.totalOmset || 0
+    }));
+  }, [tours]);
 
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const sortedAndFilteredTours = useMemo(() => {
-    let result = [...tours];
-
-    // Filter
-    Object.keys(filters).forEach(key => {
-      if (filters[key]) {
-        result = result.filter(tour => 
-          String(tour[key] || '').toLowerCase().includes(filters[key].toLowerCase())
-        );
-      }
-    });
-
-    // Sort
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        let aVal = a[sortConfig.key];
-        let bVal = b[sortConfig.key];
-        
-        if (sortConfig.key === 'totalOmset') {
-          aVal = a.financials?.totalOmset || 0;
-          bVal = b.financials?.totalOmset || 0;
-        }
-
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
-  }, [tours, sortConfig, filters]);
+  const {
+    filters,
+    handleSort,
+    handleFilterChange,
+    paginatedData,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    totalItems,
+    itemsPerPage
+  } = useDataTable(flatTours, { key: 'departureDate', direction: 'desc' }, 10);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -69,18 +41,17 @@ const DatabaseTable = ({ onEdit }) => {
   };
 
   return (
-    <div className="card" style={{ padding: '0' }}>
-      <div style={{ overflowX: 'auto', borderRadius: '1rem' }}>
+    <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
         <table className="data-table" style={{ minWidth: '1000px' }}>
           <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
             <tr>
-              {/* Table Headers with Sort & Filter */}
               <th>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('tourCode')}>
                     Tour Code <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.tourCode} onChange={(e) => handleFilterChange('tourCode', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.tourCode || ''} onChange={(e) => handleFilterChange('tourCode', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
@@ -88,7 +59,7 @@ const DatabaseTable = ({ onEdit }) => {
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('bookingCode')}>
                     Booking Code <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.bookingCode} onChange={(e) => handleFilterChange('bookingCode', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.bookingCode || ''} onChange={(e) => handleFilterChange('bookingCode', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
@@ -96,7 +67,7 @@ const DatabaseTable = ({ onEdit }) => {
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('country')}>
                     Destination <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.country} onChange={(e) => handleFilterChange('country', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.country || ''} onChange={(e) => handleFilterChange('country', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
@@ -104,7 +75,7 @@ const DatabaseTable = ({ onEdit }) => {
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('departureDate')}>
                     Dep Date <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                   </div>
-                  <div style={{ height: '24px' }}></div> {/* Spacer */}
+                  <div style={{ height: '24px' }}></div>
                 </div>
               </th>
               <th>
@@ -112,7 +83,7 @@ const DatabaseTable = ({ onEdit }) => {
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('totalOmset')}>
                     Omset <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                   </div>
-                  <div style={{ height: '24px' }}></div> {/* Spacer */}
+                  <div style={{ height: '24px' }}></div>
                 </div>
               </th>
               <th>
@@ -120,20 +91,20 @@ const DatabaseTable = ({ onEdit }) => {
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('status')}>
                     Status <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.status} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {sortedAndFilteredTours.length > 0 ? sortedAndFilteredTours.map((tour) => (
+            {paginatedData.length > 0 ? paginatedData.map((tour) => (
               <tr key={tour.id} style={{ transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}>
                 <td style={{ fontWeight: '500', color: 'var(--primary)' }}>{tour.tourCode}</td>
                 <td>{tour.bookingCode}</td>
                 <td>{tour.country}</td>
                 <td>{tour.departureDate}</td>
-                <td style={{ fontWeight: '600' }}>Rp {formatCurrency(tour.financials?.totalOmset)}</td>
+                <td style={{ fontWeight: '600' }}>Rp {formatCurrency(tour.totalOmset)}</td>
                 <td>
                   <span className={`badge ${getStatusBadge(tour.status)}`}>
                     {tour.status}
@@ -163,6 +134,14 @@ const DatabaseTable = ({ onEdit }) => {
           </tbody>
         </table>
       </div>
+      
+      <Pagination 
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+      />
 
       {/* View Modal */}
       {viewingTour && createPortal(

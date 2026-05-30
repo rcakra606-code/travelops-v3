@@ -5,11 +5,13 @@ import { useHotels } from '../context/HotelContext';
 import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, Building, Tag, Users as UsersIcon, Map as MapIcon, 
-  BarChart2, FileText, Calendar, CheckSquare, Clock, Eye
+  BarChart2, FileText, Calendar, CheckSquare, Clock, Eye, ArrowUpDown
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
+import { useDataTable } from '../hooks/useDataTable';
+import Pagination from '../components/Pagination';
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -149,6 +151,19 @@ const Hotel = () => {
     return sum + count;
   }, 0);
 
+  // Setup DataTable hook
+  const {
+    filters,
+    handleSort,
+    handleFilterChange,
+    paginatedData,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    totalItems,
+    itemsPerPage
+  } = useDataTable(hotels, { key: 'checkIn', direction: 'desc' }, 10);
+
   const regionMap = {};
   hotels.forEach(h => {
     const r = h.region || 'Unknown';
@@ -279,22 +294,79 @@ const Hotel = () => {
                 </div>
               </div>
             ) : (
-              <div className="card fade-in" style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>HOTEL NAME</th>
-                      <th>CHECK IN/OUT</th>
-                      <th>REGION</th>
-                      <th>GUESTS</th>
-                      <th>SUPPLIER</th>
-                      <th>STAFF</th>
-                      <th>STATUS</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {hotels.map(htl => (
+              <div className="card fade-in" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+                  <table className="data-table">
+                    <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
+                      <tr>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('hotelName')}>
+                              HOTEL NAME <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.hotelName || ''} onChange={(e) => handleFilterChange('hotelName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('checkIn')}>
+                              CHECK IN/OUT <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('region')}>
+                              REGION <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.region || ''} onChange={(e) => handleFilterChange('region', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('guestList')}>
+                              GUESTS <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.guestList || ''} onChange={(e) => handleFilterChange('guestList', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('supplierName')}>
+                              SUPPLIER <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.supplierName || ''} onChange={(e) => handleFilterChange('supplierName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('staff')}>
+                              STAFF <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.staff || ''} onChange={(e) => handleFilterChange('staff', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('status')}>
+                              STATUS <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              ACTIONS
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map(htl => (
                       <tr key={htl.id}>
                         <td>
                           <div style={{ fontWeight: '500' }}>{htl.hotelName}</div>
@@ -359,9 +431,24 @@ const Hotel = () => {
                         </td>
                       </tr>
                     )}
+                    {hotels.length > 0 && paginatedData.length === 0 && (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          No matching records found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+              />
+            </div>
             )}
           </div>
         </div>

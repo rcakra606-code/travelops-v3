@@ -6,11 +6,13 @@ import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, User, Globe, Clipboard, 
   Receipt, Phone, Ticket, BarChart2, FileText, AlertCircle, Clock, CheckCircle, AlertTriangle,
-  Truck, Inbox, MapPin, Box
+  Truck, Inbox, MapPin, Box, ArrowUpDown
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
+import { useDataTable } from '../hooks/useDataTable';
+import Pagination from '../components/Pagination';
 
 const Documents = () => {
   const { documents, addDocument, updateDocument, deleteDocument } = useDocuments();
@@ -170,12 +172,25 @@ const Documents = () => {
   
   const today = new Date();
   today.setHours(0,0,0,0);
-  const overdueDocs = activeDocs.filter(d => {
-    if (!d.estimatedDone) return false;
-    const est = new Date(d.estimatedDone);
-    est.setHours(0,0,0,0);
-    return est < today;
+  const overdueDocs = documents.filter(d => {
+    if (d.shippingStatus === 'Received' || !d.estimatedDone) return false;
+    const estDate = new Date(d.estimatedDone);
+    estDate.setHours(0,0,0,0);
+    return estDate < today;
   });
+
+  // Setup DataTable hook
+  const {
+    filters,
+    handleSort,
+    handleFilterChange,
+    paginatedData,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    totalItems,
+    itemsPerPage
+  } = useDataTable(documents, { key: 'receiveDate', direction: 'desc' }, 10);
 
   let totalProcessingTime = 0;
   let docsWithProcessingTime = 0;
@@ -396,84 +411,150 @@ const Documents = () => {
               )}
             </div>
           ) : (
-            <div className="card fade-in" style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>RECEIVE DATE</th>
-                  <th>GUEST NAME</th>
-                  <th>COUNTRY</th>
-                  <th>PROCESS TYPE</th>
-                  <th>ESTIMATED DONE</th>
-                  <th>STAFF</th>
-                  <th>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.map(doc => (
-                  <tr key={doc.id}>
-                    <td>{doc.receiveDate}</td>
-                    <td>{doc.guestName}</td>
-                    <td>{doc.country || '-'}</td>
-                    <td>
-                      <span className={`badge ${doc.shippingStatus === 'Received' ? 'badge-primary' : doc.shippingStatus === 'Sent' ? 'badge-warning' : doc.shippingStatus === 'Returned' ? 'badge-danger' : 'badge-primary'}`} style={{background: doc.shippingStatus === 'Received' ? 'rgba(16, 185, 129, 0.1)' : undefined, color: doc.shippingStatus === 'Received' ? '#10b981' : undefined}}>
-                        {doc.shippingStatus || 'Processing'}
-                      </span>
-                    </td>
-                    <td>{doc.estimatedDone || '-'}</td>
-                    <td>{doc.staff}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {doc.shippingStatus !== 'Sent' && doc.shippingStatus !== 'Received' && (
-                          <button 
-                            className="btn" 
-                            style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}
-                            onClick={() => handleOpenShipping(doc)}
-                            title="Kirim Dokumen"
-                          >
-                            <Truck size={16} />
-                          </button>
-                        )}
-                        {doc.shippingStatus === 'Sent' && (
-                          <button 
-                            className="btn" 
-                            style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
-                            onClick={() => handleOpenReceive(doc)}
-                            title="Terima Dokumen"
-                          >
-                            <Inbox size={16} />
-                          </button>
-                        )}
-                        <button 
-                          className="btn" 
-                          style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
-                          onClick={() => handleOpenModal(doc)}
-                          title="Edit Dokumen"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          className="btn" 
-                          style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                          onClick={() => handleDelete(doc.id)}
-                          title="Hapus Dokumen"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {documents.length === 0 && (
-                  <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                      No documents found. Click "Add Document" to create one.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              <div className="card fade-in" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+                  <table className="data-table">
+                    <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
+                      <tr>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('receiveDate')}>
+                              TGL TERIMA <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('guestName')}>
+                              NAMA TAMU <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.guestName || ''} onChange={(e) => handleFilterChange('guestName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('country')}>
+                              NEGARA <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.country || ''} onChange={(e) => handleFilterChange('country', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('shippingStatus')}>
+                              STATUS LOGISTIK <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.shippingStatus || ''} onChange={(e) => handleFilterChange('shippingStatus', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('estimatedDone')}>
+                              EST. SELESAI <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('staff')}>
+                              STAFF <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.staff || ''} onChange={(e) => handleFilterChange('staff', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              ACTIONS
+                            </div>
+                            <div style={{ height: '24px' }}></div>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map(doc => (
+                        <tr key={doc.id}>
+                          <td>{doc.receiveDate}</td>
+                          <td>{doc.guestName}</td>
+                          <td>{doc.country || '-'}</td>
+                          <td>
+                            <span className={`badge ${doc.shippingStatus === 'Received' ? 'badge-primary' : doc.shippingStatus === 'Sent' ? 'badge-warning' : doc.shippingStatus === 'Returned' ? 'badge-danger' : 'badge-primary'}`} style={{background: doc.shippingStatus === 'Received' ? 'rgba(16, 185, 129, 0.1)' : undefined, color: doc.shippingStatus === 'Received' ? '#10b981' : undefined}}>
+                              {doc.shippingStatus || 'Processing'}
+                            </span>
+                          </td>
+                          <td>{doc.estimatedDone || '-'}</td>
+                          <td>{doc.staff}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              {doc.shippingStatus !== 'Sent' && doc.shippingStatus !== 'Received' && (
+                                <button 
+                                  className="btn" 
+                                  style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}
+                                  onClick={() => handleOpenShipping(doc)}
+                                  title="Kirim Dokumen"
+                                >
+                                  <Truck size={16} />
+                                </button>
+                              )}
+                              {doc.shippingStatus === 'Sent' && (
+                                <button 
+                                  className="btn" 
+                                  style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
+                                  onClick={() => handleOpenReceive(doc)}
+                                  title="Terima Dokumen"
+                                >
+                                  <Inbox size={16} />
+                                </button>
+                              )}
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
+                                onClick={() => handleOpenModal(doc)}
+                                title="Edit Dokumen"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                                onClick={() => handleDelete(doc.id)}
+                                title="Hapus Dokumen"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {documents.length === 0 && (
+                        <tr>
+                          <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                            No document records found. Click "Add Document" to create one.
+                          </td>
+                        </tr>
+                      )}
+                      {documents.length > 0 && paginatedData.length === 0 && (
+                        <tr>
+                          <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                            No matching records found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination 
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                />
+              </div>
+              </div>
           )}
           </div>
         </div>
