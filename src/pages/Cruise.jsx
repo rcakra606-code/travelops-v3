@@ -5,7 +5,7 @@ import { useCruises } from '../context/CruiseContext';
 import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, Ship, Anchor, Map as MapIcon, User, Phone, Mail, Ticket,
-  BarChart2, FileText, Users, Calendar, ShipWheel
+  BarChart2, FileText, Users, Calendar, ShipWheel, Eye
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -20,6 +20,7 @@ const Cruise = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCruise, setEditingCruise] = useState(null);
+  const [previewCruise, setPreviewCruise] = useState(null);
   const [participantInput, setParticipantInput] = useState('');
   
   const initialFormData = {
@@ -57,6 +58,9 @@ const Cruise = () => {
     setIsModalOpen(false);
     setEditingCruise(null);
   };
+
+  const handleOpenPreview = (cruise) => setPreviewCruise(cruise);
+  const handleClosePreview = () => setPreviewCruise(null);
 
   const handleParticipantKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -303,8 +307,17 @@ const Cruise = () => {
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button 
                               className="btn" 
+                              style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
+                              onClick={() => handleOpenPreview(crs)}
+                              title="Preview Data"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button 
+                              className="btn" 
                               style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
                               onClick={() => handleOpenModal(crs)}
+                              title="Edit Booking"
                             >
                               <Edit2 size={16} />
                             </button>
@@ -312,6 +325,7 @@ const Cruise = () => {
                               className="btn" 
                               style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
                               onClick={() => handleDelete(crs.id)}
+                              title="Delete Booking"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -535,6 +549,89 @@ const Cruise = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PREVIEW MODAL */}
+      {previewCruise && (
+        <div className="modal-overlay fade-in">
+          <div className="modal-content" style={{ maxWidth: '600px', background: '#1e293b', padding: 0, border: '1px solid #334155' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc', fontSize: '1.2rem' }}>
+                <Eye size={20} color="#10b981" /> Booking Preview
+              </h2>
+              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div>
+                  <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc', fontSize: '1.5rem' }}>{previewCruise.cruiseBrand}</h3>
+                  <div style={{ color: '#0ea5e9', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Anchor size={16} /> {previewCruise.shipName}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className={`badge ${getStatusBadge(previewCruise.status)}`} style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+                    {previewCruise.status || 'Upcoming'}
+                  </span>
+                  <div style={{ marginTop: '0.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+                    Ref: <strong style={{ color: '#eab308' }}>{previewCruise.reservationCode || previewCruise.bookingRef || 'N/A'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Sailing Start</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewCruise.sailingStart}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Sailing End</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewCruise.sailingEnd}</strong>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Route</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewCruise.route}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Contact Person</h4>
+                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155' }}>
+                    <strong style={{ color: '#f8fafc', display: 'block', marginBottom: '0.5rem' }}>{previewCruise.picName}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                      <Phone size={14} color="#ec4899" /> {previewCruise.phoneNumber || 'N/A'}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                      <Mail size={14} color="#a78bfa" /> {previewCruise.email || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Passengers ({1 + (previewCruise.participants?.length || 0)})</h4>
+                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', maxHeight: '120px', overflowY: 'auto' }}>
+                    <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                      <li style={{ color: '#eab308', fontWeight: '500' }}>{previewCruise.picName} (Lead)</li>
+                      {previewCruise.participants && previewCruise.participants.map((p, idx) => (
+                        <li key={idx}>{p}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: '#f8fafc' }}>{previewCruise.staff}</strong></span>
+              </div>
+            </div>
           </div>
         </div>
       )}

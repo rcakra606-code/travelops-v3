@@ -5,7 +5,7 @@ import { useHotels } from '../context/HotelContext';
 import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, Building, Tag, Users as UsersIcon, Map as MapIcon, 
-  BarChart2, FileText, Calendar, CheckSquare, Clock
+  BarChart2, FileText, Calendar, CheckSquare, Clock, Eye
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -33,6 +33,7 @@ const Hotel = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHotel, setEditingHotel] = useState(null);
+  const [previewHotel, setPreviewHotel] = useState(null);
   
   const [countrySearch, setCountrySearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -73,6 +74,9 @@ const Hotel = () => {
     setEditingHotel(null);
     setShowDropdown(false);
   };
+
+  const handleOpenPreview = (hotel) => setPreviewHotel(hotel);
+  const handleClosePreview = () => setPreviewHotel(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -322,8 +326,17 @@ const Hotel = () => {
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button 
                               className="btn" 
+                              style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
+                              onClick={() => handleOpenPreview(htl)}
+                              title="Preview Data"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button 
+                              className="btn" 
                               style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
                               onClick={() => handleOpenModal(htl)}
+                              title="Edit Booking"
                             >
                               <Edit2 size={16} />
                             </button>
@@ -331,6 +344,7 @@ const Hotel = () => {
                               className="btn" 
                               style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
                               onClick={() => handleDelete(htl.id)}
+                              title="Delete Booking"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -529,6 +543,85 @@ const Hotel = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PREVIEW MODAL */}
+      {previewHotel && (
+        <div className="modal-overlay fade-in">
+          <div className="modal-content" style={{ maxWidth: '600px', background: '#1e293b', padding: 0, border: '1px solid #334155' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc', fontSize: '1.2rem' }}>
+                <Eye size={20} color="#10b981" /> Hotel Booking Preview
+              </h2>
+              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div>
+                  <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc', fontSize: '1.5rem' }}>{previewHotel.hotelName}</h3>
+                  <div style={{ color: '#0ea5e9', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <MapIcon size={16} /> {previewHotel.region}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className={`badge ${getStatusBadge(previewHotel.status)}`} style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+                    {previewHotel.status || 'Upcoming'}
+                  </span>
+                  <div style={{ marginTop: '0.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+                    Ref: <strong style={{ color: '#eab308' }}>{previewHotel.confirmationNumber || 'N/A'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Check In</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewHotel.checkIn}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Check Out</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewHotel.checkOut}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Supplier Details</h4>
+                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155' }}>
+                    <strong style={{ color: '#f8fafc', display: 'block', marginBottom: '0.25rem' }}>{previewHotel.supplierName || 'N/A'}</strong>
+                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+                      Code: <span style={{ color: '#8b5cf6' }}>{previewHotel.supplierCode || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Guest List</h4>
+                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', maxHeight: '120px', overflowY: 'auto' }}>
+                    {previewHotel.guestList ? (
+                      <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                        {previewHotel.guestList.split(',').map((g, idx) => (
+                          g.trim() && <li key={idx}>{g.trim()}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic' }}>No guests listed</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: '#f8fafc' }}>{previewHotel.staff}</strong></span>
+              </div>
+            </div>
           </div>
         </div>
       )}

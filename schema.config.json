@@ -30,6 +30,8 @@
     },
     "travelops_cruises": {
       "id": "VARCHAR(50) PRIMARY KEY",
+      "cruise_brand": "VARCHAR(255)",
+      "ship_name": "VARCHAR(255)",
       "pic_name": "VARCHAR(255)",
       "route": "VARCHAR(255)",
       "pax_count": "INTEGER",
@@ -38,6 +40,11 @@
       "cruise_line": "VARCHAR(255)",
       "booking_ref": "VARCHAR(100)",
       "final_payment_date": "DATE",
+      "staff": "VARCHAR(255)",
+      "participants": "JSONB",
+      "phone_number": "VARCHAR(50)",
+      "email": "VARCHAR(255)",
+      "status": "VARCHAR(50) DEFAULT 'Upcoming'",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     },
     "travelops_documents": {
