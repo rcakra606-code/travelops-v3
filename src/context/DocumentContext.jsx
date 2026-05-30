@@ -25,7 +25,20 @@ export const DocumentProvider = ({ children }) => {
         estimatedDone: d.estimated_done,
         sendDate: d.send_date,
         price: d.price,
-        supplier: d.supplier
+        supplier: d.supplier,
+        processType: d.process_type,
+        bookingCode: d.booking_code,
+        invoiceNumber: d.invoice_number,
+        phoneNumber: d.phone_number,
+        staff: d.staff,
+        tourCode: d.tour_code,
+        notes: d.notes,
+        shippingStatus: d.shipping_status,
+        shippingMethod: d.shipping_method,
+        shippingCourier: d.shipping_courier,
+        shippingResi: d.shipping_resi,
+        shippingNotes: d.shipping_notes,
+        receivedStatus: d.received_status
       }));
       setDocuments(mapped);
     } catch (err) {
@@ -47,7 +60,20 @@ export const DocumentProvider = ({ children }) => {
         estimated_done: docData.estimatedDone,
         send_date: docData.sendDate || null,
         price: docData.price || 0,
-        supplier: docData.supplier
+        supplier: docData.supplier,
+        process_type: docData.processType,
+        booking_code: docData.bookingCode,
+        invoice_number: docData.invoiceNumber,
+        phone_number: docData.phoneNumber,
+        staff: docData.staff,
+        tour_code: docData.tourCode,
+        notes: docData.notes,
+        shipping_status: 'Processing',
+        shipping_method: docData.shippingMethod,
+        shipping_courier: docData.shippingCourier,
+        shipping_resi: docData.shippingResi,
+        shipping_notes: docData.shippingNotes,
+        received_status: docData.receivedStatus
       }]);
       if (error) throw error;
       await fetchDocuments();
@@ -67,6 +93,19 @@ export const DocumentProvider = ({ children }) => {
       if (updatedData.sendDate !== undefined) dbUpdates.send_date = updatedData.sendDate;
       if (updatedData.price !== undefined) dbUpdates.price = updatedData.price;
       if (updatedData.supplier !== undefined) dbUpdates.supplier = updatedData.supplier;
+      if (updatedData.processType !== undefined) dbUpdates.process_type = updatedData.processType;
+      if (updatedData.bookingCode !== undefined) dbUpdates.booking_code = updatedData.bookingCode;
+      if (updatedData.invoiceNumber !== undefined) dbUpdates.invoice_number = updatedData.invoiceNumber;
+      if (updatedData.phoneNumber !== undefined) dbUpdates.phone_number = updatedData.phoneNumber;
+      if (updatedData.staff !== undefined) dbUpdates.staff = updatedData.staff;
+      if (updatedData.tourCode !== undefined) dbUpdates.tour_code = updatedData.tourCode;
+      if (updatedData.notes !== undefined) dbUpdates.notes = updatedData.notes;
+      if (updatedData.shippingStatus !== undefined) dbUpdates.shipping_status = updatedData.shippingStatus;
+      if (updatedData.shippingMethod !== undefined) dbUpdates.shipping_method = updatedData.shippingMethod;
+      if (updatedData.shippingCourier !== undefined) dbUpdates.shipping_courier = updatedData.shippingCourier;
+      if (updatedData.shippingResi !== undefined) dbUpdates.shipping_resi = updatedData.shippingResi;
+      if (updatedData.shippingNotes !== undefined) dbUpdates.shipping_notes = updatedData.shippingNotes;
+      if (updatedData.receivedStatus !== undefined) dbUpdates.received_status = updatedData.receivedStatus;
 
       const { error } = await supabase.from('travelops_documents').update(dbUpdates).eq('id', id);
       if (error) throw error;

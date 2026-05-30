@@ -84,10 +84,17 @@ const Cruise = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Auto-append any typed participant that wasn't entered
+    let finalData = { ...formData };
+    if (participantInput.trim()) {
+      finalData.participants = [...finalData.participants, participantInput.trim()];
+    }
+
     if (editingCruise) {
-      updateCruise(editingCruise.id, formData);
+      updateCruise(editingCruise.id, finalData);
     } else {
-      addCruise(formData);
+      addCruise(finalData);
     }
     handleCloseModal();
   };

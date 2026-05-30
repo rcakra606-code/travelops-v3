@@ -5,7 +5,8 @@ import { useDocuments } from '../context/DocumentContext';
 import { useUsers } from '../context/UserContext';
 import { 
   Plus, Edit2, Trash2, X, User, Globe, Clipboard, 
-  Receipt, Phone, Ticket, BarChart2, FileText, AlertCircle, Clock, CheckCircle, AlertTriangle
+  Receipt, Phone, Ticket, BarChart2, FileText, AlertCircle, Clock, CheckCircle, AlertTriangle,
+  Truck, Inbox, MapPin, Box
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -34,6 +35,21 @@ const Documents = () => {
     staff: '',
     tourCode: '',
     notes: ''
+  });
+
+  // Shipping & Receiving States
+  const [shippingDoc, setShippingDoc] = useState(null);
+  const [shippingData, setShippingData] = useState({
+    sendDate: new Date().toISOString().split('T')[0],
+    shippingMethod: 'Messenger',
+    shippingCourier: '',
+    shippingResi: '',
+    shippingNotes: ''
+  });
+
+  const [receiveDoc, setReceiveDoc] = useState(null);
+  const [receiveData, setReceiveData] = useState({
+    receivedStatus: 'Final'
   });
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -84,6 +100,50 @@ const Documents = () => {
     }
   };
 
+  const handleOpenShipping = (doc) => {
+    setShippingDoc(doc);
+    setShippingData({
+      sendDate: new Date().toISOString().split('T')[0],
+      shippingMethod: doc.shippingMethod || 'Messenger',
+      shippingCourier: doc.shippingCourier || '',
+      shippingResi: doc.shippingResi || '',
+      shippingNotes: doc.shippingNotes || ''
+    });
+  };
+
+  const handleCloseShipping = () => {
+    setShippingDoc(null);
+  };
+
+  const handleShippingSubmit = (e) => {
+    e.preventDefault();
+    updateDocument(shippingDoc.id, {
+      ...shippingData,
+      shippingStatus: 'Sent'
+    });
+    handleCloseShipping();
+  };
+
+  const handleOpenReceive = (doc) => {
+    setReceiveDoc(doc);
+    setReceiveData({
+      receivedStatus: 'Final'
+    });
+  };
+
+  const handleCloseReceive = () => {
+    setReceiveDoc(null);
+  };
+
+  const handleReceiveSubmit = (e) => {
+    e.preventDefault();
+    updateDocument(receiveDoc.id, {
+      receivedStatus: receiveData.receivedStatus,
+      shippingStatus: receiveData.receivedStatus === 'Final' ? 'Received' : 'Returned'
+    });
+    handleCloseReceive();
+  };
+
   const inputStyle = {
     paddingLeft: '2.5rem',
     background: '#0f172a',
@@ -105,8 +165,8 @@ const Documents = () => {
   };
 
   // Dashboard Calculations
-  const activeDocs = documents.filter(d => !d.sendDate);
-  const completedDocs = documents.filter(d => d.sendDate);
+  const activeDocs = documents.filter(d => d.shippingStatus !== 'Received');
+  const completedDocs = documents.filter(d => d.shippingStatus === 'Received');
   
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -356,18 +416,39 @@ const Documents = () => {
                     <td>{doc.guestName}</td>
                     <td>{doc.country || '-'}</td>
                     <td>
-                      <span className={`badge ${doc.processType === 'Urgent' ? 'badge-danger' : doc.processType === 'Express' ? 'badge-warning' : 'badge-primary'}`}>
-                        {doc.processType}
+                      <span className={`badge ${doc.shippingStatus === 'Received' ? 'badge-primary' : doc.shippingStatus === 'Sent' ? 'badge-warning' : doc.shippingStatus === 'Returned' ? 'badge-danger' : 'badge-primary'}`} style={{background: doc.shippingStatus === 'Received' ? 'rgba(16, 185, 129, 0.1)' : undefined, color: doc.shippingStatus === 'Received' ? '#10b981' : undefined}}>
+                        {doc.shippingStatus || 'Processing'}
                       </span>
                     </td>
                     <td>{doc.estimatedDone || '-'}</td>
                     <td>{doc.staff}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {doc.shippingStatus !== 'Sent' && doc.shippingStatus !== 'Received' && (
+                          <button 
+                            className="btn" 
+                            style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}
+                            onClick={() => handleOpenShipping(doc)}
+                            title="Kirim Dokumen"
+                          >
+                            <Truck size={16} />
+                          </button>
+                        )}
+                        {doc.shippingStatus === 'Sent' && (
+                          <button 
+                            className="btn" 
+                            style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
+                            onClick={() => handleOpenReceive(doc)}
+                            title="Terima Dokumen"
+                          >
+                            <Inbox size={16} />
+                          </button>
+                        )}
                         <button 
                           className="btn" 
                           style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)' }}
                           onClick={() => handleOpenModal(doc)}
+                          title="Edit Dokumen"
                         >
                           <Edit2 size={16} />
                         </button>
@@ -375,6 +456,7 @@ const Documents = () => {
                           className="btn" 
                           style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
                           onClick={() => handleDelete(doc.id)}
+                          title="Hapus Dokumen"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -580,6 +662,152 @@ const Documents = () => {
                 </button>
                 <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
                   {editingDoc ? 'Update Document' : 'Save Document'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHIPPING MODAL */}
+      {shippingDoc && (
+        <div className="modal-overlay fade-in">
+          <div className="modal-content" style={{ maxWidth: '500px', background: '#1e293b', padding: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc' }}>
+                <Truck size={24} color="#f59e0b" /> Kirim Dokumen
+              </h2>
+              <button onClick={handleCloseShipping} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleShippingSubmit} style={{ padding: '1.5rem' }}>
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+                <strong style={{ display: 'block', color: '#f8fafc', marginBottom: '0.25rem' }}>{shippingDoc.guestName}</strong>
+                <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{shippingDoc.country || shippingDoc.processType}</span>
+              </div>
+
+              <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
+                <div className="input-group">
+                  <label>Tanggal Kirim<span style={{color: '#ef4444'}}>*</span></label>
+                  <input 
+                    type="date" 
+                    required 
+                    value={shippingData.sendDate} 
+                    onChange={e => setShippingData({...shippingData, sendDate: e.target.value})}
+                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label>Metode Pengiriman<span style={{color: '#ef4444'}}>*</span></label>
+                  <select 
+                    required 
+                    value={shippingData.shippingMethod} 
+                    onChange={e => setShippingData({...shippingData, shippingMethod: e.target.value})}
+                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                  >
+                    <option value="Messenger">Messenger (Kurir Internal)</option>
+                    <option value="Ekspedisi">Ekspedisi (JNE/Tiki/dll)</option>
+                  </select>
+                </div>
+
+                {shippingData.shippingMethod === 'Ekspedisi' && (
+                  <>
+                    <div className="input-group">
+                      <label>Jasa Ekspedisi<span style={{color: '#ef4444'}}>*</span></label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Contoh: JNE / TIKI / SiCepat"
+                        value={shippingData.shippingCourier} 
+                        onChange={e => setShippingData({...shippingData, shippingCourier: e.target.value})}
+                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label>Nomor Resi<span style={{color: '#ef4444'}}>*</span></label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Masukkan no resi..."
+                        value={shippingData.shippingResi} 
+                        onChange={e => setShippingData({...shippingData, shippingResi: e.target.value})}
+                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="input-group">
+                  <label>Catatan Pengiriman</label>
+                  <textarea 
+                    rows="3"
+                    placeholder="Contoh: Dititipkan ke satpam"
+                    value={shippingData.shippingNotes} 
+                    onChange={e => setShippingData({...shippingData, shippingNotes: e.target.value})}
+                    style={{ background: '#0f172a', border: '1px solid #334155', width: '100%', resize: 'vertical' }}
+                  ></textarea>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
+                <button type="button" className="btn" onClick={handleCloseShipping} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: '#f59e0b', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                  Kirim Sekarang
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RECEIVE MODAL */}
+      {receiveDoc && (
+        <div className="modal-overlay fade-in">
+          <div className="modal-content" style={{ maxWidth: '400px', background: '#1e293b', padding: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc' }}>
+                <Inbox size={24} color="#10b981" /> Terima Dokumen
+              </h2>
+              <button onClick={handleCloseReceive} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleReceiveSubmit} style={{ padding: '1.5rem' }}>
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+                <strong style={{ display: 'block', color: '#f8fafc', marginBottom: '0.25rem' }}>{receiveDoc.guestName}</strong>
+                <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Dikirim via: {receiveDoc.shippingMethod} {receiveDoc.shippingCourier ? `(${receiveDoc.shippingCourier})` : ''}</span>
+              </div>
+
+              <div className="input-group">
+                <label>Status Penerimaan<span style={{color: '#ef4444'}}>*</span></label>
+                <select 
+                  required 
+                  value={receiveData.receivedStatus} 
+                  onChange={e => setReceiveData({...receiveData, receivedStatus: e.target.value})}
+                  style={{ background: '#0f172a', border: '1px solid #334155' }}
+                >
+                  <option value="Final">Diterima (Final)</option>
+                  <option value="Needs Return">Dikembalikan / Perlu Dikirim Ulang</option>
+                </select>
+              </div>
+              {receiveData.receivedStatus === 'Needs Return' && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <AlertCircle size={14} /> Dokumen akan berstatus "Returned" dan perlu dikirim ulang.
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
+                <button type="button" className="btn" onClick={handleCloseReceive} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: '#10b981', color: '#fff', border: 'none', fontWeight: 'bold' }}>
+                  Konfirmasi
                 </button>
               </div>
             </form>
