@@ -570,7 +570,6 @@ const Documents = () => {
                   itemsPerPage={itemsPerPage}
                 />
               </div>
-              </div>
           )}
           </div>
         </div>
