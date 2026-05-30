@@ -8,12 +8,23 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dns from 'dns';
 import { syncDatabase } from './scripts/db-sync.js';
+import { createClient } from '@supabase/supabase-js';
 
 // Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
 // which causes ENETUNREACH errors when connecting to smtp.gmail.com
 dns.setDefaultResultOrder('ipv4first');
 
 dotenv.config();
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabaseAdmin;
+if (supabaseUrl && supabaseServiceKey) {
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +55,101 @@ const emailLimiter = rateLimit({
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Require Supabase Admin middleware
+const requireSupabaseAdmin = (req, res, next) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured on the server.' });
+  }
+  next();
+};
+
+// --- API ENDPOINTS FOR USER MANAGEMENT ---
+
+// Create User
+app.post('/api/admin/users', requireSupabaseAdmin, async (req, res) => {
+  const { email, password, name, role, status, mustChangePassword } = req.body;
+  
+  try {
+    // 1. Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true // auto-confirm since Admin created it
+    });
+
+    if (authError) throw authError;
+
+    // 2. Insert into travelops_users (with the same ID)
+    const userId = authData.user.id;
+    const { data: profileData, error: profileError } = await supabaseAdmin
+      .from('travelops_users')
+      .insert([{
+        id: userId,
+        email,
+        name,
+        role,
+        status,
+        must_change_password: mustChangePassword ?? true
+      }])
+      .select()
+      .single();
+
+    if (profileError) throw profileError;
+
+    res.status(200).json({ success: true, user: profileData });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Reset Password
+app.put('/api/admin/users/:id/password', requireSupabaseAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  try {
+    // 1. Update password in Supabase Auth
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      password: newPassword
+    });
+
+    if (authError) throw authError;
+
+    // 2. Update must_change_password and unlock in travelops_users
+    const { error: profileError } = await supabaseAdmin
+      .from('travelops_users')
+      .update({ must_change_password: true, is_locked: false })
+      .eq('id', id);
+
+    if (profileError) throw profileError;
+
+    res.status(200).json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Delete User
+app.delete('/api/admin/users/:id', requireSupabaseAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // 1. Delete from Supabase Auth (this will cascade to public.travelops_users if FK is set, 
+    // but just in case, we can rely on Supabase Auth deletion).
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+
+    if (authError) throw authError;
+
+    res.status(200).json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 
 // API Route for sending emails
 app.post('/api/send-email', emailLimiter, (req, res) => {

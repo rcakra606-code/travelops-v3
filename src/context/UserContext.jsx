@@ -46,21 +46,22 @@ export const UserProvider = ({ children }) => {
 
   const addUser = async (userObj) => {
     try {
-      const { data, error } = await supabase
-        .from('travelops_users')
-        .insert([{
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           name: userObj.name,
           email: userObj.email,
           role: userObj.role,
           status: userObj.status,
-          password_hash: userObj.password,
-          must_change_password: userObj.mustChangePassword ?? false
-        }])
-        .select()
-        .single();
+          password: userObj.password,
+          mustChangePassword: userObj.mustChangePassword ?? false
+        })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
 
-      if (error) throw error;
-      logSystemAction(currentUser, 'Create User', `Created new user ${data.email}`);
+      logSystemAction(currentUser, 'Create User', `Created new user ${userObj.email}`);
       await fetchUsers();
       return { success: true };
     } catch (err) {
@@ -76,13 +77,27 @@ export const UserProvider = ({ children }) => {
     }
     
     try {
+      // If updating password, use the secure backend API
+      if (updates.password) {
+        const response = await fetch(`/api/admin/users/${id}/password`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newPassword: updates.password })
+        });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error);
+        logSystemAction(currentUser, 'Update User', `Reset password for user ${id}`);
+        await fetchUsers();
+        return { success: true };
+      }
+
+      // Otherwise, just update travelops_users directly
       const dbUpdates = {};
       if (updates.name) dbUpdates.name = updates.name;
       if (updates.email) dbUpdates.email = updates.email;
       if (updates.role) dbUpdates.role = updates.role;
       if (updates.status) dbUpdates.status = updates.status;
       if (updates.isLocked !== undefined) dbUpdates.is_locked = updates.isLocked;
-      if (updates.password) dbUpdates.password_hash = updates.password;
       if (updates.mustChangePassword !== undefined) dbUpdates.must_change_password = updates.mustChangePassword;
 
       const { error } = await supabase
@@ -102,12 +117,15 @@ export const UserProvider = ({ children }) => {
 
   const deleteUser = async (id) => {
     try {
-      const { error } = await supabase
-        .from('travelops_users')
-        .delete()
-        .eq('id', id);
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
 
-      if (error) throw error;
+      // Delete from travelops_users explicitly just in case FK cascade is missing
+      await supabase.from('travelops_users').delete().eq('id', id);
+
       logSystemAction(currentUser, 'Delete User', `Deleted user ${id}`);
       await fetchUsers();
       return { success: true };

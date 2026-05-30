@@ -26,10 +26,17 @@ const ForcePasswordChange = () => {
     }
 
     try {
+      // 1. Update password in Supabase Auth
+      const { error: authError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (authError) throw authError;
+
+      // 2. Update must_change_password flag in database
       const { error: updateError } = await supabase
         .from('travelops_users')
         .update({ 
-          password_hash: newPassword, 
           must_change_password: false 
         })
         .eq('id', user.id);
