@@ -121,7 +121,12 @@ export const UserProvider = ({ children }) => {
         method: 'DELETE'
       });
       const data = await response.json();
-      if (!data.success) throw new Error(data.error);
+      
+      // If the backend says 'User not found', it means it's missing from Auth.
+      // We still want to proceed and delete the orphaned record from the database.
+      if (!data.success && !data.error?.includes('User not found')) {
+        throw new Error(data.error);
+      }
 
       // Delete from travelops_users explicitly just in case FK cascade is missing
       await supabase.from('travelops_users').delete().eq('id', id);

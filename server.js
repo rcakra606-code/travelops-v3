@@ -144,7 +144,18 @@ app.delete('/api/admin/users/:id', requireSupabaseAdmin, async (req, res) => {
     // but just in case, we can rely on Supabase Auth deletion).
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
 
-    if (authError) throw authError;
+    // If the user is already deleted from auth, we still want to proceed and clean up the database
+    if (authError && !authError.message.includes('User not found')) {
+      throw authError;
+    }
+
+    // 2. Explicitly delete from travelops_users in case there is no cascade or it was orphaned
+    const { error: profileError } = await supabaseAdmin
+      .from('travelops_users')
+      .delete()
+      .eq('id', id);
+
+    if (profileError) throw profileError;
 
     res.status(200).json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
