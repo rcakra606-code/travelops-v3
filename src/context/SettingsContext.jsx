@@ -25,7 +25,7 @@ export const SettingsProvider = ({ children }) => {
         .from('travelops_settings')
         .select('*')
         .eq('setting_key', 'global_preferences')
-        .single();
+        .maybeSingle();
 
       if (data && data.setting_value) {
         setSettings(data.setting_value);
