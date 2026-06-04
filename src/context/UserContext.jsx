@@ -87,26 +87,27 @@ export const UserProvider = ({ children }) => {
         const data = await response.json();
         if (!data.success) throw new Error(data.error);
         logSystemAction(currentUser, 'Update User', `Reset password for user ${id}`);
-        await fetchUsers();
-        return { success: true };
       }
 
-      // Otherwise, just update travelops_users directly
+      // Update travelops_users directly for other fields
       const dbUpdates = {};
-      if (updates.name) dbUpdates.name = updates.name;
-      if (updates.email) dbUpdates.email = updates.email;
-      if (updates.role) dbUpdates.role = updates.role;
-      if (updates.status) dbUpdates.status = updates.status;
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.email !== undefined) dbUpdates.email = updates.email;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
       if (updates.isLocked !== undefined) dbUpdates.is_locked = updates.isLocked;
       if (updates.mustChangePassword !== undefined) dbUpdates.must_change_password = updates.mustChangePassword;
 
-      const { error } = await supabase
-        .from('travelops_users')
-        .update(dbUpdates)
-        .eq('id', id);
+      if (Object.keys(dbUpdates).length > 0) {
+        const { error } = await supabase
+          .from('travelops_users')
+          .update(dbUpdates)
+          .eq('id', id);
 
-      if (error) throw error;
-      logSystemAction(currentUser, 'Update User', `Updated user ${id}`);
+        if (error) throw error;
+        logSystemAction(currentUser, 'Update User', `Updated user ${id}`);
+      }
+
       await fetchUsers();
       return { success: true };
     } catch (err) {

@@ -15,6 +15,18 @@ CREATE TABLE travelops_sales (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 1b. Create Sales Targets Table
+CREATE TABLE travelops_sales_targets (
+  id VARCHAR(50) PRIMARY KEY,
+  staff_name VARCHAR(255),
+  target_sales DECIMAL,
+  target_profit DECIMAL,
+  achievement_sales DECIMAL,
+  achievement_profit DECIMAL,
+  period VARCHAR(50),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 2. Create Corporate Accounts Table
 CREATE TABLE travelops_corporate_accounts (
   id VARCHAR(50) PRIMARY KEY,

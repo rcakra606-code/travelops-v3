@@ -13,17 +13,17 @@ export const SalesProvider = ({ children }) => {
 
   const fetchSales = async () => {
     try {
-      const { data, error } = await supabase.from('travelops_sales').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('travelops_sales_targets').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       
       const mapped = data.map(s => ({
         id: s.id,
-        type: s.type,
-        title: s.title,
-        pic: s.pic,
-        date: s.date,
-        amount: s.amount,
-        paxCount: s.pax_count
+        staffName: s.staff_name,
+        targetSales: Number(s.target_sales) || 0,
+        targetProfit: Number(s.target_profit) || 0,
+        achievementSales: Number(s.achievement_sales) || 0,
+        achievementProfit: Number(s.achievement_profit) || 0,
+        period: s.period
       }));
       setSales(mapped);
     } catch (err) {
@@ -35,15 +35,15 @@ export const SalesProvider = ({ children }) => {
 
   const addSale = async (saleData) => {
     try {
-      const newId = `SLS-${Date.now()}`;
-      const { error } = await supabase.from('travelops_sales').insert([{
+      const newId = `TGT-${Date.now()}`;
+      const { error } = await supabase.from('travelops_sales_targets').insert([{
         id: newId,
-        type: saleData.type,
-        title: saleData.title,
-        pic: saleData.pic,
-        date: saleData.date,
-        amount: saleData.amount || 0,
-        pax_count: saleData.paxCount || 0
+        staff_name: saleData.staffName,
+        target_sales: saleData.targetSales || 0,
+        target_profit: saleData.targetProfit || 0,
+        achievement_sales: saleData.achievementSales || 0,
+        achievement_profit: saleData.achievementProfit || 0,
+        period: saleData.period
       }]);
       if (error) throw error;
       await fetchSales();
@@ -55,14 +55,14 @@ export const SalesProvider = ({ children }) => {
   const updateSale = async (id, updatedData) => {
     try {
       const dbUpdates = {};
-      if (updatedData.type !== undefined) dbUpdates.type = updatedData.type;
-      if (updatedData.title !== undefined) dbUpdates.title = updatedData.title;
-      if (updatedData.pic !== undefined) dbUpdates.pic = updatedData.pic;
-      if (updatedData.date !== undefined) dbUpdates.date = updatedData.date;
-      if (updatedData.amount !== undefined) dbUpdates.amount = updatedData.amount;
-      if (updatedData.paxCount !== undefined) dbUpdates.pax_count = updatedData.paxCount;
+      if (updatedData.staffName !== undefined) dbUpdates.staff_name = updatedData.staffName;
+      if (updatedData.targetSales !== undefined) dbUpdates.target_sales = updatedData.targetSales;
+      if (updatedData.targetProfit !== undefined) dbUpdates.target_profit = updatedData.targetProfit;
+      if (updatedData.achievementSales !== undefined) dbUpdates.achievement_sales = updatedData.achievementSales;
+      if (updatedData.achievementProfit !== undefined) dbUpdates.achievement_profit = updatedData.achievementProfit;
+      if (updatedData.period !== undefined) dbUpdates.period = updatedData.period;
 
-      const { error } = await supabase.from('travelops_sales').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('travelops_sales_targets').update(dbUpdates).eq('id', id);
       if (error) throw error;
       await fetchSales();
     } catch (err) {
@@ -72,7 +72,7 @@ export const SalesProvider = ({ children }) => {
 
   const deleteSale = async (id) => {
     try {
-      const { error } = await supabase.from('travelops_sales').delete().eq('id', id);
+      const { error } = await supabase.from('travelops_sales_targets').delete().eq('id', id);
       if (error) throw error;
       await fetchSales();
     } catch (err) {
@@ -80,24 +80,8 @@ export const SalesProvider = ({ children }) => {
     }
   };
 
-  const getStats = () => {
-    let totalSales = 0;
-    let totalPax = 0;
-    const typeCounts = { Tour: 0, Cruise: 0, Hotel: 0 };
-
-    sales.forEach(s => {
-      totalSales += Number(s.amount) || 0;
-      totalPax += Number(s.paxCount) || 0;
-      if (typeCounts[s.type] !== undefined) {
-        typeCounts[s.type] += Number(s.amount) || 0;
-      }
-    });
-
-    return { totalSales, totalPax, typeCounts };
-  };
-
   return (
-    <SalesContext.Provider value={{ sales, addSale, updateSale, deleteSale, getStats, loading }}>
+    <SalesContext.Provider value={{ sales, addSale, updateSale, deleteSale, loading }}>
       {children}
     </SalesContext.Provider>
   );

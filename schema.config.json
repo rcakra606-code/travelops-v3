@@ -96,6 +96,16 @@
       "approved_by": "VARCHAR(255)",
       "approve_date": "TIMESTAMP WITH TIME ZONE",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_sales_targets": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "staff_name": "VARCHAR(255)",
+      "target_sales": "DECIMAL",
+      "target_profit": "DECIMAL",
+      "achievement_sales": "DECIMAL",
+      "achievement_profit": "DECIMAL",
+      "period": "VARCHAR(50)",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     }
   }
 }
