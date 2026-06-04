@@ -12,6 +12,12 @@ ALTER TABLE travelops_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE travelops_telecoms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE travelops_cashouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE travelops_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelops_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelops_corporate_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelops_corporate_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelops_overtimes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelops_productivity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelops_sales_targets ENABLE ROW LEVEL SECURITY;
 
 -- 2. CREATE POLICIES TO ALLOW ONLY AUTHENTICATED USERS
 -- (This ensures that the anonymous key cannot read/write data unless logged in via Supabase Auth)
@@ -25,6 +31,12 @@ CREATE POLICY "Allow authenticated full access to documents" ON travelops_docume
 CREATE POLICY "Allow authenticated full access to telecoms" ON travelops_telecoms FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow authenticated full access to cashouts" ON travelops_cashouts FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Allow authenticated full access to settings" ON travelops_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to sales" ON travelops_sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to corporate_accounts" ON travelops_corporate_accounts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to corporate_sales" ON travelops_corporate_sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to overtimes" ON travelops_overtimes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to productivity" ON travelops_productivity FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to sales_targets" ON travelops_sales_targets FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- 3. MIGRATION INSTRUCTIONS FOR THE SUPER ADMIN
 -- Because we are moving to Supabase Auth, you MUST create your first user in the Supabase Dashboard:
