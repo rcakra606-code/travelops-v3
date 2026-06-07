@@ -35,6 +35,7 @@ const Overtime = lazy(() => import('./pages/Overtime'));
 const Productivity = lazy(() => import('./pages/Productivity'));
 const Corporate = lazy(() => import('./pages/Corporate'));
 const Cashout = lazy(() => import('./pages/Cashout'));
+const StaffPerformance = lazy(() => import('./pages/StaffPerformance'));
 
 // Loading fallback UI
 const LoadingFallback = () => (
@@ -77,6 +78,7 @@ function App() {
                                       <Route path="/productivity" element={<ProtectedRoute><Productivity /></ProtectedRoute>} />
                                       <Route path="/corporate" element={<ProtectedRoute><Corporate /></ProtectedRoute>} />
                                       <Route path="/cashout" element={<ProtectedRoute><Cashout /></ProtectedRoute>} />
+                                      <Route path="/staff-performance" element={<ProtectedRoute><StaffPerformance /></ProtectedRoute>} />
                                       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                                       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                                       <Route path="*" element={<Navigate to="/" replace />} />

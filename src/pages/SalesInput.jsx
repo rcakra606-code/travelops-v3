@@ -27,6 +27,7 @@ const SalesInput = () => {
   const [editingId, setEditingId] = useState(null);
   
   const [formData, setFormData] = useState({
+    period: '2026-05',
     staffName: '',
     targetSales: '',
     targetProfit: '',
@@ -49,7 +50,7 @@ const SalesInput = () => {
     // If it's a number field, we might want to strip non-digits, but let's keep it simple for now
     const { name, value } = e.target;
     // Remove non-numeric characters for number fields if they are typed, but allow empty
-    if (name !== 'staffName') {
+    if (name !== 'staffName' && name !== 'period') {
       const numericValue = value.replace(/[^0-9]/g, '');
       setFormData({ ...formData, [name]: numericValue });
     } else {
@@ -58,7 +59,7 @@ const SalesInput = () => {
   };
 
   const handleClear = () => {
-    setFormData({ staffName: '', targetSales: '', targetProfit: '', achievementSales: '', achievementProfit: '' });
+    setFormData({ period: selectedPeriod, staffName: '', targetSales: '', targetProfit: '', achievementSales: '', achievementProfit: '' });
     setEditingId(null);
   };
 
@@ -72,7 +73,7 @@ const SalesInput = () => {
       targetProfit: Number(formData.targetProfit) || 0,
       achievementSales: Number(formData.achievementSales) || 0,
       achievementProfit: Number(formData.achievementProfit) || 0,
-      period: selectedPeriod
+      period: formData.period
     };
 
     if (editingId) {
@@ -85,6 +86,7 @@ const SalesInput = () => {
 
   const handleEdit = (sale) => {
     setFormData({
+      period: sale.period,
       staffName: sale.staffName,
       targetSales: sale.targetSales.toString(),
       targetProfit: sale.targetProfit.toString(),
@@ -167,10 +169,18 @@ const SalesInput = () => {
     return bM - aM;
   })[0];
 
-  const renderPercentageCell = (achievement, target) => {
+  const getColorByRatio = (percent) => {
+    if (percent >= 100) return { bg: 'rgba(34, 197, 94, 0.2)', text: '#4ade80' }; // Green
+    if (percent >= 75) return { bg: 'rgba(234, 179, 8, 0.2)', text: '#fde047' }; // Yellow
+    if (percent >= 50) return { bg: 'rgba(249, 115, 22, 0.2)', text: '#fdba74' }; // Orange
+    return { bg: 'rgba(239, 68, 68, 0.2)', text: '#fca5a5' }; // Red
+  };
+
+  const renderPercentageCell = (achievement, target, isTotal = false) => {
     const percent = target > 0 ? (achievement / target) * 100 : 0;
+    const colors = getColorByRatio(percent);
     return (
-      <td style={{ background: 'rgba(239, 68, 68, 0.2)', textAlign: 'right' }}>
+      <td style={{ background: colors.bg, color: isTotal ? '#fbbf24' : colors.text, textAlign: 'right', padding: '1rem', fontWeight: isTotal ? 'bold' : 'normal' }}>
         {formatPercent(percent)}
       </td>
     );
@@ -379,6 +389,17 @@ const SalesInput = () => {
                 <form onSubmit={handleSubmit}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'end' }}>
                     <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Period (Month & Year)</label>
+                      <input 
+                        type="month" 
+                        name="period" 
+                        value={formData.period} 
+                        onChange={handleInputChange} 
+                        style={{ width: '100%', background: 'rgba(15, 23, 42, 0.5)', border: '1px solid var(--border)', padding: '0.75rem 1rem', borderRadius: '0.5rem', color: 'var(--text-main)', outline: 'none' }} 
+                        required 
+                      />
+                    </div>
+                    <div>
                       <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Staff Name</label>
                       <select 
                         name="staffName" 
@@ -478,9 +499,15 @@ const SalesInput = () => {
                       <td style={{ padding: '1rem', textAlign: 'right' }}>{formatCurrency(sale.achievementProfit)}</td>
                       {renderPercentageCell(sale.achievementSales, sale.targetSales)}
                       {renderPercentageCell(sale.achievementProfit, sale.targetProfit)}
-                      <td style={{ padding: '1rem', textAlign: 'right', background: 'rgba(239, 68, 68, 0.2)' }}>
-                        {formatPercent(sale.achievementSales > 0 ? (sale.achievementProfit / sale.achievementSales) * 100 : 0)}
-                      </td>
+                      {(() => {
+                        const marginPercent = sale.achievementSales > 0 ? (sale.achievementProfit / sale.achievementSales) * 100 : 0;
+                        const colors = getColorByRatio(marginPercent);
+                        return (
+                          <td style={{ padding: '1rem', textAlign: 'right', background: colors.bg, color: colors.text }}>
+                            {formatPercent(marginPercent)}
+                          </td>
+                        );
+                      })()}
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                           {canEditAny && (
@@ -504,15 +531,17 @@ const SalesInput = () => {
                     <td style={{ padding: '1rem', textAlign: 'right', color: '#fbbf24' }}>{formatCurrency(totals.targetProfit)}</td>
                     <td style={{ padding: '1rem', textAlign: 'right', color: '#fbbf24' }}>{formatCurrency(totals.achievementSales)}</td>
                     <td style={{ padding: '1rem', textAlign: 'right', color: '#fbbf24' }}>{formatCurrency(totals.achievementProfit)}</td>
-                    <td style={{ padding: '1rem', textAlign: 'right', color: '#fbbf24', background: 'rgba(239, 68, 68, 0.2)' }}>
-                      {formatPercent(totals.targetSales > 0 ? (totals.achievementSales / totals.targetSales) * 100 : 0)}
-                    </td>
-                    <td style={{ padding: '1rem', textAlign: 'right', color: '#fbbf24', background: 'rgba(239, 68, 68, 0.2)' }}>
-                      {formatPercent(totals.targetProfit > 0 ? (totals.achievementProfit / totals.targetProfit) * 100 : 0)}
-                    </td>
-                    <td style={{ padding: '1rem', textAlign: 'right', color: '#fbbf24', background: 'rgba(239, 68, 68, 0.2)' }}>
-                      {formatPercent(totals.achievementSales > 0 ? (totals.achievementProfit / totals.achievementSales) * 100 : 0)}
-                    </td>
+                    {renderPercentageCell(totals.achievementSales, totals.targetSales, true)}
+                    {renderPercentageCell(totals.achievementProfit, totals.targetProfit, true)}
+                    {(() => {
+                      const marginPercent = totals.achievementSales > 0 ? (totals.achievementProfit / totals.achievementSales) * 100 : 0;
+                      const colors = getColorByRatio(marginPercent);
+                      return (
+                        <td style={{ padding: '1rem', textAlign: 'right', background: colors.bg, color: '#fbbf24' }}>
+                          {formatPercent(marginPercent)}
+                        </td>
+                      );
+                    })()}
                     <td style={{ padding: '1rem', textAlign: 'center' }}></td>
                   </tr>
                 </tbody>

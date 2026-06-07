@@ -37,6 +37,7 @@ const Telecom = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTel, setEditingTel] = useState(null);
+  const [previewTelecom, setPreviewTelecom] = useState(null);
   
   const [countrySearch, setCountrySearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -91,6 +92,9 @@ const Telecom = () => {
     setEditingTel(null);
     setShowDropdown(false);
   };
+
+  const handleOpenPreview = (tel) => setPreviewTelecom(tel);
+  const handleClosePreview = () => setPreviewTelecom(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -390,6 +394,14 @@ const Telecom = () => {
                       <td>{renderBadge(tel.depositStatus)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="btn" 
+                            style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}
+                            onClick={() => handleOpenPreview(tel)}
+                            title="Preview Data"
+                          >
+                            <Eye size={16} />
+                          </button>
                           {canEditRecord(tel.staff) && (
                             <button 
                               className="btn" 
@@ -694,6 +706,99 @@ const Telecom = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PREVIEW MODAL */}
+      {previewTelecom && (
+        <div className="modal-overlay fade-in">
+          <div className="modal-content" style={{ maxWidth: '600px', background: '#1e293b', padding: 0, border: '1px solid #334155' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc', fontSize: '1.2rem' }}>
+                <Eye size={20} color="#10b981" /> Telecom Details Preview
+              </h2>
+              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div>
+                  <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc', fontSize: '1.5rem' }}>{previewTelecom.nama}</h3>
+                  <div style={{ color: '#0ea5e9', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Phone size={16} /> {previewTelecom.noTelephone}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className={`badge ${previewTelecom.depositStatus === 'Sudah' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+                    Deposit: {previewTelecom.depositStatus}
+                  </span>
+                  <div style={{ marginTop: '0.5rem', color: '#eab308', fontSize: '1rem', fontWeight: 'bold' }}>
+                    Rp {new Intl.NumberFormat('id-ID').format(Number(previewTelecom.jumlahDeposit) || 0)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Type Product</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.typeProduct || '-'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Region</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.region}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Tanggal Mulai</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.tanggalMulai}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Tanggal Selesai</span>
+                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.tanggalSelesai || '-'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Rekening Details</h4>
+                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155' }}>
+                    <strong style={{ color: '#f8fafc', display: 'block', marginBottom: '0.25rem' }}>{previewTelecom.namaRekening || 'N/A'}</strong>
+                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+                      Bank: <span style={{ color: '#a78bfa' }}>{previewTelecom.bank || '-'}</span>
+                    </div>
+                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+                      No Rekening: <span style={{ color: '#3b82f6' }}>{previewTelecom.noRekening || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Additional Info</h4>
+                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Estimasi Pengambilan:</span>
+                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewTelecom.estimasiPengambilan || '-'}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Tanggal Pengambilan:</span>
+                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewTelecom.tanggalPengambilan || '-'}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Tanggal Pengembalian:</span>
+                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewTelecom.tanggalPengembalian || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: '#f8fafc' }}>{previewTelecom.staff}</strong></span>
+              </div>
+            </div>
           </div>
         </div>
       )}

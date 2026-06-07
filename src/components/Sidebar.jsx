@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, Calendar, Users, Map, Settings, Plane, X, UserCog, 
   FileText, Ship, Building, Clock, TrendingUp, Briefcase, Wallet, 
-  ChevronDown, ChevronRight, Package, BarChart2
+  ChevronDown, ChevronRight, Package, BarChart2, UserCheck
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, closeMobile }) => {
@@ -21,7 +21,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
     if (['/tours', '/hotel', '/cruise', '/documents', '/telecom'].includes(currentPath)) {
       setOpenGroups(prev => ({ ...prev, operations: true }));
     }
-    if (['/sales', '/productivity', '/corporate', '/overtime'].includes(currentPath)) {
+    if (['/sales', '/productivity', '/corporate', '/overtime', '/staff-performance'].includes(currentPath)) {
       setOpenGroups(prev => ({ ...prev, analytics: true }));
     }
   }, [location.pathname]);
@@ -47,6 +47,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
     { name: 'Productivity', path: '/productivity', icon: <TrendingUp size={20} /> },
     { name: 'Corporate', path: '/corporate', icon: <Briefcase size={20} /> },
     { name: 'Overtime', path: '/overtime', icon: <Clock size={20} /> },
+    { name: 'Staff Performance', path: '/staff-performance', icon: <UserCheck size={20} /> },
   ];
 
   const bottomItems = [
