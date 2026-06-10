@@ -3,7 +3,7 @@ import { useTours } from '../../context/TourContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
 
-const geoUrl = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
+const geoUrl = "https://unpkg.com/world-atlas@2.0.2/countries-50m.json";
 
 const TourSummary = () => {
   const { tours } = useTours();

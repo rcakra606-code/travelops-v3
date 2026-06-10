@@ -103,6 +103,14 @@ const DatabaseTable = ({ onEdit }) => {
                   <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
+              <th>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('staffName')}>
+                    Staff <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                  </div>
+                  <input type="text" placeholder="Filter..." value={filters.staffName || ''} onChange={(e) => handleFilterChange('staffName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                </div>
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -119,6 +127,7 @@ const DatabaseTable = ({ onEdit }) => {
                     {tour.status}
                   </span>
                 </td>
+                <td>{tour.staffName || '-'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setViewingTour(tour)} style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="View">
@@ -139,7 +148,7 @@ const DatabaseTable = ({ onEdit }) => {
               </tr>
             )) : (
               <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                   No records found in database.
                 </td>
               </tr>
