@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutName, setLogoutName] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -115,16 +116,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = useCallback(async (reason = null) => {
+    setLogoutName(user?.name || 'TravelOps User');
     setIsLoggingOut(true);
     await supabase.auth.signOut();
     setTimeout(() => {
       setUser(null);
       setIsLoggingOut(false);
+      setLogoutName('');
       if (reason) {
         alert(`Logged out: ${reason}`);
       }
     }, 1500);
-  }, []);
+  }, [user]);
 
   const verifySession = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -162,7 +165,7 @@ export const AuthProvider = ({ children }) => {
           color: '#f8fafc', animation: 'fadeIn 0.3s ease-out'
         }}>
           <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#3b82f6' }}>
-            Goodbye, {user?.name || 'TravelOps User'}!
+            Goodbye, {logoutName || 'TravelOps User'}!
           </h2>
           <p style={{ color: '#94a3b8' }}>Logging you out securely...</p>
         </div>

@@ -15,25 +15,43 @@ const AutoLogout = ({ children }) => {
 
   const confirmActive = () => {
     setShowWarning(false);
-    lastActivityTime.current = Date.now();
+    const now = Date.now();
+    lastActivityTime.current = now;
+    localStorage.setItem('travelops_last_activity', now.toString());
   };
 
   useEffect(() => {
     if (!user) {
       setShowWarning(false);
+      localStorage.removeItem('travelops_last_activity');
       return;
+    }
+
+    // Check if they were already idle while the tab was closed
+    const storedLastActivity = localStorage.getItem('travelops_last_activity');
+    if (storedLastActivity) {
+      const timeSinceLastActivity = Date.now() - parseInt(storedLastActivity, 10);
+      if (timeSinceLastActivity >= idleTimeoutMs) {
+        logout('Session expired due to inactivity while away.');
+        return;
+      }
+      lastActivityTime.current = parseInt(storedLastActivity, 10);
+    } else {
+      localStorage.setItem('travelops_last_activity', Date.now().toString());
     }
 
     const handleActivity = () => {
       if (!showWarning) {
-        lastActivityTime.current = Date.now();
+        const now = Date.now();
+        lastActivityTime.current = now;
+        localStorage.setItem('travelops_last_activity', now.toString());
       }
     };
 
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     events.forEach(e => document.addEventListener(e, handleActivity));
 
-    // Single Device Login periodic check (every 3 minutes instead of 15 seconds)
+    // Single Device Login periodic check (every 3 minutes)
     const sessionCheckTimer = setInterval(() => {
       verifySession();
     }, 3 * 60 * 1000);
@@ -53,7 +71,7 @@ const AutoLogout = ({ children }) => {
       clearInterval(sessionCheckTimer);
       clearInterval(idleCheckTimer);
     };
-  }, [user, showWarning, idleTimeoutMs, verifySession]);
+  }, [user, showWarning, idleTimeoutMs, verifySession, logout]);
 
   useEffect(() => {
     let warningTimer;
