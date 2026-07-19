@@ -106,6 +106,17 @@
       "achievement_profit": "DECIMAL",
       "period": "VARCHAR(50)",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_reservation_audits": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "type": "VARCHAR(50)",
+      "request_text": "TEXT",
+      "booking_text": "TEXT",
+      "match_score": "INTEGER",
+      "mismatches": "JSONB",
+      "summary": "TEXT",
+      "staff_name": "VARCHAR(255)",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     }
   }
 }

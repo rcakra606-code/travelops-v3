@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import dns from 'dns';
 import { syncDatabase } from './scripts/db-sync.js';
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenAI, Type } from '@google/genai';
 
 // Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
 // which causes ENETUNREACH errors when connecting to smtp.gmail.com
@@ -207,6 +208,7 @@ app.post('/api/send-email', emailLimiter, (req, res) => {
     }
   })();
 });
+
 
 // Serve static files from the Vite build output
 app.use(express.static(path.join(__dirname, 'dist')));

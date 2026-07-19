@@ -37,6 +37,7 @@ const Corporate = lazy(() => import('./pages/Corporate'));
 const Cashout = lazy(() => import('./pages/Cashout'));
 const StaffPerformance = lazy(() => import('./pages/StaffPerformance'));
 
+
 // Loading fallback UI
 const LoadingFallback = () => (
   <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', background: '#0f172a', color: '#3b82f6' }}>
@@ -80,6 +81,7 @@ function App() {
                                       <Route path="/cashout" element={<ProtectedRoute><Cashout /></ProtectedRoute>} />
                                       <Route path="/staff-performance" element={<ProtectedRoute><StaffPerformance /></ProtectedRoute>} />
                                       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+
                                       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                                       <Route path="*" element={<Navigate to="/" replace />} />
                                     </Routes>

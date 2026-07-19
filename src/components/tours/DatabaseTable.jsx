@@ -7,18 +7,21 @@ import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import { useAuth } from '../../context/AuthContext';
 
-const DatabaseTable = ({ onEdit }) => {
+const DatabaseTable = ({ onEdit, customData }) => {
   const { tours, deleteTour } = useTours();
   const { user } = useAuth();
   const [viewingTour, setViewingTour] = useState(null);
 
+  const dataToUse = customData || tours;
+
   // Flatten nested properties (like totalOmset) so useDataTable can sort it
   const flatTours = useMemo(() => {
-    return tours.map(t => ({
+    return dataToUse.map(t => ({
       ...t,
-      totalOmset: t.financials?.totalOmset || 0
+      totalOmset: t.financials?.totalOmset || 0,
+      invoiceNumber: t.financials?.invoiceNumber || ''
     }));
-  }, [tours]);
+  }, [dataToUse]);
 
   const {
     filters,
@@ -111,6 +114,14 @@ const DatabaseTable = ({ onEdit }) => {
                   <input type="text" placeholder="Filter..." value={filters.staffName || ''} onChange={(e) => handleFilterChange('staffName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
+              <th>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('invoiceNumber')}>
+                    Invoice # <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                  </div>
+                  <input type="text" placeholder="Filter..." value={filters.invoiceNumber || ''} onChange={(e) => handleFilterChange('invoiceNumber', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                </div>
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -128,6 +139,7 @@ const DatabaseTable = ({ onEdit }) => {
                   </span>
                 </td>
                 <td>{tour.staffName || '-'}</td>
+                <td>{tour.invoiceNumber || '-'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setViewingTour(tour)} style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="View">
@@ -148,7 +160,7 @@ const DatabaseTable = ({ onEdit }) => {
               </tr>
             )) : (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                   No records found in database.
                 </td>
               </tr>

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
-import { BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight, Activity } from 'lucide-react';
+import { BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight, Activity, FileText } from 'lucide-react';
 
 const TourReporting = () => {
   const { tours } = useTours();
@@ -21,6 +21,11 @@ const TourReporting = () => {
   const [expandedStatus, setExpandedStatus] = useState({});
   const toggleStatus = (status) => {
     setExpandedStatus(prev => ({ ...prev, [status]: !prev[status] }));
+  };
+
+  const [expandedInvoicing, setExpandedInvoicing] = useState({});
+  const toggleInvoicing = (status) => {
+    setExpandedInvoicing(prev => ({ ...prev, [status]: !prev[status] }));
   };
 
   const staffReport = useMemo(() => {
@@ -79,6 +84,37 @@ const TourReporting = () => {
     return Object.entries(data).sort((a, b) => b[1].count - a[1].count);
   }, [tours]);
 
+  const invoicingReport = useMemo(() => {
+    const data = {
+      'Invoiced': { count: 0, omset: 0, profit: 0, pax: 0, months: {} },
+      'Not Invoiced': { count: 0, omset: 0, profit: 0, pax: 0, months: {} }
+    };
+    
+    tours.forEach(t => {
+      const isInvoiced = t.financials?.invoiceNumber && t.financials.invoiceNumber.trim() !== '';
+      const status = isInvoiced ? 'Invoiced' : 'Not Invoiced';
+      
+      data[status].count += 1;
+      data[status].pax += (t.paxCount || 0);
+      data[status].omset += (t.financials?.totalOmset || 0);
+      data[status].profit += (t.financials?.profit || 0);
+
+      if (t.departureDate) {
+        const date = new Date(t.departureDate);
+        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        
+        if (!data[status].months[monthYear]) {
+          data[status].months[monthYear] = { tours: 0, pax: 0, omset: 0, profit: 0 };
+        }
+        data[status].months[monthYear].tours += 1;
+        data[status].months[monthYear].pax += (t.paxCount || 0);
+        data[status].months[monthYear].omset += (t.financials?.totalOmset || 0);
+        data[status].months[monthYear].profit += (t.financials?.profit || 0);
+      }
+    });
+    return Object.entries(data);
+  }, [tours]);
+
   const monthlyReport = useMemo(() => {
     const data = {};
     tours.forEach(t => {
@@ -134,6 +170,15 @@ const TourReporting = () => {
         >
           <Activity color="var(--danger)" />
           <h3 style={{ margin: 0 }}>By Status</h3>
+        </button>
+
+        <button 
+          className={`card ${reportType === 'invoicing' ? 'active-report' : ''}`}
+          onClick={() => setReportType('invoicing')}
+          style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'invoicing' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
+        >
+          <FileText color="#eab308" />
+          <h3 style={{ margin: 0 }}>By Invoicing</h3>
         </button>
       </div>
 
@@ -350,9 +395,85 @@ const TourReporting = () => {
             </div>
           </>
         )}
+
+        {reportType === 'invoicing' && (
+          <>
+            <h3 style={{ marginBottom: '1.5rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <BarChart size={20} /> Invoicing Status Report
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}></th>
+                    <th>Invoice Status</th>
+                    <th>Total Tours</th>
+                    <th>Total Pax</th>
+                    <th>Total Omset</th>
+                    <th>Total Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoicingReport.length > 0 ? invoicingReport.map(([status, stats], idx) => (
+                    <React.Fragment key={idx}>
+                      <tr 
+                        onClick={() => toggleInvoicing(status)} 
+                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
+                      >
+                        <td style={{ color: '#eab308' }}>
+                          {expandedInvoicing[status] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                        </td>
+                        <td style={{ fontWeight: '600' }}>
+                          <span className={`badge ${status === 'Invoiced' ? 'badge-success' : 'badge-danger'}`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: '500' }}>{stats.count}</td>
+                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
+                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
+                      </tr>
+                      {expandedInvoicing[status] && (
+                        <tr>
+                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid #eab308' }}>
+                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monthly Breakdown</h4>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+                                {Object.entries(stats.months).sort((a,b) => new Date(b[0]) - new Date(a[0])).map(([month, mStats]) => (
+                                  <div key={month} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
+                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{month}</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
+                                      <span style={{ fontWeight: '500' }}>{mStats.tours}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
+                                      <span style={{ fontWeight: '500' }}>{mStats.pax}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Profit</span>
+                                      <span style={{ color: 'var(--success)', fontWeight: '500' }}>Rp {formatCurrency(mStats.profit)}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )) : (
+                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
 
 export default TourReporting;
+// Triggering HMR to clear Vite's cache
