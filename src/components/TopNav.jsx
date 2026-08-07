@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Bell, Search, Menu } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { LogOut, Menu, Moon, Sun } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const TopNav = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -21,8 +23,21 @@ const TopNav = ({ toggleSidebar }) => {
 
       </div>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: 'auto' }}>
-        
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <button 
+          onClick={toggleTheme}
+          style={{
+            background: 'none', border: 'none', color: 'var(--text-muted)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0.5rem', borderRadius: '50%', transition: 'all 0.2s',
+          }}
+          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseOut={e => e.currentTarget.style.background = 'none'}
+          title="Toggle Theme"
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+
         <div className="user-profile" onClick={() => navigate('/profile')} style={{ cursor: 'pointer' }}>
           <div className="avatar">
             {user?.name?.charAt(0) || 'A'}

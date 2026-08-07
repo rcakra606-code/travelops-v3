@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { useDataTable } from '../hooks/useDataTable';
 import Pagination from '../components/Pagination';
+import ExportMenu from '../components/ExportMenu';
 
 const Cruise = () => {
   const { cruises, addCruise, updateCruise, deleteCruise } = useCruises();
@@ -189,6 +190,17 @@ const Cruise = () => {
     return 'badge-primary';
   };
 
+  const exportColumns = [
+    { header: 'Cruise Brand', key: 'cruiseBrand', format: null },
+    { header: 'Ship Name', key: 'shipName', format: null },
+    { header: 'Route', key: 'route', format: null },
+    { header: 'Sailing Start', key: 'sailingStart', format: null },
+    { header: 'Sailing End', key: 'sailingEnd', format: null },
+    { header: 'PIC Name', key: 'picName', format: null },
+    { header: 'Staff', key: 'staff', format: null },
+    { header: 'Status', key: 'status', format: null },
+  ];
+
   return (
     <div className="app-container fade-in">
       <Sidebar isOpen={isSidebarOpen} closeMobile={closeMobile} />
@@ -224,6 +236,10 @@ const Cruise = () => {
               >
                 <FileText size={16} /> Database
               </button>
+              
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                <ExportMenu data={cruises} columns={exportColumns} filename="Cruise_Data" />
+              </div>
             </div>
 
             {activeTab === 'dashboard' ? (

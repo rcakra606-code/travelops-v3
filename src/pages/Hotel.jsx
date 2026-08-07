@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { useDataTable } from '../hooks/useDataTable';
 import Pagination from '../components/Pagination';
+import ExportMenu from '../components/ExportMenu';
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -197,6 +198,18 @@ const Hotel = () => {
     staffMap[s].Bookings++;
   });
   const staffData = Object.values(staffMap).sort((a, b) => b.Bookings - a.Bookings);
+  const exportColumns = [
+    { header: 'Hotel Name', key: 'hotelName', format: null },
+    { header: 'Confirmation Number', key: 'confirmationNumber', format: null },
+    { header: 'Check In', key: 'checkIn', format: null },
+    { header: 'Check Out', key: 'checkOut', format: null },
+    { header: 'Region', key: 'region', format: null },
+    { header: 'Supplier Name', key: 'supplierName', format: null },
+    { header: 'Supplier Code', key: 'supplierCode', format: null },
+    { header: 'Guest List', key: 'guestList', format: null },
+    { header: 'Staff', key: 'staff', format: null },
+    { header: 'Status', key: 'status', format: null },
+  ];
 
   return (
     <div className="app-container fade-in">
@@ -233,6 +246,10 @@ const Hotel = () => {
               >
                 <FileText size={16} /> Database
               </button>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                <ExportMenu data={hotels} columns={exportColumns} filename="Hotel_Data" />
+              </div>
             </div>
 
             {activeTab === 'dashboard' ? (

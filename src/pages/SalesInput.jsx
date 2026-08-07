@@ -5,7 +5,7 @@ import { useSales } from '../context/SalesContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from 'recharts';
-import { Edit2, Trash2, ChevronUp, ChevronDown, FileText, Plus, BarChart2, DollarSign, Target, TrendingUp, PieChart, Download, Printer, Award } from 'lucide-react';
+import { Edit2, Trash2, ChevronUp, ChevronDown, FileText, Plus, BarChart2, DollarSign, Target, TrendingUp, PieChart, Download, Printer, Award, Lock } from 'lucide-react';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('id-ID').format(value);
@@ -510,16 +510,20 @@ const SalesInput = () => {
                       })()}
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          {canEditAny && (
-                            <button onClick={() => handleEdit(sale)} style={{ background: '#fbbf24', color: '#111827', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
-                              <Edit2 size={14} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => handleDelete(sale.id)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
-                              <Trash2 size={14} />
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => canEditAny && handleEdit(sale)} 
+                            disabled={!canEditAny}
+                            style={{ background: canEditAny ? '#fbbf24' : 'rgba(148, 163, 184, 0.1)', color: canEditAny ? '#111827' : '#64748b', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: canEditAny ? 'pointer' : 'not-allowed' }} 
+                            title={canEditAny ? "Edit" : "Requires Admin/Manager role"}>
+                            {canEditAny ? <Edit2 size={14} /> : <Lock size={14} />}
+                          </button>
+                          <button 
+                            onClick={() => canDelete && handleDelete(sale.id)} 
+                            disabled={!canDelete}
+                            style={{ background: canDelete ? '#ef4444' : 'rgba(148, 163, 184, 0.1)', color: canDelete ? 'white' : '#64748b', border: 'none', padding: '0.4rem', borderRadius: '0.25rem', cursor: canDelete ? 'pointer' : 'not-allowed' }} 
+                            title={canDelete ? "Delete" : "Requires Admin role"}>
+                            {canDelete ? <Trash2 size={14} /> : <Lock size={14} />}
+                          </button>
                         </div>
                       </td>
                     </tr>

@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { useDataTable } from '../hooks/useDataTable';
 import Pagination from '../components/Pagination';
+import ExportMenu from '../components/ExportMenu';
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -199,6 +200,24 @@ const Telecom = () => {
 
   const formatCurrency = (value) => new Intl.NumberFormat('id-ID').format(value);
 
+  const exportColumns = [
+    { header: 'Nama', key: 'nama', format: null },
+    { header: 'No. Telephone', key: 'noTelephone', format: null },
+    { header: 'Type Product', key: 'typeProduct', format: null },
+    { header: 'Region', key: 'region', format: null },
+    { header: 'Tanggal Mulai', key: 'tanggalMulai', format: null },
+    { header: 'Tanggal Selesai', key: 'tanggalSelesai', format: null },
+    { header: 'No. Rekening', key: 'noRekening', format: null },
+    { header: 'Bank', key: 'bank', format: null },
+    { header: 'Nama Rekening', key: 'namaRekening', format: null },
+    { header: 'Estimasi Pengambilan', key: 'estimasiPengambilan', format: null },
+    { header: 'Staff', key: 'staff', format: null },
+    { header: 'Deposit Status', key: 'depositStatus', format: null },
+    { header: 'Jumlah Deposit', key: 'jumlahDeposit', format: 'currency' },
+    { header: 'Tanggal Pengambilan', key: 'tanggalPengambilan', format: null },
+    { header: 'Tanggal Pengembalian', key: 'tanggalPengembalian', format: null },
+  ];
+
   return (
     <div className="app-container fade-in">
       <Sidebar isOpen={isSidebarOpen} closeMobile={closeMobile} />
@@ -234,6 +253,10 @@ const Telecom = () => {
               >
                 <FileText size={16} /> Input & Database
               </button>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                <ExportMenu data={telecoms} columns={exportColumns} filename="Telecom_Data" />
+              </div>
             </div>
 
             {activeTab === 'dashboard' ? (

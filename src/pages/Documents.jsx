@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useDataTable } from '../hooks/useDataTable';
 import Pagination from '../components/Pagination';
+import ExportMenu from '../components/ExportMenu';
 
 const Documents = () => {
   const { documents, addDocument, updateDocument, deleteDocument } = useDocuments();
@@ -256,6 +257,21 @@ const Documents = () => {
     color: pieColors[i % pieColors.length]
   })).sort((a,b) => b.value - a.value).slice(0, 5);
 
+  const exportColumns = [
+    { header: 'Receive Date', key: 'receiveDate', format: null },
+    { header: 'Guest Name', key: 'guestName', format: null },
+    { header: 'Country', key: 'country', format: null },
+    { header: 'Process Type', key: 'processType', format: null },
+    { header: 'Booking Code', key: 'bookingCode', format: null },
+    { header: 'Invoice Number', key: 'invoiceNumber', format: null },
+    { header: 'Phone Number', key: 'phoneNumber', format: null },
+    { header: 'Estimated Done', key: 'estimatedDone', format: null },
+    { header: 'Staff', key: 'staff', format: null },
+    { header: 'Tour Code', key: 'tourCode', format: null },
+    { header: 'Shipping Status', key: 'shippingStatus', format: null },
+    { header: 'Send Date', key: 'sendDate', format: null },
+  ];
+
   return (
     <div className="app-container fade-in">
       <Sidebar isOpen={isSidebarOpen} closeMobile={closeMobile} />
@@ -291,6 +307,10 @@ const Documents = () => {
             >
               <FileText size={16} /> Input & Database
             </button>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+              <ExportMenu data={documents} columns={exportColumns} filename="Documents_Data" />
+            </div>
           </div>
 
           {activeTab === 'dashboard' ? (

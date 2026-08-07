@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
-import { DollarSign, Users, Map, TrendingUp, Ship, FileText, Phone, Building } from 'lucide-react';
+import { DollarSign, Users, Map, TrendingUp, Ship, FileText, Phone, Building, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { useTours } from '../context/TourContext';
 import { useCruises } from '../context/CruiseContext';
 import { useDocuments } from '../context/DocumentContext';
 import { useTelecoms } from '../context/TelecomContext';
 import { useHotels } from '../context/HotelContext';
 import { useAuth } from '../context/AuthContext';
+import { useCashouts } from '../context/CashoutContext';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [activityFilter, setActivityFilter] = useState('All');
 
   useEffect(() => {
     const handleResize = () => {
@@ -50,6 +52,7 @@ const Dashboard = () => {
   const { documents } = useDocuments();
   const { telecoms } = useTelecoms();
   const { hotels } = useHotels();
+  const { cashoutRequests } = useCashouts();
 
   const tourStats = getStats();
   
@@ -136,11 +139,70 @@ const Dashboard = () => {
   ];
 
   // Filter for upcoming (targetDate >= today)
-  const upcomingActivities = allActivities.filter(a => a.targetDate >= today && a.status !== 'Completed' && a.status !== 'Cancel' && a.status !== 'Cancelled');
+  let upcomingActivities = allActivities.filter(a => a.targetDate >= today && a.status !== 'Completed' && a.status !== 'Cancel' && a.status !== 'Cancelled');
+  
+  if (activityFilter !== 'All') {
+    upcomingActivities = upcomingActivities.filter(a => a.type === activityFilter);
+  }
   
   // Sort ascending by targetDate (nearest first)
   upcomingActivities.sort((a, b) => a.targetDate - b.targetDate);
   const recentActivities = upcomingActivities.slice(0, 8);
+
+  // --- ALERTS WIDGET LOGIC ---
+  const alerts = [];
+  const next7Days = new Date(today);
+  next7Days.setDate(next7Days.getDate() + 7);
+
+  // 1. Tours without invoice (Departure <= 7 days)
+  tours.forEach(t => {
+    if (t.departureDate && t.status !== 'Cancel') {
+      const depDate = new Date(t.departureDate);
+      if (depDate >= today && depDate <= next7Days) {
+        if (!t.financials?.invoiceNumber || t.financials.invoiceNumber.trim() === '') {
+          alerts.push({
+            id: t.id,
+            title: `Tour ${t.id} departure soon but not invoiced!`,
+            type: 'warning',
+            date: t.departureDate
+          });
+        }
+      }
+    }
+  });
+
+  // 2. Pending Cashouts
+  if (cashoutRequests) {
+    cashoutRequests.forEach(c => {
+      if (c.status === 'Pending') {
+        alerts.push({
+          id: c.id,
+          title: `Pending Cashout: Rp ${formatCurrency(c.totalAmount || 0)}`,
+          type: 'danger',
+          date: c.requestDate
+        });
+      }
+    });
+  }
+
+  // 3. Documents due today or overdue
+  documents.forEach(d => {
+    if (!d.sendDate) {
+      const estDone = new Date(d.estimatedDone || d.receiveDate || 0);
+      estDone.setHours(0,0,0,0);
+      if (estDone <= today) {
+        alerts.push({
+          id: d.id,
+          title: `Document ${d.id} (${d.guestName}) is due!`,
+          type: 'danger',
+          date: d.estimatedDone || d.receiveDate
+        });
+      }
+    }
+  });
+
+  // Sort alerts by date (nearest first)
+  alerts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const getStatusBadge = (status) => {
     if (['Confirmed', 'Confirm', 'Completed'].includes(status)) return 'badge-success';
@@ -194,51 +256,100 @@ const Dashboard = () => {
             ))}
           </div>
 
-          <div className="card" style={{ marginTop: '2rem' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: '600' }}>Upcoming Events & Departures</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>ID</th>
-                    <th>Customer / PIC</th>
-                    <th>Destination / Route</th>
-                    <th>Nearest Date</th>
-                    <th>Value / Amount</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentActivities.length > 0 ? (
-                    recentActivities.map((activity) => (
-                      <tr key={activity.id}>
-                        <td style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>{activity.type}</td>
-                        <td style={{ fontWeight: '500', color: 'var(--primary)' }}>{activity.id}</td>
-                        <td>{activity.customer}</td>
-                        <td>{activity.destination}</td>
-                        <td style={{ color: '#fbbf24', fontWeight: '500' }}>{activity.date}</td>
-                        <td style={{ fontWeight: '600' }}>
-                          {activity.amount !== '-' ? (
-                            typeof activity.amount === 'number' ? formatCurrency(activity.amount) : activity.amount
-                          ) : '-'}
-                        </td>
-                        <td>
-                          <span className={`badge ${getStatusBadge(activity.status)}`}>
-                            {activity.status}
-                          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginTop: '2rem' }}>
+            {/* LEFT COLUMN: UPCOMING EVENTS */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h3 style={{ margin: 0, fontWeight: '600' }}>Upcoming Events</h3>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {['All', 'Tour', 'Cruise', 'Hotel', 'Document', 'Telecom'].map(filter => (
+                    <button
+                      key={filter}
+                      onClick={() => setActivityFilter(filter)}
+                      style={{
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        border: activityFilter === filter ? '1px solid #3b82f6' : '1px solid #334155',
+                        background: activityFilter === filter ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                        color: activityFilter === filter ? '#3b82f6' : 'var(--text-muted)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Type</th>
+                      <th>Customer</th>
+                      <th>Nearest Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentActivities.length > 0 ? (
+                      recentActivities.map((activity) => (
+                        <tr key={activity.id}>
+                          <td style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>{activity.type}</td>
+                          <td>{activity.customer}</td>
+                          <td style={{ color: '#fbbf24', fontWeight: '500' }}>{activity.date}</td>
+                          <td>
+                            <span className={`badge ${getStatusBadge(activity.status)}`}>
+                              {activity.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          No upcoming activities found.
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                        No upcoming activities found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: ACTION REQUIRED ALERTS */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+                <AlertCircle size={20} /> Action Required
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', maxHeight: '400px', paddingRight: '0.5rem' }}>
+                {alerts.length > 0 ? (
+                  alerts.map((alert, idx) => (
+                    <div key={idx} style={{ 
+                      padding: '1rem', 
+                      borderRadius: '8px', 
+                      background: alert.type === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                      borderLeft: `4px solid ${alert.type === 'danger' ? '#ef4444' : '#f59e0b'}`
+                    }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f8fafc', marginBottom: '0.25rem' }}>
+                        {alert.title}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <Clock size={12} /> {alert.date}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    <div style={{ marginBottom: '1rem' }}><CheckCircle2 size={40} color="#10b981" style={{ opacity: 0.5 }} /></div>
+                    All clear! No pending actions required.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           </div>

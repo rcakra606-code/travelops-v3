@@ -6,6 +6,7 @@ import { Eye, Edit2, Trash2, ArrowUpDown, X } from 'lucide-react';
 import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import { useAuth } from '../../context/AuthContext';
+import ExportMenu from '../ExportMenu';
 
 const DatabaseTable = ({ onEdit, customData }) => {
   const { tours, deleteTour } = useTours();
@@ -52,10 +53,25 @@ const DatabaseTable = ({ onEdit, customData }) => {
   const canEditAny = isAdmin || isManager;
   const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
+  const exportColumns = [
+    { header: 'Tour Code', key: 'tourCode', format: null },
+    { header: 'Booking Code', key: 'bookingCode', format: null },
+    { header: 'Destination', key: 'country', format: null },
+    { header: 'Departure Date', key: 'departureDate', format: null },
+    { header: 'PIC Staff', key: 'pic', format: null },
+    { header: 'Status', key: 'status', format: null },
+    { header: 'Total Omset', key: 'totalOmset', format: 'currency' },
+    { header: 'Invoice Number', key: 'invoiceNumber', format: null },
+  ];
+
   return (
-    <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
-        <table className="data-table" style={{ minWidth: '1000px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <ExportMenu data={flatTours} columns={exportColumns} filename="Tours_Data" />
+      </div>
+      <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+          <table className="data-table" style={{ minWidth: '1000px' }}>
           <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
             <tr>
               <th>
@@ -236,6 +252,7 @@ const DatabaseTable = ({ onEdit, customData }) => {
         </div>,
         document.body
       )}
+    </div>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { CashoutContext } from '../context/CashoutContext';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, BarChart, CartesianGrid, XAxis, YAxis, Bar } from 'recharts';
-import { Activity, CreditCard, Search, Plus, Filter, FileText, CheckCircle, XCircle, Clock, Wallet, Edit2, Check, X, ArrowUpDown } from 'lucide-react';
+import { Activity, CreditCard, Search, Plus, Filter, FileText, CheckCircle, XCircle, Clock, Wallet, Edit2, Check, X, ArrowUpDown, Lock, Trash2 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
 import { useDataTable } from '../hooks/useDataTable';
@@ -287,19 +287,31 @@ const Cashout = () => {
                                 <Trash2 size={14} />
                               </button>
                             )}
-                            {c.status === 'Pending' && canEditAny && (
+                            {c.status === 'Pending' && (
                               <>
-                                <button onClick={() => updateStatus(c.id, 'Approved')} title="Approve" style={{ background: '#3b82f620', color: '#3b82f6', border: '1px solid #3b82f6', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                  <Check size={14} />
+                                <button 
+                                  onClick={() => canEditAny && updateStatus(c.id, 'Approved')} 
+                                  disabled={!canEditAny}
+                                  title={canEditAny ? "Approve" : "Requires Admin/Manager role"} 
+                                  style={{ background: canEditAny ? '#3b82f620' : 'rgba(148, 163, 184, 0.1)', color: canEditAny ? '#3b82f6' : '#64748b', border: `1px solid ${canEditAny ? '#3b82f6' : '#334155'}`, padding: '0.4rem', borderRadius: '4px', cursor: canEditAny ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center' }}>
+                                  {canEditAny ? <Check size={14} /> : <Lock size={14} />}
                                 </button>
-                                <button onClick={() => updateStatus(c.id, 'Rejected')} title="Reject" style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef4444', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                  <X size={14} />
+                                <button 
+                                  onClick={() => canEditAny && updateStatus(c.id, 'Rejected')} 
+                                  disabled={!canEditAny}
+                                  title={canEditAny ? "Reject" : "Requires Admin/Manager role"} 
+                                  style={{ background: canEditAny ? '#ef444420' : 'rgba(148, 163, 184, 0.1)', color: canEditAny ? '#ef4444' : '#64748b', border: `1px solid ${canEditAny ? '#ef4444' : '#334155'}`, padding: '0.4rem', borderRadius: '4px', cursor: canEditAny ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center' }}>
+                                  {canEditAny ? <X size={14} /> : <Lock size={14} />}
                                 </button>
                               </>
                             )}
                             {c.status === 'Approved' && (
-                              <button onClick={() => updateStatus(c.id, 'Completed')} title="Complete" style={{ background: '#10b98120', color: '#10b981', border: '1px solid #10b981', padding: '0.4rem', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                <CheckCircle size={14} />
+                              <button 
+                                onClick={() => canEditAny && updateStatus(c.id, 'Completed')} 
+                                disabled={!canEditAny}
+                                title={canEditAny ? "Complete" : "Requires Admin/Manager role"} 
+                                style={{ background: canEditAny ? '#10b98120' : 'rgba(148, 163, 184, 0.1)', color: canEditAny ? '#10b981' : '#64748b', border: `1px solid ${canEditAny ? '#10b981' : '#334155'}`, padding: '0.4rem', borderRadius: '4px', cursor: canEditAny ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center' }}>
+                                {canEditAny ? <CheckCircle size={14} /> : <Lock size={14} />}
                               </button>
                             )}
                           </div>

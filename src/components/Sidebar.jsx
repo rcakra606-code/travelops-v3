@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, Calendar, Users, Map, Settings, Plane, X, UserCog, 
   FileText, Ship, Building, Clock, TrendingUp, Briefcase, Wallet, 
-  ChevronDown, ChevronRight, Package, BarChart2, UserCheck
+  ChevronDown, ChevronRight, Package, BarChart2, UserCheck, Lock
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, closeMobile }) => {
@@ -50,25 +50,43 @@ const Sidebar = ({ isOpen, closeMobile }) => {
     { name: 'Staff Performance', path: '/staff-performance', icon: <UserCheck size={20} /> },
   ];
 
+  const isAdmin = user?.role === 'Admin' || user?.email === 'admin@travelops.com';
+
   const bottomItems = [
     { name: 'Cashout', path: '/cashout', icon: <Wallet size={20} /> },
-    ...(user?.role === 'Admin' || user?.email === 'admin@travelops.com' ? [
-      { name: 'User Management', path: '/users', icon: <UserCog size={20} /> },
-      { name: 'Settings', path: '/settings', icon: <Settings size={20} /> },
-    ] : [])
+    { name: 'User Management', path: '/users', icon: <UserCog size={20} />, locked: !isAdmin },
+    { name: 'Settings', path: '/settings', icon: <Settings size={20} />, locked: !isAdmin },
   ];
 
-  const NavItemRender = ({ item, isSubItem = false }) => (
-    <NavLink
-      to={item.path}
-      onClick={closeMobile}
-      className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-      style={isSubItem ? { paddingLeft: '3rem', fontSize: '0.85rem' } : {}}
-    >
-      {item.icon}
-      <span>{item.name}</span>
-    </NavLink>
-  );
+  const NavItemRender = ({ item, isSubItem = false }) => {
+    if (item.locked) {
+      return (
+        <div 
+          className="nav-item" 
+          style={{ opacity: 0.5, cursor: 'not-allowed', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          title="Requires Admin privileges"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {item.icon}
+            <span>{item.name}</span>
+          </div>
+          <Lock size={14} color="#ef4444" />
+        </div>
+      );
+    }
+    
+    return (
+      <NavLink
+        to={item.path}
+        onClick={closeMobile}
+        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        style={isSubItem ? { paddingLeft: '3rem', fontSize: '0.85rem' } : {}}
+      >
+        {item.icon}
+        <span>{item.name}</span>
+      </NavLink>
+    );
+  };
 
   return (
     <div className={`sidebar ${isOpen ? '' : 'closed'}`}>
