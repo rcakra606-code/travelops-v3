@@ -100,25 +100,25 @@ const AutoLogout = ({ children }) => {
       {showWarning && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)',
+          background: 'rgba(5, 5, 5, 0.85)', backdropFilter: 'blur(10px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 9999
         }}>
-          <div style={{
-            background: '#1e293b', padding: '2rem', borderRadius: '16px',
-            border: '1px solid #ef4444', textAlign: 'center', maxWidth: '400px', width: '90%'
+          <div className="card glass" style={{
+            background: 'rgba(20, 20, 20, 0.95)', padding: '2.5rem 2rem', borderRadius: '1.5rem',
+            border: '1px solid rgba(239, 68, 68, 0.4)', textAlign: 'center', maxWidth: '420px', width: '90%',
+            boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.05)'
           }}>
-            <h2 style={{ color: '#ef4444', margin: '0 0 1rem 0' }}>Are you still there?</h2>
-            <p style={{ color: '#cbd5e1', marginBottom: '1.5rem' }}>
-              Your session has been idle and will expire in <strong>{countdown} seconds</strong>.
+            <h2 style={{ color: 'var(--danger)', margin: '0 0 1rem 0', textShadow: '0 0 10px rgba(239, 68, 68, 0.3)' }}>
+              Are you still there?
+            </h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '1.05rem' }}>
+              Your session has been idle and will expire in <strong style={{ color: 'var(--text-main)', fontSize: '1.2rem' }}>{countdown} seconds</strong>.
             </p>
             <button 
               onClick={confirmActive}
-              style={{
-                background: '#3b82f6', color: 'white', border: 'none',
-                padding: '0.75rem 2rem', borderRadius: '8px', cursor: 'pointer',
-                fontWeight: 'bold', fontSize: '1rem', width: '100%'
-              }}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '1rem' }}
             >
               I'm still here
             </button>

@@ -82,6 +82,14 @@
       "tanggal_selesai": "DATE",
       "jumlah_deposit": "DECIMAL",
       "metode_deposit": "VARCHAR(100)",
+      "no_rekening": "VARCHAR(100)",
+      "bank": "VARCHAR(100)",
+      "nama_rekening": "VARCHAR(255)",
+      "estimasi_pengambilan": "DATE",
+      "staff": "VARCHAR(255)",
+      "deposit_status": "VARCHAR(50)",
+      "tanggal_pengambilan": "DATE",
+      "tanggal_pengembalian": "DATE",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     },
     "travelops_cashouts": {

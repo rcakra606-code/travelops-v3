@@ -72,7 +72,7 @@ const Dashboard = () => {
 
   const stats = [
     { title: 'Total Tour Omset', value: formatCurrency(tourStats.totalOmset), icon: <DollarSign size={24} />, isUp: true, color: '#10b981' },
-    { title: 'Active Bookings (Tour/Cruise/Hotel)', value: (tourStats.activeBookings + activeCruises + activeHotels).toString(), icon: <Map size={24} />, isUp: true, color: '#3b82f6' },
+    { title: 'Active Bookings (Tour/Cruise/Hotel)', value: (tourStats.activeBookings + activeCruises + activeHotels).toString(), icon: <Map size={24} />, isUp: true, color: '#06b6d4' },
     { title: 'Docs in Process', value: activeDocs.toString(), icon: <FileText size={24} />, isUp: true, color: '#f59e0b' },
     { title: 'Active Telecoms', value: activeTelecoms.toString(), icon: <Phone size={24} />, isUp: true, color: '#8b5cf6' },
   ];
@@ -225,42 +225,39 @@ const Dashboard = () => {
         
         <div className="content-area">
           <div className="page-container">
+            <div className="bento-grid">
             
-            <div style={{
-              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-              borderRadius: '16px',
-              padding: '2rem',
-              marginBottom: '2rem',
-              color: 'white',
-              boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.3)'
-            }}>
-              <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem', fontWeight: '700' }}>
-                Welcome back, {user?.name || 'TravelOps User'}! 👋
-              </h1>
-              <p style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem' }}>
-                Here's what's happening in your operations today.
-              </p>
-            </div>
+              <div className="card bento-col-12" style={{
+                background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%)',
+                border: '1px solid rgba(6, 182, 212, 0.3)',
+                padding: '2.5rem',
+                color: 'white',
+                boxShadow: '0 10px 30px -5px rgba(6, 182, 212, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)'
+              }}>
+                <h1 className="gradient-text" style={{ margin: '0 0 0.5rem 0', fontSize: '2.5rem', fontWeight: '800' }}>
+                  Welcome back, {user?.name || 'TravelOps User'}!
+                </h1>
+                <p style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem', color: 'var(--text-muted)' }}>
+                  Here's what's happening in your operations today.
+                </p>
+              </div>
 
-          <div className="dashboard-grid">
             {stats.map((stat, idx) => (
-              <div key={idx} className="card stat-card" style={{ borderBottom: `4px solid ${stat.color}` }}>
+              <div key={idx} className="card stat-card bento-col-3" style={{ borderBottom: `4px solid ${stat.color}` }}>
                 <div className="stat-header">
                   <div>
                     <div className="stat-title">{stat.title}</div>
                     <div className="stat-value">{stat.value}</div>
                   </div>
-                  <div className="stat-icon" style={{ color: stat.color, background: `${stat.color}20` }}>{stat.icon}</div>
+                  <div className="stat-icon" style={{ color: stat.color, background: `${stat.color}20`, boxShadow: `0 0 15px ${stat.color}40` }}>{stat.icon}</div>
                 </div>
               </div>
             ))}
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem', marginTop: '2rem' }}>
             {/* LEFT COLUMN: UPCOMING EVENTS */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="card bento-col-8" style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <h3 style={{ margin: 0, fontWeight: '600' }}>Upcoming Events</h3>
+                <h3 style={{ margin: 0, fontWeight: '600' }}>Upcoming Departure</h3>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {['All', 'Tour', 'Cruise', 'Hotel', 'Document', 'Telecom'].map(filter => (
                     <button
@@ -272,9 +269,9 @@ const Dashboard = () => {
                         fontSize: '0.8rem',
                         fontWeight: 'bold',
                         cursor: 'pointer',
-                        border: activityFilter === filter ? '1px solid #3b82f6' : '1px solid #334155',
-                        background: activityFilter === filter ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                        color: activityFilter === filter ? '#3b82f6' : 'var(--text-muted)',
+                        border: activityFilter === filter ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                        background: activityFilter === filter ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
+                        color: activityFilter === filter ? 'var(--primary)' : 'var(--text-muted)',
                         transition: 'all 0.2s'
                       }}
                     >
@@ -321,9 +318,9 @@ const Dashboard = () => {
             </div>
 
             {/* RIGHT COLUMN: ACTION REQUIRED ALERTS */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="card bento-col-4" style={{ display: 'flex', flexDirection: 'column' }}>
               <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
-                <AlertCircle size={20} /> Action Required
+                <AlertCircle size={20} style={{ filter: 'drop-shadow(0 0 8px rgba(239,68,68,0.5))' }} /> Action Required
               </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', maxHeight: '400px', paddingRight: '0.5rem' }}>
@@ -351,7 +348,8 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
-          </div>
+
+            </div> {/* End Bento Grid */}
           </div>
         </div>
       </div>
