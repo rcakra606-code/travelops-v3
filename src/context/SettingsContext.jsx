@@ -11,7 +11,12 @@ export const SettingsProvider = ({ children }) => {
     companyName: 'TravelOps Inc.',
     currency: 'IDR',
     dateFormat: 'YYYY-MM-DD',
-    language: 'en'
+    language: 'en',
+    passwordMinLength: 8,
+    passwordRequireNumbers: true,
+    passwordRequireSymbols: true,
+    lockoutThreshold: 5,
+    logRetentionDays: 30
   });
   const [loading, setLoading] = useState(true);
 

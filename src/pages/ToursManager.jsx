@@ -5,11 +5,17 @@ import TourWizard from '../components/tours/TourWizard';
 import DatabaseTable from '../components/tours/DatabaseTable';
 import TourSummary from '../components/tours/TourSummary';
 import TourReporting from '../components/tours/TourReporting';
+import CsvImportUtility from '../components/CsvImportUtility';
+import { useTours } from '../context/TourContext';
+import { UploadCloud } from 'lucide-react';
 
 const ToursManager = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
-  const [activeTab, setActiveTab] = useState('summary'); // 'wizard', 'database', 'summary'
+  const [activeTab, setActiveTab] = useState('summary'); // 'wizard', 'database', 'summary', 'reporting'
   const [editingTour, setEditingTour] = useState(null);
+  const [showImport, setShowImport] = useState(false);
+
+  const { bulkImportTours } = useTours();
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -24,6 +30,30 @@ const ToursManager = () => {
   const handleEditTour = (tour) => {
     setEditingTour(tour);
     setActiveTab('wizard');
+  };
+
+  const handleImportData = async (data) => {
+    try {
+      // Map flat CSV data to Tour format
+      const mappedData = data.map(row => ({
+        tourCode: row['Tour Code'] || '',
+        bookingCode: row['Booking Code'] || '',
+        country: row['Country'] || 'Unknown',
+        category: row['Category'] || 'Leisure',
+        departureDate: row['Departure Date'] || '',
+        returnDate: row['Return Date'] || '',
+        paxCount: parseInt(row['Pax Count']) || 1,
+        status: row['Status'] || 'Pending',
+        staffName: row['Staff Name'] || ''
+      }));
+      
+      await bulkImportTours(mappedData);
+      alert(`Successfully imported ${mappedData.length} records!`);
+      setShowImport(false);
+      setActiveTab('database');
+    } catch (err) {
+      alert('Failed to import data: ' + err.message);
+    }
   };
 
   const renderContent = () => {
@@ -67,9 +97,27 @@ const ToursManager = () => {
         
         <div className="content-area">
           <div className="page-container">
-            <div className="section-title">
-              Tours Management
+            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Tours Management</span>
+              <button 
+                onClick={() => setShowImport(!showImport)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)',
+                  border: '1px solid rgba(16, 185, 129, 0.2)', padding: '0.5rem 1rem',
+                  borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.875rem'
+                }}
+              >
+                <UploadCloud size={16} /> Import Bulk Data
+              </button>
             </div>
+            
+            {showImport && (
+              <CsvImportUtility 
+                onImport={handleImportData}
+                templateHeaders={['Tour Code', 'Booking Code', 'Country', 'Category', 'Departure Date', 'Return Date', 'Pax Count', 'Status', 'Staff Name']}
+              />
+            )}
           
           <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)' }}>
             <button 

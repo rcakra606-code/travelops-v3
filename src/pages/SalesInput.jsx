@@ -16,18 +16,27 @@ const formatPercent = (value) => {
   return value.toFixed(2) + '%';
 };
 
+const getCurrentMonthString = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
+};
+
 const SalesInput = () => {
   const { sales: salesData, addSale, updateSale, deleteSale } = useSales();
   const { users } = useUsers();
   const { user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database'); // 'dashboard', 'database'
-  const [selectedPeriod, setSelectedPeriod] = useState('2026-05');
+  
+  const initialMonth = getCurrentMonthString();
+  const [selectedPeriod, setSelectedPeriod] = useState(initialMonth);
   const [isFormOpen, setIsFormOpen] = useState(true);
   const [editingId, setEditingId] = useState(null);
   
   const [formData, setFormData] = useState({
-    period: '2026-05',
+    period: initialMonth,
     staffName: '',
     targetSales: '',
     targetProfit: '',

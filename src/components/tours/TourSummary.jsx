@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTours } from '../../context/TourContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
@@ -198,7 +199,7 @@ const TourSummary = () => {
           </ComposableMap>
           
           {/* Custom Map Tooltip */}
-          {tooltipContent && (
+          {tooltipContent && createPortal(
             <div style={{
               position: 'fixed',
               top: tooltipPos.y - 40,
@@ -209,12 +210,13 @@ const TourSummary = () => {
               borderRadius: '0.25rem',
               border: '1px solid #334155',
               pointerEvents: 'none',
-              zIndex: 1000,
+              zIndex: 999999,
               fontWeight: 'bold',
               boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
             }}>
               {tooltipContent}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

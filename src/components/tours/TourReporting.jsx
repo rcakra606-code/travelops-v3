@@ -1,13 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
-import { BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight, Activity, FileText } from 'lucide-react';
+import { BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight, Activity, FileText, Clock } from 'lucide-react';
 
 const TourReporting = () => {
   const { tours } = useTours();
+  
+  // Split tours into active and past
+  const activeTours = useMemo(() => tours.filter(t => t.status !== 'Past Date'), [tours]);
+  const pastTours = useMemo(() => tours.filter(t => t.status === 'Past Date'), [tours]);
+
   const [reportType, setReportType] = useState('monthly');
   const [expandedMonths, setExpandedMonths] = useState({});
-
   const [expandedStaff, setExpandedStaff] = useState({});
 
   const toggleMonth = (month) => {
@@ -30,7 +34,7 @@ const TourReporting = () => {
 
   const staffReport = useMemo(() => {
     const data = {};
-    tours.forEach(t => {
+    activeTours.forEach(t => {
       const staff = t.staffName || 'Unassigned';
       if (!data[staff]) {
         data[staff] = { count: 0, omset: 0, profit: 0, pax: 0, months: {} };
@@ -54,11 +58,11 @@ const TourReporting = () => {
       }
     });
     return Object.entries(data).sort((a, b) => b[1].omset - a[1].omset);
-  }, [tours]);
+  }, [activeTours]);
 
   const statusReport = useMemo(() => {
     const data = {};
-    tours.forEach(t => {
+    activeTours.forEach(t => {
       const status = t.status || 'Unknown';
       if (!data[status]) {
         data[status] = { count: 0, omset: 0, profit: 0, pax: 0, months: {} };
@@ -82,7 +86,7 @@ const TourReporting = () => {
       }
     });
     return Object.entries(data).sort((a, b) => b[1].count - a[1].count);
-  }, [tours]);
+  }, [activeTours]);
 
   const invoicingReport = useMemo(() => {
     const data = {
@@ -90,7 +94,7 @@ const TourReporting = () => {
       'Not Invoiced': { count: 0, omset: 0, profit: 0, pax: 0, months: {} }
     };
     
-    tours.forEach(t => {
+    activeTours.forEach(t => {
       const isInvoiced = t.financials?.invoiceNumber && t.financials.invoiceNumber.trim() !== '';
       const status = isInvoiced ? 'Invoiced' : 'Not Invoiced';
       
@@ -113,11 +117,11 @@ const TourReporting = () => {
       }
     });
     return Object.entries(data);
-  }, [tours]);
+  }, [activeTours]);
 
   const monthlyReport = useMemo(() => {
     const data = {};
-    tours.forEach(t => {
+    activeTours.forEach(t => {
       if (!t.departureDate) return;
       const date = new Date(t.departureDate);
       const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
@@ -140,45 +144,81 @@ const TourReporting = () => {
     
     // Sort reverse chronologically
     return Object.entries(data).sort((a, b) => new Date(b[0]) - new Date(a[0]));
-  }, [tours]);
+  }, [activeTours]);
+
+  const pastDateReport = useMemo(() => {
+    const data = {};
+    pastTours.forEach(t => {
+      if (!t.departureDate) return;
+      const date = new Date(t.departureDate);
+      const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+      
+      if (!data[monthYear]) {
+        data[monthYear] = { omset: 0, profit: 0, tours: 0, pax: 0, countries: {} };
+      }
+      data[monthYear].tours += 1;
+      data[monthYear].pax += (t.paxCount || 0);
+      data[monthYear].omset += (t.financials?.totalOmset || 0);
+      data[monthYear].profit += (t.financials?.profit || 0);
+
+      const country = t.country || 'Unknown';
+      if (!data[monthYear].countries[country]) {
+        data[monthYear].countries[country] = { tours: 0, pax: 0 };
+      }
+      data[monthYear].countries[country].tours += 1;
+      data[monthYear].countries[country].pax += (t.paxCount || 0);
+    });
+    
+    // Sort reverse chronologically
+    return Object.entries(data).sort((a, b) => new Date(b[0]) - new Date(a[0]));
+  }, [pastTours]);
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <button 
           className={`card ${reportType === 'monthly' ? 'active-report' : ''}`}
           onClick={() => setReportType('monthly')}
-          style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'monthly' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
+          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'monthly' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
         >
           <CalendarDays color="var(--primary)" />
-          <h3 style={{ margin: 0 }}>Monthly Trend</h3>
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>Monthly Trend</h3>
         </button>
 
         <button 
           className={`card ${reportType === 'staff' ? 'active-report' : ''}`}
           onClick={() => setReportType('staff')}
-          style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'staff' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
+          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'staff' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
         >
           <UserCheck color="var(--success)" />
-          <h3 style={{ margin: 0 }}>By Staff Performance</h3>
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>By Staff</h3>
         </button>
 
         <button 
           className={`card ${reportType === 'status' ? 'active-report' : ''}`}
           onClick={() => setReportType('status')}
-          style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'status' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
+          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'status' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
         >
           <Activity color="var(--danger)" />
-          <h3 style={{ margin: 0 }}>By Status</h3>
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>By Status</h3>
         </button>
 
         <button 
           className={`card ${reportType === 'invoicing' ? 'active-report' : ''}`}
           onClick={() => setReportType('invoicing')}
-          style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'invoicing' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
+          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'invoicing' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
         >
           <FileText color="#eab308" />
-          <h3 style={{ margin: 0 }}>By Invoicing</h3>
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>By Invoicing</h3>
+        </button>
+
+        <button 
+          className={`card ${reportType === 'past_date' ? 'active-report' : ''}`}
+          onClick={() => setReportType('past_date')}
+          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'past_date' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
+        >
+          <Clock color="#64748b" />
+          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>Past Date Data</h3>
         </button>
       </div>
 
@@ -186,7 +226,7 @@ const TourReporting = () => {
         {reportType === 'monthly' && (
           <>
             <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Monthly Revenue Trend
+              <BarChart size={20} /> Monthly Revenue Trend (Active Tours)
             </h3>
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
@@ -253,7 +293,7 @@ const TourReporting = () => {
         {reportType === 'staff' && (
           <>
             <h3 style={{ marginBottom: '1.5rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Staff Performance Report
+              <BarChart size={20} /> Staff Performance Report (Active Tours)
             </h3>
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
@@ -324,7 +364,7 @@ const TourReporting = () => {
         {reportType === 'status' && (
           <>
             <h3 style={{ marginBottom: '1.5rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Tour Status Report
+              <BarChart size={20} /> Tour Status Report (Active Tours)
             </h3>
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
@@ -399,7 +439,7 @@ const TourReporting = () => {
         {reportType === 'invoicing' && (
           <>
             <h3 style={{ marginBottom: '1.5rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Invoicing Status Report
+              <BarChart size={20} /> Invoicing Status Report (Active Tours)
             </h3>
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
@@ -470,10 +510,77 @@ const TourReporting = () => {
             </div>
           </>
         )}
+
+        {reportType === 'past_date' && (
+          <>
+            <h3 style={{ marginBottom: '1.5rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={20} /> Past Date Tours Report
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}></th>
+                    <th>Month (Departure)</th>
+                    <th>Total Tours</th>
+                    <th>Total Pax</th>
+                    <th>Total Omset</th>
+                    <th>Total Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pastDateReport.length > 0 ? pastDateReport.map(([month, stats], idx) => (
+                    <React.Fragment key={idx}>
+                      <tr 
+                        onClick={() => toggleMonth(month)} 
+                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
+                      >
+                        <td style={{ color: '#64748b' }}>
+                          {expandedMonths[month] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                        </td>
+                        <td style={{ fontWeight: '600' }}>{month}</td>
+                        <td style={{ fontWeight: '500' }}>{stats.tours}</td>
+                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
+                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
+                      </tr>
+                      {expandedMonths[month] && (
+                        <tr>
+                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid #64748b' }}>
+                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Destination Breakdown</h4>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+                                {Object.entries(stats.countries).map(([country, cStats]) => (
+                                  <div key={country} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
+                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{country}</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
+                                      <span style={{ fontWeight: '500' }}>{cStats.tours}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
+                                      <span style={{ fontWeight: '500' }}>{cStats.pax}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )) : (
+                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
       </div>
     </div>
   );
 };
 
 export default TourReporting;
-// Triggering HMR to clear Vite's cache

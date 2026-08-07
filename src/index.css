@@ -239,6 +239,23 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 10px 15px -5px rgba(0, 0, 0, 0.05);
 }
 
+/* Skeleton Loader Shimmer */
+.shimmer-skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+[data-theme='light'] .shimmer-skeleton {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.05) 25%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.05) 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 /* Login Page Specific */
 .login-page {
   min-height: 100vh;
@@ -624,6 +641,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 @media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+
   .hamburger-btn {
     display: block;
   }
@@ -692,6 +711,10 @@ input:focus, select:focus, textarea:focus {
     margin: 0.5rem !important;
     max-height: 95vh !important;
   }
+}
+
+@media (min-width: 769px) {
+  .mobile-only { display: none !important; }
 }
 
 /* Form Layout */

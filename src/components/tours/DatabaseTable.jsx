@@ -2,18 +2,21 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
-import { Eye, Edit2, Trash2, ArrowUpDown, X } from 'lucide-react';
+import { Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers } from 'lucide-react';
 import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import { useAuth } from '../../context/AuthContext';
 import ExportMenu from '../ExportMenu';
 
 const DatabaseTable = ({ onEdit, customData }) => {
-  const { tours, deleteTour } = useTours();
+  const { tours, deleteTour, updateTour } = useTours();
   const { user } = useAuth();
   const [viewingTour, setViewingTour] = useState(null);
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
-  const dataToUse = customData || tours;
+  const dataToUse = customData || tours.filter(t => t.status !== 'Past Date');
 
   // Flatten nested properties (like totalOmset) so useDataTable can sort it
   const flatTours = useMemo(() => {
@@ -36,12 +39,18 @@ const DatabaseTable = ({ onEdit, customData }) => {
     itemsPerPage
   } = useDataTable(flatTours, { key: 'departureDate', direction: 'desc' }, 10);
 
+  // Clear selections when page changes to prevent confusing state
+  React.useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentPage]);
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'Confirm': return 'badge-success';
       case 'Pending': return 'badge-warning';
       case 'Cancel': return 'badge-danger';
       case 'Past Date': return 'badge-primary';
+      default: return 'badge-primary';
     }
   };
 
@@ -64,16 +73,85 @@ const DatabaseTable = ({ onEdit, customData }) => {
     { header: 'Invoice Number', key: 'invoiceNumber', format: null },
   ];
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(new Set(paginatedData.map(t => t.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleBulkStatusChange = async (newStatus) => {
+    if (window.confirm(`Change status of ${selectedIds.size} selected tours to ${newStatus}?`)) {
+      for (let id of selectedIds) {
+        await updateTour(id, { status: newStatus, updatedBy: user?.name || 'System' });
+      }
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (window.confirm(`WARNING: Are you sure you want to PERMANENTLY delete ${selectedIds.size} selected tours? This cannot be undone.`)) {
+      for (let id of selectedIds) {
+        await deleteTour(id);
+      }
+      setSelectedIds(new Set());
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      
+      {/* Top Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '40px' }}>
+        {/* Bulk Actions Menu (Shows when items selected) */}
+        <div>
+          {selectedIds.size > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--primary)', padding: '0.5rem 1rem', borderRadius: '8px', color: 'white', animation: 'fadeIn 0.2s' }}>
+              <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{selectedIds.size} Selected</span>
+              <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.3)' }}></div>
+              <button onClick={() => handleBulkStatusChange('Confirm')} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Mark Confirm</button>
+              <button onClick={() => handleBulkStatusChange('Pending')} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Mark Pending</button>
+              <button onClick={() => handleBulkStatusChange('Cancel')} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Mark Cancel</button>
+              
+              {canDelete && (
+                <>
+                  <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.3)' }}></div>
+                  <button onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'rgba(239, 68, 68, 0.9)', border: 'none', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
+                    <Trash2 size={14} /> Delete Selected
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        
         <ExportMenu data={flatTours} columns={exportColumns} filename="Tours_Data" />
       </div>
+
       <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
         <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
-          <table className="data-table" style={{ minWidth: '1000px' }}>
+          <table className="data-table" style={{ minWidth: '1050px' }}>
           <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  checked={paginatedData.length > 0 && selectedIds.size === paginatedData.length}
+                  onChange={handleSelectAll}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                />
+              </th>
               <th>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('tourCode')}>
@@ -130,20 +208,24 @@ const DatabaseTable = ({ onEdit, customData }) => {
                   <input type="text" placeholder="Filter..." value={filters.staffName || ''} onChange={(e) => handleFilterChange('staffName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
-              <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('invoiceNumber')}>
-                    Invoice # <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
-                  </div>
-                  <input type="text" placeholder="Filter..." value={filters.invoiceNumber || ''} onChange={(e) => handleFilterChange('invoiceNumber', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
-                </div>
-              </th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {paginatedData.length > 0 ? paginatedData.map((tour) => (
-              <tr key={tour.id} style={{ transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}>
+              <tr key={tour.id} style={{ 
+                transition: 'background 0.2s', 
+                background: selectedIds.has(tour.id) ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                ':hover': { background: selectedIds.has(tour.id) ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.05)' } 
+              }}>
+                <td style={{ textAlign: 'center' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.has(tour.id)}
+                    onChange={() => handleSelectRow(tour.id)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                  />
+                </td>
                 <td style={{ fontWeight: '500', color: 'var(--primary)' }}>{tour.tourCode}</td>
                 <td>{tour.bookingCode}</td>
                 <td>{tour.country}</td>
@@ -155,7 +237,6 @@ const DatabaseTable = ({ onEdit, customData }) => {
                   </span>
                 </td>
                 <td>{tour.staffName || '-'}</td>
-                <td>{tour.invoiceNumber || '-'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setViewingTour(tour)} style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="View">
@@ -247,6 +328,24 @@ const DatabaseTable = ({ onEdit, customData }) => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <h3 style={{ marginBottom: '1rem', marginTop: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Version History</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {viewingTour.history && viewingTour.history.length > 0 ? (
+                viewingTour.history.map((log, idx) => (
+                  <div key={idx} style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <strong style={{ color: 'var(--primary)', fontSize: '0.875rem' }}>{log.action}</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(log.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-main)' }}>{log.details}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>By: <span style={{ color: 'var(--text-main)' }}>{log.user}</span></div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', textAlign: 'center' }}>No history available for this record.</div>
+              )}
             </div>
           </div>
         </div>,
