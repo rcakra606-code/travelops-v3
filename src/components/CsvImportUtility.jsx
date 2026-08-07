@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import Papa from 'papaparse';
 import { Upload, X, Check, FileSpreadsheet, AlertCircle, DownloadCloud } from 'lucide-react';
 
 const CsvImportUtility = ({ onImport, templateHeaders }) => {
@@ -9,38 +10,70 @@ const CsvImportUtility = ({ onImport, templateHeaders }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef(null);
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const selected = e.target.files[0];
     if (selected) {
       setFile(selected);
       setError('');
       setIsProcessing(true);
       
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const bstr = evt.target.result;
-          const wb = XLSX.read(bstr, { type: 'binary' });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const parsedData = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' });
+      try {
+        let parsedData = [];
+        if (selected.name.toLowerCase().endsWith('.csv')) {
+          Papa.parse(selected, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+              if (results.errors && results.errors.length > 0) {
+                 console.error(results.errors);
+              }
+              if (results.data.length === 0) {
+                setError("File is empty or invalid format.");
+              } else {
+                setData(results.data);
+              }
+              setIsProcessing(false);
+            },
+            error: (err) => {
+              setError(err.message || 'Error parsing file.');
+              setIsProcessing(false);
+            }
+          });
+        } else {
+          const workbook = new ExcelJS.Workbook();
+          const arrayBuffer = await selected.arrayBuffer();
+          await workbook.xlsx.load(arrayBuffer);
+          
+          const worksheet = workbook.worksheets[0];
+          if (!worksheet) throw new Error("No worksheets found in Excel file.");
+          
+          const headers = [];
+          worksheet.getRow(1).eachCell((cell, colNumber) => {
+            headers[colNumber] = cell.value;
+          });
+          
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return;
+            const rowData = {};
+            row.eachCell((cell, colNumber) => {
+              const header = headers[colNumber];
+              if (header) {
+                rowData[header] = cell.value?.result ?? cell.value;
+              }
+            });
+            parsedData.push(rowData);
+          });
           
           if (parsedData.length === 0) {
             throw new Error("File is empty or invalid format.");
           }
-          
           setData(parsedData);
-        } catch (err) {
-          setError(err.message || 'Error parsing file.');
-        } finally {
           setIsProcessing(false);
         }
-      };
-      reader.onerror = () => {
-        setError('Error reading file.');
+      } catch (err) {
+        setError(err.message || 'Error parsing file.');
         setIsProcessing(false);
-      };
-      reader.readAsBinaryString(selected);
+      }
     }
   };
 
@@ -56,21 +89,21 @@ const CsvImportUtility = ({ onImport, templateHeaders }) => {
     handleClear();
   };
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     if (!templateHeaders) return;
     
-    // Create an empty row with the template headers
-    const templateData = [
-      templateHeaders.reduce((acc, header) => {
-        acc[header] = '';
-        return acc;
-      }, {})
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(templateData, { header: templateHeaders });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, "Import_Template.xlsx");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Template');
+    worksheet.addRow(templateHeaders);
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Import_Template.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (

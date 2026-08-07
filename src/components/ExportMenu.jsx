@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { formatCurrency } from '../utils/currency';
@@ -42,12 +42,28 @@ const ExportMenu = ({ data, columns, filename }) => {
     });
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const processedData = getProcessedData();
-    const ws = XLSX.utils.json_to_sheet(processedData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Data");
-    XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Data');
+    
+    if (processedData.length > 0) {
+      const headers = Object.keys(processedData[0]);
+      worksheet.addRow(headers);
+      processedData.forEach(row => {
+        worksheet.addRow(Object.values(row));
+      });
+    }
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
     setIsOpen(false);
   };
 
