@@ -13,6 +13,7 @@ import { OvertimeProvider } from './context/OvertimeContext';
 import { ProductivityProvider } from './context/ProductivityContext';
 import { CorporateProvider } from './context/CorporateContext';
 import { CashoutProvider } from './context/CashoutContext';
+import { KnowledgeProvider } from './context/KnowledgeContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AutoLogout from './components/AutoLogout';
@@ -32,29 +33,31 @@ function App() {
             <ForcePasswordChange />
             <UserProvider>
               <TourProvider>
-                <SalesProvider>
-                  <DocumentProvider>
-                    <TelecomProvider>
-                      <CruiseProvider>
-                        <HotelProvider>
-                          <OvertimeProvider>
-                            <ProductivityProvider>
-                              <CorporateProvider>
-                                <CashoutProvider>
-                                  <Router>
-                                    <ReminderEngine />
-                                    <CommandPalette />
-                                    <AnimatedRoutes />
-                                  </Router>
-                                </CashoutProvider>
-                              </CorporateProvider>
-                            </ProductivityProvider>
-                          </OvertimeProvider>
-                        </HotelProvider>
-                      </CruiseProvider>
-                    </TelecomProvider>
-                  </DocumentProvider>
-                </SalesProvider>
+                <KnowledgeProvider>
+                  <SalesProvider>
+                    <DocumentProvider>
+                      <TelecomProvider>
+                        <CruiseProvider>
+                          <HotelProvider>
+                            <OvertimeProvider>
+                              <ProductivityProvider>
+                                <CorporateProvider>
+                                  <CashoutProvider>
+                                    <Router>
+                                      <ReminderEngine />
+                                      <CommandPalette />
+                                      <AnimatedRoutes />
+                                    </Router>
+                                  </CashoutProvider>
+                                </CorporateProvider>
+                              </ProductivityProvider>
+                            </OvertimeProvider>
+                          </HotelProvider>
+                        </CruiseProvider>
+                      </TelecomProvider>
+                    </DocumentProvider>
+                  </SalesProvider>
+                </KnowledgeProvider>
               </TourProvider>
             </UserProvider>
           </AutoLogout>

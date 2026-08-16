@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor, Briefcase, Clock, Target, Building, CreditCard, Activity, ArrowRight } from 'lucide-react';
+import { Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor, Briefcase, Clock, Target, Building, CreditCard, Activity, ArrowRight, Compass } from 'lucide-react';
 import { useTours } from '../context/TourContext';
 import { useCorporate } from '../context/CorporateContext';
 import { useCruises } from '../context/CruiseContext';
@@ -9,6 +9,7 @@ import { useHotels } from '../context/HotelContext';
 const staticCommands = [
   { id: 'dashboard', name: 'Dashboard', icon: <Home size={18} />, path: '/' },
   { id: 'tours', name: 'Tours Manager', icon: <Map size={18} />, path: '/tours' },
+  { id: 'knowledge', name: 'Destination Intelligence & Knowledge Base', icon: <Compass size={18} />, path: '/knowledge' },
   { id: 'users', name: 'User Manager', icon: <Users size={18} />, path: '/users' },
   { id: 'sales', name: 'Sales Input', icon: <DollarSign size={18} />, path: '/sales' },
   { id: 'documents', name: 'Documents', icon: <FileText size={18} />, path: '/documents' },
@@ -49,8 +50,18 @@ const CommandPalette = () => {
       }
     };
 
+    const handleOpenCustom = () => {
+      setIsOpen(true);
+      setQuery('');
+      setSelectedIndex(0);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('open-command-palette', handleOpenCustom);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('open-command-palette', handleOpenCustom);
+    };
   }, [isOpen]);
 
   useEffect(() => {

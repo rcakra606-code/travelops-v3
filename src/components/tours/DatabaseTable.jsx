@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
-import { Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers } from 'lucide-react';
+import { Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers, Shield, Calendar, User, DollarSign, Tag, Plane } from 'lucide-react';
 import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import { useAuth } from '../../context/AuthContext';
@@ -39,18 +39,45 @@ const DatabaseTable = ({ onEdit, customData }) => {
     itemsPerPage
   } = useDataTable(flatTours, { key: 'departureDate', direction: 'desc' }, 10);
 
-  // Clear selections when page changes to prevent confusing state
+  // Clear selections when page changes
   React.useEffect(() => {
     setSelectedIds(new Set());
   }, [currentPage]);
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'Confirm': return 'badge-success';
-      case 'Pending': return 'badge-warning';
-      case 'Cancel': return 'badge-danger';
-      case 'Past Date': return 'badge-primary';
-      default: return 'badge-primary';
+      case 'Confirm':
+      case 'Confirmed':
+        return (
+          <span className="badge badge-success">
+            <span className="pulse-dot pulse-dot-green" /> Confirm
+          </span>
+        );
+      case 'Pending':
+        return (
+          <span className="badge badge-warning">
+            <span className="pulse-dot pulse-dot-amber" /> Pending
+          </span>
+        );
+      case 'Cancel':
+      case 'Cancelled':
+        return (
+          <span className="badge badge-danger">
+            Cancel
+          </span>
+        );
+      case 'Past Date':
+        return (
+          <span className="badge badge-primary">
+            Past Date
+          </span>
+        );
+      default:
+        return (
+          <span className="badge badge-primary">
+            {status}
+          </span>
+        );
     }
   };
 
@@ -113,22 +140,36 @@ const DatabaseTable = ({ onEdit, customData }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       
       {/* Top Toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '40px' }}>
-        {/* Bulk Actions Menu (Shows when items selected) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '40px', flexWrap: 'wrap', gap: '0.75rem' }}>
+        {/* Bulk Actions Menu */}
         <div>
           {selectedIds.size > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--primary)', padding: '0.5rem 1rem', borderRadius: '8px', color: 'white', animation: 'fadeIn 0.2s' }}>
-              <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{selectedIds.size} Selected</span>
-              <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.3)' }}></div>
-              <button onClick={() => handleBulkStatusChange('Confirm')} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Mark Confirm</button>
-              <button onClick={() => handleBulkStatusChange('Pending')} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Mark Pending</button>
-              <button onClick={() => handleBulkStatusChange('Cancel')} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Mark Cancel</button>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.85rem', 
+              background: 'rgba(13, 19, 34, 0.95)', 
+              border: '1px solid var(--border-glow)',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 15px var(--primary-glow)',
+              padding: '0.45rem 1rem', 
+              borderRadius: '8px', 
+              color: 'var(--text-main)', 
+              animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              backdropFilter: 'blur(12px)'
+            }}>
+              <span style={{ fontWeight: '700', fontSize: '0.8125rem', color: 'var(--primary)' }}>
+                {selectedIds.size} Selected
+              </span>
+              <div style={{ width: '1px', height: '16px', background: 'var(--border)' }}></div>
+              <button onClick={() => handleBulkStatusChange('Confirm')} className="btn" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>Mark Confirm</button>
+              <button onClick={() => handleBulkStatusChange('Pending')} className="btn" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>Mark Pending</button>
+              <button onClick={() => handleBulkStatusChange('Cancel')} className="btn" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>Mark Cancel</button>
               
               {canDelete && (
                 <>
-                  <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.3)' }}></div>
-                  <button onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'rgba(239, 68, 68, 0.9)', border: 'none', color: 'white', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                    <Trash2 size={14} /> Delete Selected
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border)' }}></div>
+                  <button onClick={handleBulkDelete} className="btn btn-danger" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', gap: '0.3rem' }}>
+                    <Trash2 size={13} /> Delete
                   </button>
                 </>
               )}
@@ -139,12 +180,12 @@ const DatabaseTable = ({ onEdit, customData }) => {
         <ExportMenu data={flatTours} columns={exportColumns} filename="Tours_Data" />
       </div>
 
-      <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ overflowX: 'auto', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
+      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ minWidth: '1050px' }}>
-          <thead style={{ background: 'rgba(15, 23, 42, 0.9)' }}>
+          <thead>
             <tr>
-              <th style={{ width: '40px', textAlign: 'center' }}>
+              <th style={{ width: '44px', textAlign: 'center' }}>
                 <input 
                   type="checkbox" 
                   checked={paginatedData.length > 0 && selectedIds.size === paginatedData.length}
@@ -153,71 +194,72 @@ const DatabaseTable = ({ onEdit, customData }) => {
                 />
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('tourCode')}>
-                    Tour Code <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('tourCode')}>
+                    Tour Code <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.tourCode || ''} onChange={(e) => handleFilterChange('tourCode', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.tourCode || ''} onChange={(e) => handleFilterChange('tourCode', e.target.value)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('bookingCode')}>
-                    Booking Code <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('bookingCode')}>
+                    Booking Code <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.bookingCode || ''} onChange={(e) => handleFilterChange('bookingCode', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.bookingCode || ''} onChange={(e) => handleFilterChange('bookingCode', e.target.value)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('country')}>
-                    Destination <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('country')}>
+                    Destination <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.country || ''} onChange={(e) => handleFilterChange('country', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.country || ''} onChange={(e) => handleFilterChange('country', e.target.value)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('departureDate')}>
-                    Dep Date <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('departureDate')}>
+                    Departure Date <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
                   <div style={{ height: '24px' }}></div>
                 </div>
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('totalOmset')}>
-                    Omset <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('totalOmset')}>
+                    Omset <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
                   <div style={{ height: '24px' }}></div>
                 </div>
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('status')}>
-                    Status <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('status')}>
+                    Status <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.status || ''} onChange={(e) => handleFilterChange('status', e.target.value)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
               <th>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('staffName')}>
-                    Staff <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('staffName')}>
+                    PIC Staff <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
-                  <input type="text" placeholder="Filter..." value={filters.staffName || ''} onChange={(e) => handleFilterChange('staffName', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                  <input type="text" placeholder="Filter..." value={filters.staffName || ''} onChange={(e) => handleFilterChange('staffName', e.target.value)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} />
                 </div>
               </th>
-              <th>Actions</th>
+              <th style={{ textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {paginatedData.length > 0 ? paginatedData.map((tour) => (
-              <tr key={tour.id} style={{ 
-                transition: 'background 0.2s', 
-                background: selectedIds.has(tour.id) ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                ':hover': { background: selectedIds.has(tour.id) ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.05)' } 
-              }}>
+              <tr 
+                key={tour.id} 
+                style={{ 
+                  background: selectedIds.has(tour.id) ? 'rgba(6, 182, 212, 0.08)' : 'transparent',
+                }}
+              >
                 <td style={{ textAlign: 'center' }}>
                   <input 
                     type="checkbox" 
@@ -226,30 +268,85 @@ const DatabaseTable = ({ onEdit, customData }) => {
                     style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
                   />
                 </td>
-                <td style={{ fontWeight: '500', color: 'var(--primary)' }}>{tour.tourCode}</td>
-                <td>{tour.bookingCode}</td>
-                <td>{tour.country}</td>
-                <td>{tour.departureDate}</td>
-                <td style={{ fontWeight: '600' }}>Rp {formatCurrency(tour.totalOmset)}</td>
-                <td>
-                  <span className={`badge ${getStatusBadge(tour.status)}`}>
-                    {tour.status}
-                  </span>
+                <td className="font-mono" style={{ fontWeight: '700', color: 'var(--primary)' }}>
+                  {tour.tourCode || '-'}
                 </td>
-                <td>{tour.staffName || '-'}</td>
+                <td className="font-mono" style={{ color: 'var(--text-main)', fontWeight: '600' }}>
+                  {tour.bookingCode || '-'}
+                </td>
                 <td>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => setViewingTour(tour)} style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="View">
-                      <Eye size={16} />
+                  <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{tour.country}</span>
+                </td>
+                <td className="font-mono" style={{ color: '#fbbf24', fontWeight: '500', fontSize: '0.8125rem' }}>
+                  {tour.departureDate}
+                </td>
+                <td className="font-mono" style={{ fontWeight: '700', color: 'var(--text-main)' }}>
+                  Rp {formatCurrency(tour.totalOmset)}
+                </td>
+                <td>
+                  {getStatusBadge(tour.status)}
+                </td>
+                <td>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{tour.staffName || '-'}</span>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                    <button 
+                      onClick={() => setViewingTour(tour)} 
+                      style={{ 
+                        background: 'rgba(6, 182, 212, 0.1)', 
+                        color: 'var(--primary)', 
+                        border: '1px solid rgba(6, 182, 212, 0.2)', 
+                        padding: '0.4rem', 
+                        borderRadius: '6px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s'
+                      }} 
+                      title="Inspect Details"
+                    >
+                      <Eye size={15} />
                     </button>
                     {canEditRecord(tour.staffName) && (
-                      <button onClick={() => onEdit(tour)} style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Edit">
-                        <Edit2 size={16} />
+                      <button 
+                        onClick={() => onEdit(tour)} 
+                        style={{ 
+                          background: 'rgba(245, 158, 11, 0.1)', 
+                          color: '#fbbf24', 
+                          border: '1px solid rgba(245, 158, 11, 0.2)', 
+                          padding: '0.4rem', 
+                          borderRadius: '6px', 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.15s'
+                        }} 
+                        title="Edit Record"
+                      >
+                        <Edit2 size={15} />
                       </button>
                     )}
                     {canDelete && (
-                      <button onClick={() => { if(window.confirm('Are you sure you want to delete this tour?')) deleteTour(tour.id) }} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', padding: '0.5rem', borderRadius: '0.25rem', cursor: 'pointer' }} title="Delete">
-                        <Trash2 size={16} />
+                      <button 
+                        onClick={() => { if(window.confirm('Are you sure you want to delete this tour?')) deleteTour(tour.id) }} 
+                        style={{ 
+                          background: 'rgba(239, 68, 68, 0.1)', 
+                          color: '#f87171', 
+                          border: '1px solid rgba(239, 68, 68, 0.2)', 
+                          padding: '0.4rem', 
+                          borderRadius: '6px', 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.15s'
+                        }} 
+                        title="Delete Record"
+                      >
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>
@@ -257,13 +354,18 @@ const DatabaseTable = ({ onEdit, customData }) => {
               </tr>
             )) : (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                  No records found in database.
+                <td colSpan="9" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'inline-flex', padding: '0.75rem', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.05)', marginBottom: '0.75rem' }}>
+                    <Plane size={24} style={{ opacity: 0.5 }} />
+                  </div>
+                  <p style={{ margin: 0, fontWeight: '600', color: 'var(--text-main)' }}>No matching tour records found</p>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: 'var(--text-subtle)' }}>Try adjusting your search filters above.</p>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        </div>
       </div>
       
       <Pagination 
@@ -274,84 +376,116 @@ const DatabaseTable = ({ onEdit, customData }) => {
         itemsPerPage={itemsPerPage}
       />
 
-      {/* View Modal */}
+      {/* View Details Slide-Over / Modal */}
       {viewingTour && createPortal(
         <div className="modal-overlay" onClick={() => setViewingTour(null)}>
-          <div className="modal-content fade-in" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setViewingTour(null)} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-              <X size={24} />
+          <div className="modal-content fade-in" style={{ maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setViewingTour(null)} 
+              style={{ 
+                position: 'absolute', 
+                top: '1.25rem', 
+                right: '1.25rem', 
+                background: 'rgba(255, 255, 255, 0.05)', 
+                border: '1px solid var(--border)', 
+                borderRadius: '8px',
+                color: 'var(--text-muted)', 
+                cursor: 'pointer',
+                padding: '0.35rem',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <X size={18} />
             </button>
             
-            <h2 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Tour Details</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              <div style={{ padding: '0.4rem', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--primary)' }}>
+                <Plane size={20} />
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                  Tour Overview: {viewingTour.bookingCode || viewingTour.tourCode}
+                </h2>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Record ID: {viewingTour.id}</span>
+              </div>
+            </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-              <div><strong>Tour Code:</strong> <br/>{viewingTour.tourCode || '-'}</div>
-              <div><strong>Booking Code:</strong> <br/>{viewingTour.bookingCode || '-'}</div>
-              <div><strong>Country:</strong> <br/>{viewingTour.country || '-'}</div>
-              <div><strong>Dates:</strong> <br/>{viewingTour.departureDate} - {viewingTour.returnDate}</div>
-              <div><strong>Pax Count:</strong> <br/>{viewingTour.paxCount} Pax</div>
-              <div><strong>Staff:</strong> <br/>{viewingTour.staffName || '-'}</div>
-              <div><strong>Status:</strong> <br/><span className={`badge ${getStatusBadge(viewingTour.status)}`}>{viewingTour.status}</span></div>
+            {/* Core Info Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.75rem', background: 'var(--bg-dark)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tour Code</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '700', color: 'var(--primary)' }}>{viewingTour.tourCode || '-'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Booking Code</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '700', color: 'var(--text-main)' }}>{viewingTour.bookingCode || '-'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Destination</span>
+                <p style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: 'var(--text-main)' }}>{viewingTour.country || '-'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Travel Window</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontSize: '0.8125rem', color: '#fbbf24' }}>{viewingTour.departureDate} ➔ {viewingTour.returnDate}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pax Manifest</span>
+                <p style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: 'var(--text-main)' }}>{viewingTour.paxCount} Travelers</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Status</span>
+                <div style={{ marginTop: '0.2rem' }}>{getStatusBadge(viewingTour.status)}</div>
+              </div>
             </div>
 
-            <h3 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Financials</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-              <div><strong>Total Sales:</strong> <br/>Rp {formatCurrency(viewingTour.financials?.totalSales)}</div>
-              <div><strong>Discount:</strong> <br/><span style={{ color: 'var(--warning)' }}>- Rp {formatCurrency(viewingTour.financials?.discount)}</span></div>
-              <div><strong>Total Omset:</strong> <br/><span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Rp {formatCurrency(viewingTour.financials?.totalOmset)}</span></div>
-              <div><strong>Cost:</strong> <br/><span style={{ color: 'var(--danger)' }}>Rp {formatCurrency(viewingTour.financials?.cost)}</span></div>
-              <div><strong>Profit:</strong> <br/><span style={{ color: 'var(--success)' }}>Rp {formatCurrency(viewingTour.financials?.profit)}</span></div>
-              <div><strong>Deposit #:</strong> <br/>{viewingTour.financials?.depositNumber || '-'}</div>
-              <div><strong>Invoice #:</strong> <br/>{viewingTour.financials?.invoiceNumber || '-'}</div>
-              <div><strong>Discount Link:</strong> <br/>{viewingTour.financials?.discountLink ? <a href={viewingTour.financials.discountLink} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>View</a> : '-'}</div>
+            {/* Financials Breakdown */}
+            <h3 style={{ margin: '0 0 0.85rem 0', fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <DollarSign size={18} color="#10b981" /> Financial Breakdown
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', background: 'var(--bg-dark)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Gross Sales</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '700', color: 'var(--text-main)' }}>Rp {formatCurrency(viewingTour.financials?.totalSales)}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Discount</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: '#fbbf24' }}>- Rp {formatCurrency(viewingTour.financials?.discount)}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Net Omset</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '800', color: '#34d399', fontSize: '1.1rem' }}>Rp {formatCurrency(viewingTour.financials?.totalOmset)}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Invoice ID</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: 'var(--text-main)' }}>{viewingTour.financials?.invoiceNumber || '<Unassigned>'}</p>
+              </div>
             </div>
 
-            <h3 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Passengers</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table" style={{ fontSize: '0.875rem' }}>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {viewingTour.paxInfo?.map(pax => (
-                    <tr key={pax.id}>
-                      <td>{pax.title} {pax.firstName} {pax.lastName}</td>
-                      <td>{pax.email}</td>
-                      <td>{pax.phone}</td>
-                      <td>{pax.notes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <h3 style={{ marginBottom: '1rem', marginTop: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Version History</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {viewingTour.history && viewingTour.history.length > 0 ? (
-                viewingTour.history.map((log, idx) => (
-                  <div key={idx} style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '0.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                      <strong style={{ color: 'var(--primary)', fontSize: '0.875rem' }}>{log.action}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(log.timestamp).toLocaleString()}</span>
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-main)' }}>{log.details}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>By: <span style={{ color: 'var(--text-main)' }}>{log.user}</span></div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', textAlign: 'center' }}>No history available for this record.</div>
+            <div style={{ marginTop: '1.75rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              {canEditRecord(viewingTour.staffName) && (
+                <button 
+                  onClick={() => { const t = viewingTour; setViewingTour(null); onEdit(t); }} 
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}
+                >
+                  <Edit2 size={15} /> Edit Record
+                </button>
               )}
+              <button 
+                onClick={() => setViewingTour(null)} 
+                className="btn btn-secondary"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>,
         document.body
       )}
-    </div>
+
     </div>
   );
 };

@@ -21,6 +21,7 @@ const Productivity = lazy(() => import('../pages/Productivity'));
 const Corporate = lazy(() => import('../pages/Corporate'));
 const Cashout = lazy(() => import('../pages/Cashout'));
 const StaffPerformance = lazy(() => import('../pages/StaffPerformance'));
+const KnowledgeBase = lazy(() => import('../pages/KnowledgeBase'));
 
 const LoadingFallback = () => (
   <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-dark)', color: 'var(--primary)' }}>
@@ -39,6 +40,7 @@ const AnimatedRoutes = () => {
           
           <Route path="/" element={<ProtectedRoute><PageWrapper><Dashboard /></PageWrapper></ProtectedRoute>} />
           <Route path="/tours" element={<ProtectedRoute><PageWrapper><ToursManager /></PageWrapper></ProtectedRoute>} />
+          <Route path="/knowledge" element={<ProtectedRoute><PageWrapper><KnowledgeBase /></PageWrapper></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><PageWrapper><UserManager /></PageWrapper></ProtectedRoute>} />
           <Route path="/sales" element={<ProtectedRoute><PageWrapper><SalesInput /></PageWrapper></ProtectedRoute>} />
           <Route path="/documents" element={<ProtectedRoute><PageWrapper><Documents /></PageWrapper></ProtectedRoute>} />

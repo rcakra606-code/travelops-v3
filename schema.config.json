@@ -125,6 +125,74 @@
       "summary": "TEXT",
       "staff_name": "VARCHAR(255)",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "user_sessions": {
+      "id": "VARCHAR(255) PRIMARY KEY",
+      "user_id": "VARCHAR(255)",
+      "session_token": "TEXT",
+      "device": "VARCHAR(255)",
+      "os": "VARCHAR(255)",
+      "browser": "VARCHAR(255)",
+      "ip": "VARCHAR(100)",
+      "location": "VARCHAR(255)",
+      "last_active": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_dest_countries": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "name": "VARCHAR(255)",
+      "region": "VARCHAR(100)",
+      "currency": "JSONB",
+      "emergency": "JSONB",
+      "power_plugs": "JSONB",
+      "visa_info": "JSONB",
+      "customs_etiquette": "JSONB",
+      "water_safety": "VARCHAR(100)",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_dest_cities": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "country_id": "VARCHAR(50)",
+      "name": "VARCHAR(255)",
+      "airports": "JSONB",
+      "best_months": "JSONB",
+      "transport_apps": "JSONB",
+      "food_highlights": "JSONB",
+      "hospital_contacts": "JSONB",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_dest_objects": {
+      "id": "VARCHAR(50) PRIMARY KEY",
+      "city_id": "VARCHAR(50)",
+      "country_id": "VARCHAR(50)",
+      "name": "VARCHAR(255)",
+      "category": "VARCHAR(100)",
+      "est_duration_minutes": "INTEGER DEFAULT 90",
+      "opening_hours": "JSONB",
+      "ticket_policy": "JSONB",
+      "dress_code": "TEXT",
+      "rules": "JSONB",
+      "guide_briefing_notes": "JSONB",
+      "photo_spots": "JSONB",
+      "cover_image_url": "TEXT",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+    },
+    "travelops_tour_routes": {
+      "id": "VARCHAR(100) PRIMARY KEY",
+      "title": "VARCHAR(255)",
+      "route_signature": "VARCHAR(255)",
+      "country_id": "VARCHAR(50)",
+      "country_name": "VARCHAR(255)",
+      "duration_days": "INTEGER DEFAULT 7",
+      "duration_nights": "INTEGER DEFAULT 6",
+      "cities_sequence": "JSONB",
+      "day_itinerary": "JSONB",
+      "route_highlights": "JSONB",
+      "theme_category": "VARCHAR(100) DEFAULT 'Leisure'",
+      "transport_modes": "JSONB",
+      "usage_count": "INTEGER DEFAULT 1",
+      "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+      "updated_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     }
   }
 }

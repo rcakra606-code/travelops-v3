@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme, ACCENT_PRESETS } from '../context/ThemeContext';
 import { supabase } from '../supabaseClient';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
-import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop } from 'lucide-react';
+import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Check } from 'lucide-react';
 import { logSystemAction } from '../utils/logger';
 
 const Settings = () => {
   const { settings, updateSettings } = useSettings();
   const { user, forceLogoutAll } = useAuth();
+  const { theme, toggleTheme, accent, changeAccent } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database');
   const [testEmailTarget, setTestEmailTarget] = useState('');
@@ -129,12 +131,39 @@ const Settings = () => {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  // Mock sessions data
-  const mockSessions = [
-    { id: 1, device: 'MacBook Pro', os: 'macOS', browser: 'Chrome', ip: '192.168.1.1', location: 'Jakarta, ID', current: true, lastActive: 'Just now' },
-    { id: 2, device: 'iPhone 13', os: 'iOS', browser: 'Safari', ip: '114.122.13.4', location: 'Jakarta, ID', current: false, lastActive: '2 hours ago' },
-    { id: 3, device: 'ThinkPad T14', os: 'Windows 11', browser: 'Edge', ip: '202.16.14.8', location: 'Singapore, SG', current: false, lastActive: '3 days ago' },
-  ];
+  const [activeSessions, setActiveSessions] = useState([]);
+
+  useEffect(() => {
+    if (activeTab === 'security' && user) {
+      loadSessions();
+    }
+  }, [activeTab, user]);
+
+  const loadSessions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('last_active', { ascending: false });
+      if (!error && data) {
+        setActiveSessions(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    try {
+      await supabase.from('user_sessions').delete().eq('id', sessionId);
+      setActiveSessions(prev => prev.filter(s => s.id !== sessionId));
+      setToastMessage('Session revoked successfully.');
+      setTimeout(() => setToastMessage(''), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="app-container fade-in">
@@ -391,12 +420,19 @@ const Settings = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {mockSessions.map(session => (
+                          {activeSessions.length === 0 && (
+                            <tr>
+                              <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No active sessions found.</td>
+                            </tr>
+                          )}
+                          {activeSessions.map(session => {
+                            const isCurrent = session.id === localStorage.getItem('travelops_session_id');
+                            return (
                             <tr key={session.id}>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                   <div style={{ background: 'var(--bg-dark)', padding: '0.5rem', borderRadius: '50%' }}>
-                                    <Laptop size={16} color={session.current ? 'var(--primary)' : 'var(--text-muted)'} />
+                                    <Laptop size={16} color={isCurrent ? 'var(--primary)' : 'var(--text-muted)'} />
                                   </div>
                                   <div>
                                     <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>{session.device}</div>
@@ -409,21 +445,21 @@ const Settings = () => {
                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{session.ip}</div>
                               </td>
                               <td>
-                                {session.current ? (
+                                {isCurrent ? (
                                   <span style={{ color: 'var(--success)', fontWeight: '500', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Current Session</span>
                                 ) : (
-                                  <span style={{ color: 'var(--text-muted)' }}>{session.lastActive}</span>
+                                  <span style={{ color: 'var(--text-muted)' }}>{new Date(session.last_active).toLocaleString()}</span>
                                 )}
                               </td>
                               <td style={{ textAlign: 'right' }}>
-                                {!session.current && (
-                                  <button type="button" onClick={(e) => { e.currentTarget.closest('tr').style.opacity = 0.5; e.currentTarget.disabled = true; e.currentTarget.innerText = 'Revoked'; }} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'; }} onMouseOut={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+                                {!isCurrent && (
+                                  <button type="button" onClick={() => handleRevokeSession(session.id)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'; }} onMouseOut={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
                                     Revoke
                                   </button>
                                 )}
                               </td>
                             </tr>
-                          ))}
+                          )})}
                         </tbody>
                       </table>
                     </div>
@@ -513,7 +549,7 @@ const Settings = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '1.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
                     <div className="form-group">
                       <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Default Currency</label>
                       <select value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})} style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}>
@@ -530,6 +566,108 @@ const Settings = () => {
                         <option value="DD-MM-YYYY">DD-MM-YYYY (31-12-2024)</option>
                         <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2024)</option>
                       </select>
+                    </div>
+                  </div>
+
+                  {/* APPEARANCE & ACCENT THEME CUSTOMIZER */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
+                      <Palette size={18} color="var(--primary)" /> Appearance & Theme Accents
+                    </h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginBottom: '1.25rem' }}>
+                      Personalize your TravelOps workspace theme and primary brand accent color.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                      {/* Theme Mode Toggle Card */}
+                      <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--text-main)', fontWeight: '600', fontSize: '0.875rem' }}>
+                          Interface Mode
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => { if (theme !== 'dark') toggleTheme(); }}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              padding: '0.75rem',
+                              borderRadius: '8px',
+                              border: theme === 'dark' ? '2px solid var(--primary)' : '1px solid var(--border)',
+                              background: theme === 'dark' ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                              color: theme === 'dark' ? 'var(--text-main)' : 'var(--text-muted)',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              fontSize: '0.8125rem',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <Moon size={16} color={theme === 'dark' ? 'var(--primary)' : 'var(--text-muted)'} /> Obsidian Dark
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { if (theme !== 'light') toggleTheme(); }}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              padding: '0.75rem',
+                              borderRadius: '8px',
+                              border: theme === 'light' ? '2px solid var(--primary)' : '1px solid var(--border)',
+                              background: theme === 'light' ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                              color: theme === 'light' ? 'var(--text-main)' : 'var(--text-muted)',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              fontSize: '0.8125rem',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <Sun size={16} color={theme === 'light' ? 'var(--primary)' : 'var(--text-muted)'} /> Studio Light
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Primary Accent Color Presets */}
+                      <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--text-main)', fontWeight: '600', fontSize: '0.875rem' }}>
+                          Primary Accent Glow
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                          {ACCENT_PRESETS.map(preset => {
+                            const isSelected = (accent || 'cyan') === preset.id;
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => changeAccent(preset.id)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.45rem',
+                                  padding: '0.5rem 0.65rem',
+                                  borderRadius: '8px',
+                                  border: isSelected ? `2px solid ${preset.color}` : '1px solid var(--border)',
+                                  background: isSelected ? `${preset.color}20` : 'transparent',
+                                  color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '600',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: preset.color, boxShadow: `0 0 8px ${preset.color}` }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preset.name.split(' ')[0]}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

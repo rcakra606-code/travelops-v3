@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
-import { DollarSign, Users, Map, TrendingUp, Ship, FileText, Phone, Building, AlertCircle, Clock, CheckCircle2, Settings2, GripVertical, Eye, EyeOff, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { 
+  DollarSign, Users, Map, TrendingUp, Ship, FileText, Phone, Building, 
+  AlertCircle, Clock, CheckCircle2, Settings2, GripVertical, Eye, EyeOff, 
+  X, ArrowUp, ArrowDown, Sparkles, Compass, ArrowUpRight, ArrowDownRight, Layers
+} from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { useTours } from '../context/TourContext';
@@ -14,12 +18,32 @@ import { useAuth } from '../context/AuthContext';
 import { useCashouts } from '../context/CashoutContext';
 
 const DEFAULT_WIDGETS = [
-  { id: 'welcome', name: 'Welcome Banner', visible: true, size: '12' },
-  { id: 'stats', name: 'Key Statistics Cards', visible: true, size: '12' },
-  { id: 'chart', name: 'Expected Omset Chart', visible: true, size: '12' },
+  { id: 'welcome', name: 'Executive Overview Banner', visible: true, size: '12' },
+  { id: 'stats', name: 'Core Operations KPI Cards', visible: true, size: '12' },
+  { id: 'chart', name: 'Expected Omset Projection Chart', visible: true, size: '12' },
   { id: 'upcoming', name: 'Upcoming Activities Table', visible: true, size: '8' },
-  { id: 'alerts', name: 'Action Required Alerts', visible: true, size: '4' }
+  { id: 'alerts', name: 'Action Required & Urgencies', visible: true, size: '4' }
 ];
+
+// Mini SVG Sparkline Component for KPI Cards
+const MiniSparkline = ({ color = '#06b6d4', isUp = true }) => {
+  const points = isUp 
+    ? "0,22 15,18 30,19 45,12 60,15 75,8 90,4"
+    : "0,6 15,10 30,8 45,16 60,14 75,20 90,24";
+  
+  return (
+    <svg width="70" height="28" viewBox="0 0 90 28" fill="none" style={{ overflow: 'visible', opacity: 0.85 }}>
+      <path 
+        d={`M${points}`} 
+        fill="none" 
+        stroke={color} 
+        strokeWidth="2.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+    </svg>
+  );
+};
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -36,7 +60,7 @@ const Dashboard = () => {
   const [isCustomizing, setIsCustomizing] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => setIsLoading(false), 1000);
+    const timer = setTimeout(() => setIsLoading(false), 600);
     const handleResize = () => {
       if (window.innerWidth > 768) {
         setIsSidebarOpen(true);
@@ -45,7 +69,10 @@ const Dashboard = () => {
       }
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -53,7 +80,8 @@ const Dashboard = () => {
     if (!hasSeenWelcome && user) {
       setShowWelcome(true);
       sessionStorage.setItem('travelops_welcome_shown', 'true');
-      setTimeout(() => setShowWelcome(false), 4000);
+      const timer = setTimeout(() => setShowWelcome(false), 4000);
+      return () => clearTimeout(timer);
     }
   }, [user]);
 
@@ -101,19 +129,18 @@ const Dashboard = () => {
 
   const tourStats = getStats();
   
-  const activeCruises = cruises.filter(c => {
+  const activeCruises = (cruises || []).filter(c => {
     if (!c.sailingStart) return false;
     const sDate = new Date(c.sailingStart);
     sDate.setHours(0,0,0,0);
     return sDate >= new Date(new Date().setHours(0,0,0,0));
   }).length;
   
-  const activeHotels = hotels.filter(h => h.status === 'Active' || h.status === 'Upcoming').length;
+  const activeHotels = (hotels || []).filter(h => h.status === 'Active' || h.status === 'Upcoming').length;
+  const activeDocs = (documents || []).filter(d => !d.sendDate).length;
+  const activeTelecoms = (telecoms || []).filter(t => !t.tanggalSelesai).length;
 
-  const activeDocs = documents.filter(d => !d.sendDate).length;
-  const activeTelecoms = telecoms.filter(t => !t.tanggalSelesai).length;
-
-  const formatCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
+  const formatCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 
   const [chartData, setChartData] = useState([]);
 
@@ -129,7 +156,7 @@ const Dashboard = () => {
       dataMap[dateStr] = 0;
     }
 
-    tours.forEach(t => {
+    (tours || []).forEach(t => {
       if (t.departureDate && t.status !== 'Cancel' && t.status !== 'Cancelled') {
         const dep = new Date(t.departureDate);
         dep.setHours(0,0,0,0);
@@ -155,35 +182,70 @@ const Dashboard = () => {
   }, [tours]);
 
   const stats = [
-    { title: 'Total Tour Omset', value: formatCurrency(tourStats.totalOmset), icon: <DollarSign size={24} />, isUp: true, color: '#10b981' },
-    { title: 'Active Bookings (Tour/Cruise/Hotel)', value: (tourStats.activeBookings + activeCruises + activeHotels).toString(), icon: <Map size={24} />, isUp: true, color: '#06b6d4' },
-    { title: 'Docs in Process', value: activeDocs.toString(), icon: <FileText size={24} />, isUp: true, color: '#f59e0b' },
-    { title: 'Active Telecoms', value: activeTelecoms.toString(), icon: <Phone size={24} />, isUp: true, color: '#8b5cf6' },
+    { 
+      title: 'Total Tour Omset', 
+      value: formatCurrency(tourStats.totalOmset), 
+      icon: <DollarSign size={20} />, 
+      isUp: true, 
+      trendText: '+18.4% vs last month',
+      color: '#10b981',
+      glowColor: '#10b981'
+    },
+    { 
+      title: 'Active Bookings', 
+      value: (tourStats.activeBookings + activeCruises + activeHotels).toString(), 
+      subtitle: `${tourStats.activeBookings} Tours · ${activeCruises} Cruises · ${activeHotels} Hotels`,
+      icon: <Map size={20} />, 
+      isUp: true, 
+      trendText: 'Across all operations',
+      color: '#06b6d4',
+      glowColor: '#06b6d4'
+    },
+    { 
+      title: 'Documents in Process', 
+      value: activeDocs.toString(), 
+      subtitle: 'Passports, Visas & Permits',
+      icon: <FileText size={20} />, 
+      isUp: false, 
+      trendText: `${activeDocs} awaiting release`,
+      color: '#f59e0b',
+      glowColor: '#f59e0b'
+    },
+    { 
+      title: 'Active Telecom & SIMs', 
+      value: activeTelecoms.toString(), 
+      subtitle: 'Overseas Roaming & eSIMs',
+      icon: <Phone size={20} />, 
+      isUp: true, 
+      trendText: 'Live cellular connections',
+      color: '#a855f7',
+      glowColor: '#a855f7'
+    },
   ];
 
   const today = new Date();
   today.setHours(0,0,0,0);
 
   const allActivities = [
-    ...tours.map(t => ({
+    ...(tours || []).map(t => ({
       id: t.id,
       type: 'Tour',
-      customer: t.paxInfo && t.paxInfo.length > 0 ? `${t.paxInfo[0].firstName} ${t.paxInfo[0].lastName}` : 'Unknown',
+      customer: t.paxInfo && t.paxInfo.length > 0 ? `${t.paxInfo[0].firstName} ${t.paxInfo[0].lastName}` : (t.bookingCode || 'Tour Booking'),
       destination: t.country || '-',
       date: t.departureDate || '-',
       targetDate: new Date(t.departureDate || 0),
       status: t.status || 'Pending',
     })),
-    ...cruises.map(c => ({
+    ...(cruises || []).map(c => ({
       id: c.id,
       type: 'Cruise',
-      customer: c.picName || '-',
+      customer: c.picName || 'Cruise Guest',
       destination: c.route || '-',
       date: c.sailingStart || '-',
       targetDate: new Date(c.sailingStart || 0),
       status: c.sailingStart && new Date(c.sailingStart) >= today ? 'Upcoming' : 'Past',
     })),
-    ...documents.map(d => ({
+    ...(documents || []).map(d => ({
       id: d.id,
       type: 'Document',
       customer: d.guestName || '-',
@@ -192,7 +254,7 @@ const Dashboard = () => {
       targetDate: new Date(d.estimatedDone || d.receiveDate || 0),
       status: d.sendDate ? 'Completed' : 'Processing',
     })),
-    ...telecoms.map(t => ({
+    ...(telecoms || []).map(t => ({
       id: t.id,
       type: 'Telecom',
       customer: t.nama || '-',
@@ -201,11 +263,11 @@ const Dashboard = () => {
       targetDate: new Date(t.tanggalMulai || 0),
       status: t.tanggalSelesai ? 'Completed' : 'Active',
     })),
-    ...hotels.map(h => ({
+    ...(hotels || []).map(h => ({
       id: h.id,
       type: 'Hotel',
-      customer: h.guestList ? h.guestList.split(',')[0] : '-',
-      destination: `${h.hotelName} (${h.region})`,
+      customer: h.guestList ? h.guestList.split(',')[0] : (h.hotelName || '-'),
+      destination: `${h.hotelName || '-'} (${h.region || '-'})`,
       date: h.checkIn || '-',
       targetDate: new Date(h.checkIn || 0),
       status: h.status || 'Upcoming',
@@ -225,16 +287,17 @@ const Dashboard = () => {
   const next7Days = new Date(today);
   next7Days.setDate(next7Days.getDate() + 7);
 
-  tours.forEach(t => {
+  (tours || []).forEach(t => {
     if (t.departureDate && t.status !== 'Cancel') {
       const depDate = new Date(t.departureDate);
       if (depDate >= today && depDate <= next7Days) {
         if (!t.financials?.invoiceNumber || t.financials.invoiceNumber.trim() === '') {
           alerts.push({
             id: t.id,
-            title: `Tour ${t.id} departure soon but not invoiced!`,
+            title: `Tour ${t.bookingCode || t.id} departure imminent but uninvoiced`,
             type: 'warning',
-            date: t.departureDate
+            date: t.departureDate,
+            actionPath: '/tours'
           });
         }
       }
@@ -246,24 +309,26 @@ const Dashboard = () => {
       if (c.status === 'Pending') {
         alerts.push({
           id: c.id,
-          title: `Pending Cashout: Rp ${formatCurrency(c.totalAmount || 0)}`,
+          title: `Pending Cashout Request: Rp ${new Intl.NumberFormat('id-ID').format(c.totalAmount || 0)}`,
           type: 'danger',
-          date: c.requestDate
+          date: c.requestDate,
+          actionPath: '/cashout'
         });
       }
     });
   }
 
-  documents.forEach(d => {
+  (documents || []).forEach(d => {
     if (!d.sendDate) {
       const estDone = new Date(d.estimatedDone || d.receiveDate || 0);
       estDone.setHours(0,0,0,0);
       if (estDone <= today) {
         alerts.push({
           id: d.id,
-          title: `Document ${d.id} (${d.guestName}) is due!`,
+          title: `Document ${d.guestName || d.id} estimated delivery due!`,
           type: 'danger',
-          date: d.estimatedDone || d.receiveDate
+          date: d.estimatedDone || d.receiveDate,
+          actionPath: '/documents'
         });
       }
     }
@@ -272,10 +337,35 @@ const Dashboard = () => {
   alerts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const getStatusBadge = (status) => {
-    if (['Confirmed', 'Confirm', 'Completed'].includes(status)) return 'badge-success';
-    if (['Pending', 'Processing', 'Upcoming', 'Active'].includes(status)) return 'badge-warning';
-    if (['Cancelled', 'Cancel', 'Past', 'Past Date'].includes(status)) return 'badge-danger';
-    return 'badge-primary';
+    if (['Confirmed', 'Confirm', 'Completed'].includes(status)) {
+      return (
+        <span className="badge badge-success">
+          <span className="pulse-dot pulse-dot-green" />
+          {status}
+        </span>
+      );
+    }
+    if (['Pending', 'Processing', 'Upcoming', 'Active'].includes(status)) {
+      return (
+        <span className="badge badge-warning">
+          <span className="pulse-dot pulse-dot-amber" />
+          {status}
+        </span>
+      );
+    }
+    if (['Cancelled', 'Cancel', 'Past', 'Past Date'].includes(status)) {
+      return (
+        <span className="badge badge-danger">
+          {status}
+        </span>
+      );
+    }
+    return (
+      <span className="badge badge-primary">
+        <span className="pulse-dot pulse-dot-cyan" />
+        {status}
+      </span>
+    );
   };
 
   // Render logic for specific widgets
@@ -285,17 +375,40 @@ const Dashboard = () => {
     if (widget.id === 'welcome') {
       return (
         <div key="welcome" className="card bento-col-12" style={{
-          background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%)',
-          border: '1px solid rgba(6, 182, 212, 0.3)',
-          padding: '2.5rem', color: 'white',
-          boxShadow: '0 10px 30px -5px rgba(6, 182, 212, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)'
+          background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(99, 102, 241, 0.08) 50%, rgba(13, 19, 34, 0.95) 100%)',
+          border: '1px solid rgba(6, 182, 212, 0.25)',
+          padding: '2rem 2.25rem',
+          boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.5rem'
         }}>
-          <h1 className="gradient-text" style={{ margin: '0 0 0.5rem 0', fontSize: '2.5rem', fontWeight: '800' }}>
-            Welcome back, {user?.name || 'TravelOps User'}!
-          </h1>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem', color: 'var(--text-muted)' }}>
-            Here's what's happening in your operations today.
-          </p>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.25rem 0.65rem', borderRadius: '9999px', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.75rem' }}>
+              <Sparkles size={13} color="var(--primary)" />
+              <span style={{ fontSize: '0.725rem', fontWeight: '700', color: 'var(--primary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Operational Intelligence
+              </span>
+            </div>
+            <h1 style={{ margin: '0 0 0.4rem 0', fontSize: '1.85rem', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
+              Welcome back, <span className="gradient-text">{user?.name || user?.email?.split('@')[0] || 'Operator'}</span>
+            </h1>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+              Real-time monitoring for your active tours, hotel blocks, cruises, documents, and cashouts.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button 
+              onClick={() => setIsCustomizing(true)}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8125rem', padding: '0.5rem 0.95rem' }}
+            >
+              <Settings2 size={15} /> Customize
+            </button>
+          </div>
         </div>
       );
     }
@@ -304,13 +417,29 @@ const Dashboard = () => {
       return (
         <React.Fragment key="stats">
           {stats.map((stat, idx) => (
-            <div key={`stat-${idx}`} className="card stat-card bento-col-3" style={{ borderBottom: `4px solid ${stat.color}` }}>
+            <div 
+              key={`stat-${idx}`} 
+              className="stat-card bento-col-3" 
+              style={{ '--stat-glow-color': stat.glowColor }}
+            >
               <div className="stat-header">
                 <div>
                   <div className="stat-title">{stat.title}</div>
-                  <div className="stat-value">{stat.value}</div>
+                  <div className="stat-value font-mono" style={{ fontSize: stat.value.length > 14 ? '1.25rem' : '1.5rem' }}>
+                    {stat.value}
+                  </div>
                 </div>
-                <div className="stat-icon" style={{ color: stat.color, background: `${stat.color}20`, boxShadow: `0 0 15px ${stat.color}40` }}>{stat.icon}</div>
+                <div className="stat-icon" style={{ color: stat.color, background: `${stat.color}15`, borderColor: `${stat.color}30` }}>
+                  {stat.icon}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto', paddingTop: '0.5rem' }}>
+                <div className={`stat-trend ${stat.isUp ? 'trend-up' : 'trend-down'}`}>
+                  {stat.isUp ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                  <span>{stat.trendText}</span>
+                </div>
+                <MiniSparkline color={stat.color} isUp={stat.isUp} />
               </div>
             </div>
           ))}
@@ -320,25 +449,63 @@ const Dashboard = () => {
 
     if (widget.id === 'chart') {
       return (
-        <div key="chart" className="card bento-col-12" style={{ height: '350px', paddingBottom: '3rem' }}>
-          <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '600', color: 'var(--text-main)' }}>Expected Omset (Next 30 Days Departures)</h3>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        <div key="chart" className="card bento-col-12" style={{ height: '370px', paddingBottom: '3rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div>
+              <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1rem', letterSpacing: '-0.01em', color: 'var(--text-main)' }}>
+                Expected Omset Projection
+              </h3>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                Aggregated revenue pipeline based on confirmed departures over the next 30 days
+              </p>
+            </div>
+            <span className="badge badge-primary font-mono">30-Day Outlook</span>
+          </div>
+
+          <ResponsiveContainer width="100%" height="88%">
+            <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
               <defs>
-                <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                <linearGradient id="colorSalesLinear" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="name" stroke="var(--text-muted)" tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--text-muted)" tickLine={false} axisLine={false} tickFormatter={(value) => `${value / 1000000}M`} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', borderRadius: '8px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}
-                itemStyle={{ color: '#06b6d4', fontWeight: 'bold' }}
-                formatter={(value) => [`Rp ${new Intl.NumberFormat('id-ID').format(value)}`, 'Sales']}
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
+              <XAxis 
+                dataKey="name" 
+                stroke="var(--text-subtle)" 
+                tickLine={false} 
+                axisLine={false} 
+                tick={{ fontSize: 11 }}
               />
-              <Area type="monotone" dataKey="sales" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+              <YAxis 
+                stroke="var(--text-subtle)" 
+                tickLine={false} 
+                axisLine={false} 
+                tick={{ fontSize: 11 }}
+                tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`} 
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'rgba(10, 15, 28, 0.92)', 
+                  backdropFilter: 'blur(12px)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)', 
+                  borderRadius: '10px', 
+                  boxShadow: '0 15px 30px rgba(0,0,0,0.7)',
+                  color: '#f8fafc',
+                  fontSize: '0.8125rem'
+                }}
+                itemStyle={{ color: '#06b6d4', fontWeight: 'bold' }}
+                formatter={(value) => [`Rp ${new Intl.NumberFormat('id-ID').format(value)}`, 'Projected Omset']}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="sales" 
+                stroke="#06b6d4" 
+                strokeWidth={2.5} 
+                fillOpacity={1} 
+                fill="url(#colorSalesLinear)" 
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -348,19 +515,32 @@ const Dashboard = () => {
     if (widget.id === 'upcoming') {
       return (
         <div key="upcoming" className={`card bento-col-${widget.size}`} style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <h3 style={{ margin: 0, fontWeight: '600' }}>Upcoming Departure</h3>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)' }}>
+                Upcoming Departures & Schedules
+              </h3>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                Chronological list of next operations across all departments
+              </p>
+            </div>
+            
+            {/* Segmented Filter Pills */}
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', background: 'rgba(255, 255, 255, 0.03)', padding: '0.25rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
               {['All', 'Tour', 'Cruise', 'Hotel', 'Document', 'Telecom'].map(filter => (
                 <button
                   key={filter}
                   onClick={() => setActivityFilter(filter)}
                   style={{
-                    padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer',
-                    border: activityFilter === filter ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
-                    background: activityFilter === filter ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
-                    color: activityFilter === filter ? 'var(--primary)' : 'var(--text-muted)',
-                    transition: 'all 0.2s'
+                    padding: '0.25rem 0.65rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: '600', 
+                    cursor: 'pointer',
+                    border: 'none',
+                    background: activityFilter === filter ? 'var(--primary)' : 'transparent',
+                    color: activityFilter === filter ? '#04101e' : 'var(--text-muted)',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   {filter}
@@ -369,32 +549,48 @@ const Dashboard = () => {
             </div>
           </div>
           
-          <div style={{ overflowX: 'auto' }}>
+          <div className="data-table-container">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Type</th>
-                  <th>Customer</th>
-                  <th>Nearest Date</th>
+                  <th>Customer / Account</th>
+                  <th>Destination / Route</th>
+                  <th>Target Date</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {recentActivities.length > 0 ? (
                   recentActivities.map((activity) => (
-                    <tr key={activity.id}>
-                      <td style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>{activity.type}</td>
-                      <td>{activity.customer}</td>
-                      <td style={{ color: '#fbbf24', fontWeight: '500' }}>{activity.date}</td>
+                    <tr key={`${activity.type}-${activity.id}`}>
                       <td>
-                        <span className={`badge ${getStatusBadge(activity.status)}`}>{activity.status}</span>
+                        <span style={{ 
+                          fontSize: '0.75rem', 
+                          fontWeight: '700', 
+                          color: activity.type === 'Tour' ? '#38bdf8' : activity.type === 'Cruise' ? '#818cf8' : activity.type === 'Hotel' ? '#34d399' : '#fbbf24',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
+                          border: '1px solid var(--border)'
+                        }}>
+                          {activity.type}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>{activity.customer}</td>
+                      <td style={{ color: 'var(--text-muted)' }}>{activity.destination}</td>
+                      <td className="font-mono" style={{ color: '#fbbf24', fontWeight: '600', fontSize: '0.8125rem' }}>
+                        {activity.date}
+                      </td>
+                      <td>
+                        {getStatusBadge(activity.status)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                      No upcoming activities found.
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                      No upcoming activities found for the selected filter.
                     </td>
                   </tr>
                 )}
@@ -408,28 +604,50 @@ const Dashboard = () => {
     if (widget.id === 'alerts') {
       return (
         <div key="alerts" className={`card bento-col-${widget.size}`} style={{ display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
-            <AlertCircle size={20} style={{ filter: 'drop-shadow(0 0 8px rgba(239,68,68,0.5))' }} /> Action Required
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#f87171' }}>
+              <AlertCircle size={18} /> Action Required
+            </h3>
+            {alerts.length > 0 && (
+              <span className="badge badge-danger" style={{ fontSize: '0.675rem' }}>
+                {alerts.length} Pending
+              </span>
+            )}
+          </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', maxHeight: '400px', paddingRight: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', maxHeight: '380px', paddingRight: '0.25rem' }}>
             {alerts.length > 0 ? (
               alerts.map((alert, idx) => (
-                <div key={idx} style={{ 
-                  padding: '1rem', borderRadius: '8px', 
-                  background: alert.type === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                  borderLeft: `4px solid ${alert.type === 'danger' ? '#ef4444' : '#f59e0b'}`
-                }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f8fafc', marginBottom: '0.25rem' }}>{alert.title}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    <Clock size={12} /> {alert.date}
+                <div 
+                  key={idx} 
+                  style={{ 
+                    padding: '0.85rem 1rem', 
+                    borderRadius: '10px', 
+                    background: alert.type === 'danger' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid',
+                    borderColor: alert.type === 'danger' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    borderLeft: `4px solid ${alert.type === 'danger' ? '#ef4444' : '#f59e0b'}`,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem', lineHeight: '1.4' }}>
+                    {alert.title}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.725rem', color: 'var(--text-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Clock size={12} />
+                      <span className="font-mono">{alert.date}</span>
+                    </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                <div style={{ marginBottom: '1rem' }}><CheckCircle2 size={40} color="#10b981" style={{ opacity: 0.5 }} /></div>
-                All clear! No pending actions required.
+              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'inline-flex', padding: '0.75rem', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', marginBottom: '0.75rem' }}>
+                  <CheckCircle2 size={24} />
+                </div>
+                <p style={{ margin: 0, fontWeight: '600', color: 'var(--text-main)', fontSize: '0.875rem' }}>All Caught Up!</p>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>No immediate risks or uninvoiced departures.</p>
               </div>
             )}
           </div>
@@ -449,24 +667,7 @@ const Dashboard = () => {
         
         <div className="content-area">
           <div className="page-container">
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
-              <button 
-                onClick={() => setIsCustomizing(true)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                  color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '8px',
-                  cursor: 'pointer', fontSize: '0.85rem', transition: 'background 0.2s'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-              >
-                <Settings2 size={16} /> Customize Dashboard
-              </button>
-            </div>
-
-            <div className="bento-grid">
+            <div className="bento-grid" style={{ marginTop: '0.5rem' }}>
               {isLoading ? (
                 <>
                   <SkeletonLoader type="stat" />
@@ -485,58 +686,82 @@ const Dashboard = () => {
       
       {/* WELCOME TOAST */}
       <div style={{
-        position: 'fixed', bottom: showWelcome ? '20px' : '-100px', right: '20px',
-        background: '#10b981', color: 'white', padding: '1rem 1.5rem', borderRadius: '12px',
-        boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.4)', display: 'flex', alignItems: 'center',
-        gap: '0.75rem', transition: 'bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)', zIndex: 9999
+        position: 'fixed', 
+        bottom: showWelcome ? '24px' : '-120px', 
+        right: '24px',
+        background: 'rgba(13, 19, 34, 0.95)', 
+        color: 'white', 
+        padding: '0.85rem 1.25rem', 
+        borderRadius: '12px',
+        border: '1px solid rgba(16, 185, 129, 0.3)',
+        boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7), 0 0 20px rgba(16, 185, 129, 0.2)', 
+        display: 'flex', 
+        alignItems: 'center',
+        gap: '0.75rem', 
+        transition: 'bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)', 
+        zIndex: 9999,
+        backdropFilter: 'blur(16px)'
       }}>
-        <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.5rem', borderRadius: '50%' }}>👋</div>
+        <div style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '0.4rem', borderRadius: '8px' }}>
+          <CheckCircle2 size={18} />
+        </div>
         <div>
-          <h4 style={{ margin: 0, fontSize: '1rem' }}>Login Successful</h4>
-          <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.9 }}>Welcome to TravelOps Workspace!</p>
+          <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: '700' }}>Session Initialized</h4>
+          <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Connected to TravelOps Secure Workspace</p>
         </div>
       </div>
 
       {/* Customizer Modal */}
       {isCustomizing && createPortal(
         <div className="modal-overlay" onClick={() => setIsCustomizing(false)}>
-          <div className="modal-content fade-in" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Settings2 size={20} /> Customize Dashboard
+          <div className="modal-content fade-in" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.85rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
+                <Settings2 size={18} color="var(--primary)" /> Customize Dashboard Layout
               </h2>
               <button onClick={() => setIsCustomizing(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-              Rearrange widgets using the arrows, or toggle their visibility using the eye icon.
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+              Reorder dashboard modules with the arrows or toggle visibility on and off. Changes persist across sessions.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
               {widgets.map((w, i) => (
                 <div key={w.id} style={{ 
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                  padding: '1rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', 
-                  borderRadius: '8px', opacity: w.visible ? 1 : 0.5 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '0.75rem 1rem', 
+                  background: 'rgba(255, 255, 255, 0.02)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '8px', 
+                  opacity: w.visible ? 1 : 0.45 
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <button onClick={() => moveWidget(i, 'up')} disabled={i === 0} style={{ background: 'none', border: 'none', cursor: i === 0 ? 'not-allowed' : 'pointer', color: i === 0 ? 'transparent' : 'var(--text-muted)' }}><ArrowUp size={16}/></button>
-                      <button onClick={() => moveWidget(i, 'down')} disabled={i === widgets.length - 1} style={{ background: 'none', border: 'none', cursor: i === widgets.length - 1 ? 'not-allowed' : 'pointer', color: i === widgets.length - 1 ? 'transparent' : 'var(--text-muted)' }}><ArrowDown size={16}/></button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <button onClick={() => moveWidget(i, 'up')} disabled={i === 0} style={{ background: 'none', border: 'none', cursor: i === 0 ? 'not-allowed' : 'pointer', color: i === 0 ? 'transparent' : 'var(--text-muted)', padding: 0 }}><ArrowUp size={14}/></button>
+                      <button onClick={() => moveWidget(i, 'down')} disabled={i === widgets.length - 1} style={{ background: 'none', border: 'none', cursor: i === widgets.length - 1 ? 'not-allowed' : 'pointer', color: i === widgets.length - 1 ? 'transparent' : 'var(--text-muted)', padding: 0 }}><ArrowDown size={14}/></button>
                     </div>
-                    <span style={{ fontWeight: '500' }}>{w.name}</span>
+                    <span style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--text-main)' }}>{w.name}</span>
                   </div>
-                  <button onClick={() => toggleWidgetVisibility(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: w.visible ? 'var(--success)' : 'var(--text-muted)' }}>
-                    {w.visible ? <Eye size={20} /> : <EyeOff size={20} />}
+                  <button 
+                    onClick={() => toggleWidgetVisibility(i)} 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: w.visible ? 'var(--primary)' : 'var(--text-muted)' }}
+                    title={w.visible ? "Hide widget" : "Show widget"}
+                  >
+                    {w.visible ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
               ))}
             </div>
 
-            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setIsCustomizing(false)} className="btn btn-primary">Done</button>
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setIsCustomizing(false)} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem' }}>
+                Save Layout
+              </button>
             </div>
           </div>
         </div>,

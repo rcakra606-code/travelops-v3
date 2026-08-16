@@ -105,6 +105,42 @@ export const AuthProvider = ({ children }) => {
         mustChangePassword: data.must_change_password
       };
 
+      // Log session
+      try {
+        const UAParser = (await import('ua-parser-js')).default;
+        const parser = new UAParser();
+        const result = parser.getResult();
+        
+        let ip = 'Unknown';
+        try {
+          // Fallback to local dev server if relative fetch fails depending on setup
+          const baseUrl = window.location.origin.includes('localhost:5173') ? 'http://localhost:3000' : '';
+          const res = await fetch(`${baseUrl}/api/client-info`);
+          const ipData = await res.json();
+          ip = ipData.ip;
+        } catch (e) {
+          console.warn('Could not fetch client IP', e);
+        }
+
+        // Generate unique local session tracking ID
+        const sessionId = crypto.randomUUID();
+        localStorage.setItem('travelops_session_id', sessionId);
+
+        await supabase.from('user_sessions').insert([{
+          id: sessionId,
+          user_id: data.id,
+          session_token: authData.session?.access_token || '',
+          device: result.device.model || result.device.vendor || 'Desktop PC',
+          os: `${result.os.name || 'Unknown OS'} ${result.os.version || ''}`.trim(),
+          browser: `${result.browser.name || 'Unknown Browser'} ${result.browser.version || ''}`.trim(),
+          ip: ip,
+          location: 'Unknown',
+          last_active: new Date().toISOString()
+        }]);
+      } catch (e) {
+        console.error('Session logging failed', e);
+      }
+
       setUser(loggedInUser);
       logSystemAction(loggedInUser, 'Login', 'User successfully logged in via Supabase Auth');
       
@@ -118,6 +154,14 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async (reason = null) => {
     setLogoutName(user?.name || 'TravelOps User');
     setIsLoggingOut(true);
+    
+    // Remove session from DB
+    const sessionId = localStorage.getItem('travelops_session_id');
+    if (sessionId) {
+      await supabase.from('user_sessions').delete().eq('id', sessionId);
+      localStorage.removeItem('travelops_session_id');
+    }
+
     await supabase.auth.signOut();
     setTimeout(() => {
       setUser(null);
