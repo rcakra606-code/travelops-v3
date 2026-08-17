@@ -54,8 +54,15 @@ async function seed() {
       transport_apps: ['Suica / Pasmo (Apple Wallet)', 'Japan Travel NAVITIME', 'Go Taxi'],
       food_highlights: {
         signature: ['Tsukiji Sushi', 'Tonkatsu', 'Shinjuku Ramen', 'Monjayaki'],
-        halalFriendly: 'Moderate (Halal ramen & kebab spots in Asakusa, Shinjuku, and Roppongi)',
-        dietaryNotes: 'Vegetarian options available in Buddhist Shojin Ryori temples and major department stores'
+        halalStatus: 'Moderate',
+        halalFriendly: 'Certified Halal Wagyu in Roppongi (Panga), Halal Ramen in Asakusa (Ayam-YA, Naritaya) and Shinjuku',
+        mosques: [
+          'Tokyo Camii Mosque & Turkish Culture Center (Yoyogi-Uehara)',
+          'Asakusa Mosque (Dawat-e-Islami)',
+          'Haneda & Narita Airport Multi-Faith Prayer Rooms'
+        ],
+        ingredientCautions: 'Watch out for Mirin, Cooking Sake in marinades/sauces, Pork bone broth in ramen, and animal gelatin in desserts.',
+        dietaryNotes: 'Shojin Ryori (Buddhist temple vegan cuisine) and vegetarian department store delis available.'
       },
       hospital_contacts: [
         'St. Luke\'s International Hospital (Tsukiji - English Speaking 24/7 ER, Tel: +81-3-3541-5151)',
@@ -71,8 +78,14 @@ async function seed() {
       transport_apps: ['ICOCA Card', 'Kyoto Bus Pass Guide', 'MK Taxi App'],
       food_highlights: {
         signature: ['Matcha Parfait', 'Kaiseki Dinner', 'Yudofu Tofu', 'Kyo-Ryori'],
-        halalFriendly: 'Moderate (Halal certified Kaiseki in Gion and halal restaurants near Kyoto Station)',
-        dietaryNotes: 'Kyoto is known for tofu dishes, very friendly for vegetarian diets'
+        halalStatus: 'Moderate',
+        halalFriendly: 'Halal certified Kaiseki in Gion (Tagoto), Halal Ramen Gion Naritaya, and Halal Bento near Kyoto Station',
+        mosques: [
+          'Kyoto Islamic Cultural Center (Kamigyo Ward)',
+          'Kyoto Station North Gate Prayer Space'
+        ],
+        ingredientCautions: 'Traditional dashi broth often uses bonito flakes (fish) or pork stock; ensure mirin is omitted in sukiyaki.',
+        dietaryNotes: 'Kyoto is world-renowned for Yudofu (boiled tofu cuisine), highly suitable for vegetarians.'
       },
       hospital_contacts: [
         'Kyoto University Hospital Emergency Clinic (English Medical Staff, Tel: +81-75-751-3111)',
@@ -88,8 +101,15 @@ async function seed() {
       transport_apps: ['SBB Mobile', 'ZVV Transport App', 'Uber Zurich'],
       food_highlights: {
         signature: ['Zürcher Geschnetzeltes', 'Swiss Cheese Fondue', 'Lindt Chocolate', 'Rösti'],
-        halalFriendly: 'High (Multiple Mediterranean, Turkish & Halal dining options near Zürich HB)',
-        dietaryNotes: 'Hiltl (world\'s oldest vegetarian restaurant) located in central Zurich'
+        halalStatus: 'High',
+        halalFriendly: 'Multiple certified Halal Lebanese, Turkish, and Persian dining options around Zürich HB and Langstrasse',
+        mosques: [
+          'Islamic Community Center Zurich (Neugasse)',
+          'Mahmud Mosque (Forchstrasse)',
+          'Zurich Airport (ZRH) Transit Quiet & Prayer Rooms'
+        ],
+        ingredientCautions: 'Traditional Swiss Cheese Fondue contains white wine and cherry schnapps (Kirsch); request alcohol-free preparation.',
+        dietaryNotes: 'Haus Hiltl (oldest vegetarian restaurant in the world) and abundant vegan options in downtown Zurich.'
       },
       hospital_contacts: [
         'University Hospital Zurich (USZ - Emergency Department 24/7, Tel: +41-44-255-1111)',

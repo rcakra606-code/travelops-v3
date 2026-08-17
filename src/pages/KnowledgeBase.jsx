@@ -984,6 +984,27 @@ const KnowledgeBase = () => {
                                 </div>
                               )}
 
+                              {/* Halal / Muslim-Friendly Badge */}
+                              {food.halalFriendly && (
+                                <div style={{
+                                  background: 'rgba(16, 185, 129, 0.08)',
+                                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                                  borderRadius: '6px',
+                                  padding: '0.3rem 0.5rem',
+                                  fontSize: '0.7rem',
+                                  color: 'var(--success)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  marginBottom: '0.65rem'
+                                }}>
+                                  <span style={{ fontWeight: '800' }}>🕌 Halal:</span>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-main)' }}>
+                                    {food.halalStatus ? `[${food.halalStatus}] ` : ''}{food.halalFriendly}
+                                  </span>
+                                </div>
+                              )}
+
                               {/* Medical Support Indicator */}
                               {hospitals.length > 0 && (
                                 <div style={{
@@ -1645,6 +1666,8 @@ const KnowledgeBase = () => {
                   const dishesArr = (form.cityDishes?.value || '').split(',').map(s => s.trim()).filter(Boolean);
                   const hospitalsArr = (form.cityHospitals?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
 
+                  const mosquesArr = (form.cityMosques?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+
                   await addCity({
                     country_id: form.cityCountryId.value,
                     name: form.cityName.value,
@@ -1653,7 +1676,10 @@ const KnowledgeBase = () => {
                     transport_apps: appsArr,
                     food_highlights: {
                       signature: dishesArr,
+                      halalStatus: form.cityHalalStatus?.value || 'Moderate',
                       halalFriendly: form.cityHalal?.value || '',
+                      mosques: mosquesArr,
+                      ingredientCautions: form.cityIngredientCautions?.value || '',
                       dietaryNotes: form.cityDietary?.value || ''
                     },
                     hospital_contacts: hospitalsArr
@@ -1784,9 +1810,27 @@ const KnowledgeBase = () => {
                     <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Signature Dishes (comma separated):</label>
                     <input name="cityDishes" placeholder="e.g. Matcha Parfait, Kaiseki Dinner, Yudofu Tofu" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Halal Friendly Rating:</label>
+                      <select name="cityHalalStatus" defaultValue="Moderate" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
+                        <option value="High">High (Abundant Halal / Certified)</option>
+                        <option value="Moderate">Moderate (Key Areas Only)</option>
+                        <option value="Limited">Limited (Vegetarian Backup)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Halal Dining Guide & Districts:</label>
+                      <input name="cityHalal" placeholder="e.g. Halal ramen & Wagyu in Asakusa & Shinjuku" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    </div>
+                  </div>
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Halal & Dietary Guidance:</label>
-                    <input name="cityHalal" placeholder="e.g. Halal certified Kaiseki in Gion district" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nearby Mosques / Prayer Rooms (comma separated):</label>
+                    <input name="cityMosques" placeholder="e.g. Tokyo Camii Mosque, Asakusa Mosque, Airport Prayer Room" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Hidden Non-Halal Ingredients Warning:</label>
+                    <input name="cityIngredientCautions" placeholder="e.g. Check for Mirin, Cooking Sake, Pork broth, Animal gelatin, Lard" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Tourist Hospitals / Emergency Centers (1 per line):</label>
@@ -2070,15 +2114,14 @@ const KnowledgeBase = () => {
                     </div>
                   )}
 
-                  {/* 3. Culinary Profile & Dietary Notes */}
+                  {/* 3. Culinary Profile & Local Specialties */}
                   <div>
                     <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Utensils size={16} /> Gastronomy & Dietary Intelligence
+                      <Utensils size={16} /> Gastronomy & Must-Try Specialties
                     </h4>
                     {food.signature && food.signature.length > 0 && (
                       <div style={{ marginBottom: '0.6rem' }}>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: '600', textTransform: 'uppercase' }}>Must-Try Signature Dishes:</span>
-                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                           {food.signature.map((dish, i) => (
                             <span key={i} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.78rem' }}>
                               🥢 {dish}
@@ -2087,14 +2130,75 @@ const KnowledgeBase = () => {
                         </div>
                       </div>
                     )}
-                    {food.halalFriendly && (
-                      <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '6px', padding: '0.55rem 0.75rem', fontSize: '0.78rem', color: 'var(--text-main)', marginBottom: '0.4rem' }}>
-                        <strong style={{ color: '#f59e0b' }}>🕌 Halal & Dietary Guidance: </strong> {food.halalFriendly}
+                    {food.dietaryNotes && (
+                      <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                        <strong>🥗 General Dietary / Vegetarian: </strong> {food.dietaryNotes}
                       </div>
                     )}
-                    {food.dietaryNotes && (
-                      <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
-                        <strong>🥗 Allergy & Veg Guidelines: </strong> {food.dietaryNotes}
+                  </div>
+
+                  {/* 4. Dedicated Muslim Traveler & Halal Intelligence */}
+                  <div style={{
+                    background: 'rgba(16, 185, 129, 0.06)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: '8px',
+                    padding: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        🕌 Muslim Traveler & Halal Intelligence
+                      </h4>
+                      {food.halalStatus && (
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: '800',
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          color: 'var(--success)',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(16, 185, 129, 0.4)'
+                        }}>
+                          Halal Availability: {food.halalStatus}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Halal Dining Guidance */}
+                    {food.halalFriendly ? (
+                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                        <strong>Dining Guide: </strong> {food.halalFriendly}
+                      </p>
+                    ) : (
+                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                        Halal dining guidance not yet recorded for this city.
+                      </p>
+                    )}
+
+                    {/* Mosques & Prayer Facilities */}
+                    {food.mosques && food.mosques.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: '700', textTransform: 'uppercase' }}>Nearby Mosques & Prayer Rooms:</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
+                          {food.mosques.map((mosque, idx) => (
+                            <span key={idx} style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              🕋 {mosque}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ingredient Caution Box */}
+                    {food.ingredientCautions && (
+                      <div style={{
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: '6px',
+                        padding: '0.45rem 0.65rem',
+                        fontSize: '0.75rem',
+                        color: '#fca5a5'
+                      }}>
+                        <strong style={{ color: '#f87171' }}>⚠️ Hidden Ingredients Alert: </strong> {food.ingredientCautions}
                       </div>
                     )}
                   </div>
@@ -2256,13 +2360,33 @@ const KnowledgeBase = () => {
                     onClick={() => {
                       const c = countries.find(co => co.id === guideCountry);
                       const objs = tourObjects.filter(o => o.country_id === guideCountry);
+                      const countryCts = cities.filter(ct => ct.country_id === guideCountry);
+
+                      const halalBriefing = countryCts.map(ct => {
+                        const food = ct.food_highlights || {};
+                        let lines = `🕌 *${ct.name} Halal & Dining:* ${food.halalFriendly || 'Standard options'}`;
+                        if (food.mosques && food.mosques.length > 0) {
+                          lines += `\n  🕋 Mosques: ${food.mosques.join(', ')}`;
+                        }
+                        if (food.ingredientCautions) {
+                          lines += `\n  ⚠️ Caution: ${food.ingredientCautions}`;
+                        }
+                        return lines;
+                      }).join('\n\n');
+
                       const text = `*TRAVELOPS TOUR LEADER POCKET GUIDE: ${c?.name}*\n` +
                         `🚨 Emergency Police/Amb: ${c?.emergency?.police || '112'} / ${c?.emergency?.ambulance || '112'}\n` +
                         `🔌 Power: ${c?.power_plugs?.types?.join('/') || 'Type C'} (${c?.power_plugs?.voltage || '220V'})\n` +
                         `💧 Water: ${c?.water_safety || 'Bottled'}\n\n` +
+                        (halalBriefing ? `*🕌 HALAL & MUSLIM-FRIENDLY TRAVEL NOTES:*\n${halalBriefing}\n\n` : '') +
                         `*ATTRACTION RESTRICTIONS & BRIEFINGS:*\n` +
                         objs.map(o => `• *${o.name}* (${o.est_duration_minutes || 90}m)\n  Dress: ${o.dress_code || 'Standard'}\n  Tip: ${o.guide_briefing_notes?.[0] || 'N/A'}`).join('\n\n');
-                      handleCopyGuideText(text);
+                      
+                      if (navigator.clipboard) {
+                        navigator.clipboard.writeText(text);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }
                     }}
                     style={{
                       background: 'rgba(6, 182, 212, 0.15)',
@@ -2281,7 +2405,28 @@ const KnowledgeBase = () => {
                   </button>
                 </div>
 
+                {/* Halal & Muslim-Friendly Field Briefing Card */}
+                {cities.filter(ct => ct.country_id === guideCountry && ct.food_highlights?.halalFriendly).length > 0 && (
+                  <div style={{ background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '6px', padding: '0.65rem', marginBottom: '0.85rem', fontSize: '0.78rem' }}>
+                    <strong style={{ color: 'var(--success)', display: 'block', marginBottom: '0.35rem' }}>🕌 Halal & Muslim Traveler Briefing Notes:</strong>
+                    {cities.filter(ct => ct.country_id === guideCountry).map(ct => {
+                      const food = ct.food_highlights || {};
+                      if (!food.halalFriendly && !food.ingredientCautions) return null;
+                      return (
+                        <div key={ct.id} style={{ marginBottom: '0.35rem' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{ct.name}: </span>
+                          <span style={{ color: 'var(--text-subtle)' }}>{food.halalFriendly}</span>
+                          {food.ingredientCautions && (
+                            <div style={{ color: '#f87171', fontSize: '0.72rem', fontStyle: 'italic' }}>⚠️ Alert: {food.ingredientCautions}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div style={{ color: 'var(--text-subtle)' }}>
+                  <strong style={{ color: 'var(--text-main)', display: 'block', marginBottom: '0.35rem', fontSize: '0.8rem' }}>📍 Attraction Rules & Dress Codes:</strong>
                   {tourObjects.filter(o => o.country_id === guideCountry).map(o => (
                     <div key={o.id} style={{ marginBottom: '0.75rem' }}>
                       <strong style={{ color: 'var(--text-main)' }}>📍 {o.name}</strong> ({o.est_duration_minutes || 90} mins)

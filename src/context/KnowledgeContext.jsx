@@ -539,7 +539,10 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "transportApps": Recommended local transport & taxi apps (e.g. ["Suica / Pasmo", "Japan Travel Navitime", "Go Taxi"])
    - "foodHighlights": { 
        "signature": ["Dish 1", "Dish 2", "Dish 3"], 
-       "halalFriendly": "Halal availability guidance & key areas",
+       "halalStatus": "High / Moderate / Limited (overall halal dining friendliness)",
+       "halalFriendly": "Detailed Halal & Muslim-friendly dining guide, key districts & certified restaurants",
+       "mosques": ["Nearby Mosque 1 (Area)", "Central Mosque 2 (Area)"],
+       "ingredientCautions": "Hidden ingredients to watch out for (e.g. Mirin, Cooking Sake, Pork bone broth/dashi, Gelatin, Lard)",
        "dietaryNotes": "Vegetarian, vegan, and allergy considerations"
      }
    - "hospitalContacts": Array of tourist-friendly hospital names with area & phone (e.g. ["St. Luke's International Hospital (Tsukiji - English ER: +81-3-3541-5151)"])
@@ -600,7 +603,10 @@ ${type === 'country' ? `
   "transportApps": ["Metro apps, IC Cards, Ride-hailing/Taxi apps (e.g. Go Taxi, Suica, Navitime)"],
   "foodHighlights": { 
     "signature": ["Must-try dish 1", "Must-try dish 2", "Must-try dish 3"], 
-    "halalFriendly": "Halal availability guide and dining districts",
+    "halalStatus": "High / Moderate / Limited",
+    "halalFriendly": "Halal availability guide, certified restaurants & dining districts",
+    "mosques": ["Mosque Name (District/Area)", "Airport / Station Prayer Room"],
+    "ingredientCautions": "Watch out for Mirin, Cooking Sake, Pork broth, Animal gelatin, Lard in dishes",
     "dietaryNotes": "Vegetarian/Vegan & food allergy guidance"
   },
   "hospitalContacts": [
