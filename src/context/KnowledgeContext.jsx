@@ -536,9 +536,13 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "name": City name (e.g. "Kyoto")
    - "airports": Array of airport codes if relevant (e.g. ["HND", "NRT"])
    - "bestMonths": Array of best months to visit (e.g. ["Mar", "Apr", "Oct", "Nov"])
-   - "transportApps": Recommended local apps (e.g. ["Suica", "Go Taxi"])
-   - "foodHighlights": { "signature": ["Signature dishes"], "halalFriendly": "Halal notes" }
-   - "hospitalContacts": Array of tourist-friendly hospitals
+   - "transportApps": Recommended local transport & taxi apps (e.g. ["Suica / Pasmo", "Japan Travel Navitime", "Go Taxi"])
+   - "foodHighlights": { 
+       "signature": ["Dish 1", "Dish 2", "Dish 3"], 
+       "halalFriendly": "Halal availability guidance & key areas",
+       "dietaryNotes": "Vegetarian, vegan, and allergy considerations"
+     }
+   - "hospitalContacts": Array of tourist-friendly hospital names with area & phone (e.g. ["St. Luke's International Hospital (Tsukiji - English ER: +81-3-3541-5151)"])
 
 5. "tourObjects": Array of all specific tour attractions / points of interest / landmarks (POIs) visited throughout the tour days. For each object:
    - "id": lowercase slug (e.g. "fushimi-inari-shrine")
@@ -588,14 +592,20 @@ ${type === 'country' ? `
 ` : type === 'city' ? `
 {
   "id": "city-slug",
-  "countryId": "ISO Country code",
+  "countryId": "ISO Country code (e.g. JPN, CHE, FRA)",
   "countryName": "Country Name",
   "name": "City Name",
-  "airports": ["Airport Codes"],
-  "bestMonths": ["Best Months"],
-  "transportApps": ["Metro apps, Taxi apps"],
-  "foodHighlights": { "signature": ["Dish 1", "Dish 2"], "halalFriendly": "Halal/Dietary availability notes" },
-  "hospitalContacts": ["Tourist-friendly medical centers"]
+  "airports": ["Major airport IATA codes (e.g. HND, NRT)"],
+  "bestMonths": ["Best travel months (e.g. Mar, Apr, Oct, Nov)"],
+  "transportApps": ["Metro apps, IC Cards, Ride-hailing/Taxi apps (e.g. Go Taxi, Suica, Navitime)"],
+  "foodHighlights": { 
+    "signature": ["Must-try dish 1", "Must-try dish 2", "Must-try dish 3"], 
+    "halalFriendly": "Halal availability guide and dining districts",
+    "dietaryNotes": "Vegetarian/Vegan & food allergy guidance"
+  },
+  "hospitalContacts": [
+    "Hospital Name (District/Area - English Speaking ER, Tel: +xxx)"
+  ]
 }
 ` : type === 'route' ? `
 {

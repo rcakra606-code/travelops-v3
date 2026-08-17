@@ -52,8 +52,15 @@ async function seed() {
       airports: ['HND', 'NRT'],
       best_months: ['Mar', 'Apr', 'Oct', 'Nov'],
       transport_apps: ['Suica / Pasmo (Apple Wallet)', 'Japan Travel NAVITIME', 'Go Taxi'],
-      food_highlights: { signature: ['Tsukiji Sushi', 'Tonkatsu', 'Shinjuku Ramen'], halalFriendly: 'Moderate (Halal ramen spots in Asakusa/Shinjuku)' },
-      hospital_contacts: ['St. Luke\'s International Hospital (English spoken - Tsukiji)']
+      food_highlights: {
+        signature: ['Tsukiji Sushi', 'Tonkatsu', 'Shinjuku Ramen', 'Monjayaki'],
+        halalFriendly: 'Moderate (Halal ramen & kebab spots in Asakusa, Shinjuku, and Roppongi)',
+        dietaryNotes: 'Vegetarian options available in Buddhist Shojin Ryori temples and major department stores'
+      },
+      hospital_contacts: [
+        'St. Luke\'s International Hospital (Tsukiji - English Speaking 24/7 ER, Tel: +81-3-3541-5151)',
+        'Tokyo Medical University Hospital (Shinjuku - Foreign Tourist Desk, Tel: +81-3-3342-6111)'
+      ]
     },
     {
       id: 'kyoto',
@@ -61,9 +68,16 @@ async function seed() {
       name: 'Kyoto',
       airports: ['KIX', 'ITM'],
       best_months: ['Apr', 'May', 'Oct', 'Nov'],
-      transport_apps: ['ICOCA Card', 'Kyoto Bus Pass Guide'],
-      food_highlights: { signature: ['Matcha Parfait', 'Kaiseki Dinner', 'Yudofu Tofu'], halalFriendly: 'Moderate (Halal certified Kaiseki in Gion)' },
-      hospital_contacts: ['Kyoto University Hospital Emergency Clinic']
+      transport_apps: ['ICOCA Card', 'Kyoto Bus Pass Guide', 'MK Taxi App'],
+      food_highlights: {
+        signature: ['Matcha Parfait', 'Kaiseki Dinner', 'Yudofu Tofu', 'Kyo-Ryori'],
+        halalFriendly: 'Moderate (Halal certified Kaiseki in Gion and halal restaurants near Kyoto Station)',
+        dietaryNotes: 'Kyoto is known for tofu dishes, very friendly for vegetarian diets'
+      },
+      hospital_contacts: [
+        'Kyoto University Hospital Emergency Clinic (English Medical Staff, Tel: +81-75-751-3111)',
+        'Kyoto City Hospital (Emergency Desk, Tel: +81-75-311-5311)'
+      ]
     },
     {
       id: 'zurich',
@@ -71,9 +85,16 @@ async function seed() {
       name: 'Zurich',
       airports: ['ZRH'],
       best_months: ['Jun', 'Jul', 'Aug', 'Sep', 'Dec'],
-      transport_apps: ['SBB Mobile', 'ZVV Transport App'],
-      food_highlights: { signature: ['Zürcher Geschnetzeltes', 'Swiss Cheese Fondue', 'Lindt Chocolate'], halalFriendly: 'High (Multiple Mediterranean/Halal restaurants near HB)' },
-      hospital_contacts: ['University Hospital Zurich (USZ)']
+      transport_apps: ['SBB Mobile', 'ZVV Transport App', 'Uber Zurich'],
+      food_highlights: {
+        signature: ['Zürcher Geschnetzeltes', 'Swiss Cheese Fondue', 'Lindt Chocolate', 'Rösti'],
+        halalFriendly: 'High (Multiple Mediterranean, Turkish & Halal dining options near Zürich HB)',
+        dietaryNotes: 'Hiltl (world\'s oldest vegetarian restaurant) located in central Zurich'
+      },
+      hospital_contacts: [
+        'University Hospital Zurich (USZ - Emergency Department 24/7, Tel: +41-44-255-1111)',
+        'Permanence Hauptbahnhof Clinic (Walk-in Medical at Central Station, Tel: +41-44-215-4444)'
+      ]
     }
   ];
 
@@ -138,7 +159,100 @@ async function seed() {
   ];
 
   await supabase.from('travelops_dest_objects').upsert(objects);
-  console.log('✅ Seed completed successfully!');
+
+  // 4. Master Tour Routes
+  const routes = [
+    {
+      id: 'route-jpn-7d-classic-golden-route',
+      title: '7D6N Classic Japan Golden Route (Tokyo - Hakone - Kyoto - Osaka)',
+      route_signature: 'JPN:7D:tokyo>hakone>kyoto>osaka',
+      country_id: 'JPN',
+      country_name: 'Japan',
+      duration_days: 7,
+      duration_nights: 6,
+      cities_sequence: ['Tokyo', 'Hakone', 'Kyoto', 'Osaka'],
+      theme_category: 'Cultural & Scenic',
+      transport_modes: ['Private Coach', 'Shinkansen Bullet Train'],
+      route_highlights: [
+        'Senso-ji Temple & Asakusa',
+        'Mt. Fuji 5th Station & Lake Ashi Cruise',
+        'Shinkansen Bullet Train Experience',
+        'Fushimi Inari Taisha 1,000 Torii Gates',
+        'Kiyomizu-dera & Dotonbori Glico Sign'
+      ],
+      day_itinerary: [
+        {
+          day: 1,
+          title: 'Arrival in Tokyo & Asakusa District',
+          city: 'Tokyo',
+          objects: ['Senso-ji Temple & Nakamise Street', 'Tokyo Skytree (Photo stop)'],
+          meals: { b: false, l: true, d: true },
+          hotelArea: 'Tokyo Bay / Shinjuku',
+          summary: 'Arrive at Haneda/Narita airport, transfer by coach to Asakusa for temple briefing and welcome dinner.'
+        },
+        {
+          day: 2,
+          title: 'Modern Tokyo Exploration',
+          city: 'Tokyo',
+          objects: ['Meiji Shrine', 'Shibuya Crossing & Hachiko', 'Shinjuku Gyoen'],
+          meals: { b: true, l: true, d: false },
+          hotelArea: 'Tokyo Bay / Shinjuku',
+          summary: 'Explore Harajuku and Shibuya fashion hubs followed by panoramic views from Roppongi Hills.'
+        },
+        {
+          day: 3,
+          title: 'Mt. Fuji & Hakone Alpine Onsen',
+          city: 'Hakone',
+          objects: ['Mt. Fuji 5th Station', 'Owakudani Volcanic Valley', 'Lake Ashi Pirate Ship Cruise'],
+          meals: { b: true, l: true, d: true },
+          hotelArea: 'Hakone / Fuji Onsen Resort',
+          summary: 'Drive up to Mt. Fuji 5th Station, cruise on Lake Ashi, and stay overnight at a traditional onsen ryokan.'
+        },
+        {
+          day: 4,
+          title: 'Shinkansen Bullet Train to Kyoto & Ancient Temples',
+          city: 'Kyoto',
+          objects: ['Shinkansen Ride', 'Kinkaku-ji Golden Pavilion', 'Gion Geisha District'],
+          meals: { b: true, l: true, d: true },
+          hotelArea: 'Kyoto Downtown',
+          summary: 'Experience the 300 km/h Shinkansen bullet train to Kyoto. Afternoon walking tour in historic Gion.'
+        },
+        {
+          day: 5,
+          title: 'Spiritual Kyoto & Fushimi Inari Shrine',
+          city: 'Kyoto',
+          objects: ['Fushimi Inari Taisha Shrine', 'Kiyomizu-dera Temple', 'Sannenzaka & Ninenzaka'],
+          meals: { b: true, l: true, d: false },
+          hotelArea: 'Kyoto Downtown',
+          summary: 'Early morning hike through the 10,000 torii gates of Fushimi Inari, followed by wooden terrace views at Kiyomizu-dera.'
+        },
+        {
+          day: 6,
+          title: 'Osaka Castle & Dotonbori Gastronomy',
+          city: 'Osaka',
+          objects: ['Osaka Castle Park', 'Shinsaibashi Shopping Arcade', 'Dotonbori Glico Sign'],
+          meals: { b: true, l: true, d: true },
+          hotelArea: 'Osaka Namba',
+          summary: 'Transfer to Osaka, tour the grand Osaka Castle, and enjoy an evening street food safari in Dotonbori.'
+        },
+        {
+          day: 7,
+          title: 'Kansai Airport Departure',
+          city: 'Osaka',
+          objects: ['Rinku Premium Outlets (Optional)'],
+          meals: { b: true, l: false, d: false },
+          hotelArea: 'Departure',
+          summary: 'Morning leisure and shopping before transfer to Kansai International Airport (KIX) for flight home.'
+        }
+      ],
+      usage_count: 3,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ];
+
+  await supabase.from('travelops_tour_routes').upsert(routes);
+  console.log('✅ Master destination intelligence and tour routes synced successfully!');
 }
 
 seed();

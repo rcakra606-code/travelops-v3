@@ -7,7 +7,8 @@ import {
   Plus, Filter, Clock, ShieldAlert, Zap, FileText, CheckCircle2, 
   AlertTriangle, Trash2, Edit3, ChevronRight, ChevronDown, 
   ExternalLink, Info, Coffee, HelpCircle, X, Eye, Printer, Copy, Check,
-  Route, ArrowRight, Calendar, Layers, CheckCheck, RefreshCw
+  Route, ArrowRight, Calendar, Layers, CheckCheck, RefreshCw,
+  HeartPulse, Utensils, Plane, Smartphone, ShieldCheck
 } from 'lucide-react';
 
 const KnowledgeBase = () => {
@@ -916,9 +917,11 @@ const KnowledgeBase = () => {
                       filteredCities.map(ct => {
                         const country = countries.find(c => c.id === ct.country_id);
                         const cityObjects = tourObjects.filter(o => o.city_id === ct.id);
+                        const food = ct.food_highlights || {};
+                        const hospitals = ct.hospital_contacts || [];
 
                         return (
-                          <div key={ct.id} className="card fade-in" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                          <div key={ct.id} className="card fade-in" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderTop: '3px solid var(--accent-indigo)' }}>
                             <div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                                 <span style={{
@@ -934,45 +937,75 @@ const KnowledgeBase = () => {
                                 </span>
                                 <button
                                   onClick={() => handleDelete('city', ct.id, ct.name)}
-                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
+                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '0.15rem' }}
+                                  title="Delete City"
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               </div>
 
-                              <h3 style={{ margin: '0 0 0.4rem', fontSize: '1.2rem', fontWeight: '800' }}>
+                              <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: '800' }}>
                                 {ct.name}
                               </h3>
 
-                              {ct.airports && ct.airports.length > 0 && (
-                                <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                                  {ct.airports.map(ap => (
-                                    <span key={ap} style={{ fontSize: '0.7rem', fontWeight: '700', background: 'rgba(255, 255, 255, 0.05)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                                      ✈️ {ap}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-
-                              {ct.best_months && ct.best_months.length > 0 && (
-                                <div style={{ marginBottom: '0.75rem' }}>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Best Season: </span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600' }}>
-                                    {ct.best_months.join(', ')}
+                              {/* Airports & Seasonality */}
+                              <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
+                                {ct.airports && ct.airports.length > 0 && ct.airports.map(ap => (
+                                  <span key={ap} style={{ fontSize: '0.68rem', fontWeight: '700', background: 'rgba(6, 182, 212, 0.12)', color: 'var(--primary)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
+                                    ✈️ {ap}
                                   </span>
-                                </div>
-                              )}
+                                ))}
+                                {ct.best_months && ct.best_months.length > 0 && (
+                                  <span style={{ fontSize: '0.68rem', fontWeight: '700', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                                    🌤️ {ct.best_months.slice(0, 3).join(', ')}{ct.best_months.length > 3 ? '...' : ''}
+                                  </span>
+                                )}
+                              </div>
 
+                              {/* Transport Apps */}
                               {ct.transport_apps && ct.transport_apps.length > 0 && (
-                                <div style={{ marginBottom: '0.75rem' }}>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Recommended Apps: </span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-main)' }}>
+                                <div style={{ marginBottom: '0.65rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                                  <span style={{ fontWeight: '600' }}>Apps: </span>
+                                  <span style={{ color: 'var(--text-main)' }}>
                                     {ct.transport_apps.join(' • ')}
                                   </span>
                                 </div>
                               )}
 
-                              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                              {/* Food / Halal Highlight */}
+                              {food.signature && food.signature.length > 0 && (
+                                <div style={{ marginBottom: '0.65rem', fontSize: '0.73rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                  <span style={{ color: 'var(--text-subtle)', fontWeight: '600' }}>Must-Try:</span>
+                                  {food.signature.slice(0, 2).map((dish, i) => (
+                                    <span key={i} style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '0.1rem 0.4rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                                      🍜 {dish}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Medical Support Indicator */}
+                              {hospitals.length > 0 && (
+                                <div style={{
+                                  background: 'rgba(16, 185, 129, 0.06)',
+                                  border: '1px solid rgba(16, 185, 129, 0.2)',
+                                  borderRadius: '6px',
+                                  padding: '0.35rem 0.5rem',
+                                  fontSize: '0.7rem',
+                                  color: 'var(--success)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  marginBottom: '0.65rem'
+                                }}>
+                                  <HeartPulse size={12} />
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {typeof hospitals[0] === 'string' ? hospitals[0] : (hospitals[0]?.name || 'Tourist Hospital')}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
                                 📍 <strong>{cityObjects.length}</strong> linked attractions
                               </div>
                             </div>
@@ -981,7 +1014,7 @@ const KnowledgeBase = () => {
                               onClick={() => setSelectedItem({ ...ct, entityType: 'city' })}
                               style={{
                                 width: '100%',
-                                marginTop: '1rem',
+                                marginTop: '0.85rem',
                                 background: 'rgba(255, 255, 255, 0.04)',
                                 border: '1px solid var(--border)',
                                 color: 'var(--text-main)',
@@ -989,10 +1022,14 @@ const KnowledgeBase = () => {
                                 borderRadius: '6px',
                                 fontSize: '0.78rem',
                                 fontWeight: '600',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem'
                               }}
                             >
-                              View City Intel & Hospitals
+                              <Eye size={14} /> View City Intel & Hospitals
                             </button>
                           </div>
                         );
@@ -1525,7 +1562,14 @@ const KnowledgeBase = () => {
                   </p>
                 )}
                 {aiType === 'country' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Currency: {aiGeneratedData.currency?.code} • Plugs: {aiGeneratedData.powerPlugs?.types?.join('/')}</p>}
-                {aiType === 'city' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Airports: {aiGeneratedData.airports?.join(', ')} • Apps: {aiGeneratedData.transportApps?.join(', ')}</p>}
+                {aiType === 'city' && (
+                  <p style={{ margin: 0, color: 'var(--text-subtle)', lineHeight: '1.4' }}>
+                    <strong>Airports:</strong> {aiGeneratedData.airports?.join(', ') || 'N/A'} • <strong>Best Season:</strong> {aiGeneratedData.bestMonths?.join(', ') || 'Year-round'}<br />
+                    <strong>Apps:</strong> {aiGeneratedData.transportApps?.join(', ') || 'N/A'}<br />
+                    <strong>Must-Try Dishes:</strong> {aiGeneratedData.foodHighlights?.signature?.join(', ') || 'N/A'}<br />
+                    <strong>Medical ER:</strong> {aiGeneratedData.hospitalContacts?.[0] || 'Local ER clinics'}
+                  </p>
+                )}
                 {aiType === 'object' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Category: {aiGeneratedData.category} • Duration: {aiGeneratedData.estDurationMinutes}m • Dress: {aiGeneratedData.dressCode || 'None'}</p>}
               </div>
             )}
@@ -1595,11 +1639,26 @@ const KnowledgeBase = () => {
                   });
                   alert('Country added successfully!');
                 } else if (manualType === 'city') {
+                  const airportsArr = (form.cityAirports?.value || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                  const monthsArr = (form.cityMonths?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                  const appsArr = (form.cityApps?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                  const dishesArr = (form.cityDishes?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                  const hospitalsArr = (form.cityHospitals?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+
                   await addCity({
                     country_id: form.cityCountryId.value,
-                    name: form.cityName.value
+                    name: form.cityName.value,
+                    airports: airportsArr,
+                    best_months: monthsArr,
+                    transport_apps: appsArr,
+                    food_highlights: {
+                      signature: dishesArr,
+                      halalFriendly: form.cityHalal?.value || '',
+                      dietaryNotes: form.cityDietary?.value || ''
+                    },
+                    hospital_contacts: hospitalsArr
                   });
-                  alert('City added successfully!');
+                  alert('City intelligence added successfully!');
                 } else {
                   await addObject({
                     name: form.objName.value,
@@ -1695,15 +1754,43 @@ const KnowledgeBase = () => {
 
               {manualType === 'city' && (
                 <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Country:</label>
+                      <select name="cityCountryId" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
+                        {countries.map(c => <option key={c.id} value={c.id}>{c.name} ({c.id})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>City Name:</label>
+                      <input name="cityName" placeholder="e.g. Kyoto" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Airports (comma separated):</label>
+                      <input name="cityAirports" placeholder="e.g. HND, NRT" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Best Months (comma separated):</label>
+                      <input name="cityMonths" placeholder="e.g. Mar, Apr, Oct, Nov" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    </div>
+                  </div>
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Country:</label>
-                    <select name="cityCountryId" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
-                      {countries.map(c => <option key={c.id} value={c.id}>{c.name} ({c.id})</option>)}
-                    </select>
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Transport & Taxi Apps (comma separated):</label>
+                    <input name="cityApps" placeholder="e.g. Suica, Pasmo, Go Taxi, Navitime" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Signature Dishes (comma separated):</label>
+                    <input name="cityDishes" placeholder="e.g. Matcha Parfait, Kaiseki Dinner, Yudofu Tofu" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Halal & Dietary Guidance:</label>
+                    <input name="cityHalal" placeholder="e.g. Halal certified Kaiseki in Gion district" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>City Name:</label>
-                    <input name="cityName" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Tourist Hospitals / Emergency Centers (1 per line):</label>
+                    <textarea name="cityHospitals" rows="2" placeholder="e.g. St. Luke's International Hospital (Tsukiji - English ER: +81-3-3541-5151)" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: '0.8rem' }} />
                   </div>
                 </>
               )}
@@ -1881,6 +1968,206 @@ const KnowledgeBase = () => {
                 )}
               </div>
             )}
+
+            {/* City Details */}
+            {selectedItem.entityType === 'city' && (() => {
+              const country = countries.find(c => c.id === selectedItem.country_id);
+              const cityObjects = tourObjects.filter(o => o.city_id === selectedItem.id);
+              const cityRoutes = tourRoutes.filter(r => (r.cities_sequence || []).some(cs => typeof cs === 'string' && cs.toLowerCase() === selectedItem.name?.toLowerCase()));
+              const food = selectedItem.food_highlights || {};
+              const hospitals = selectedItem.hospital_contacts || [];
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem', fontSize: '0.85rem' }}>
+                  {/* Top Meta Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: '0.75rem',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    padding: '0.85rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)'
+                  }}>
+                    <div>
+                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>Country / Region:</span>
+                      <div style={{ fontWeight: '700', color: 'var(--accent-indigo)' }}>
+                        🌍 {country?.name || selectedItem.country_id} ({country?.region || 'Global'})
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>Airports / Gateway:</span>
+                      <div style={{ fontWeight: '700', color: 'var(--primary)' }}>
+                        ✈️ {selectedItem.airports && selectedItem.airports.length > 0 ? selectedItem.airports.join(', ') : 'Domestic Hub'}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>Best Travel Months:</span>
+                      <div style={{ fontWeight: '700', color: 'var(--success)' }}>
+                        🌤️ {selectedItem.best_months && selectedItem.best_months.length > 0 ? selectedItem.best_months.join(', ') : 'Year-round'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. Tourist Emergency & Medical Support */}
+                  <div>
+                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <HeartPulse size={16} /> Tourist-Friendly Medical Centers & English ER
+                    </h4>
+                    {hospitals.length === 0 ? (
+                      <p style={{ margin: 0, color: 'var(--text-subtle)', fontSize: '0.78rem' }}>No medical centers recorded for this city.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                        {hospitals.map((hosp, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.08)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                              borderRadius: '6px',
+                              padding: '0.55rem 0.75rem',
+                              fontSize: '0.8rem',
+                              color: 'var(--text-main)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}
+                          >
+                            <span>🏥 {typeof hosp === 'string' ? hosp : hosp.name}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '700', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                              English Available
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Transit Ecosystem & Recommended Apps */}
+                  {selectedItem.transport_apps && selectedItem.transport_apps.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Smartphone size={16} /> Local Transport & Taxi Hailing Apps
+                      </h4>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {selectedItem.transport_apps.map((app, i) => (
+                          <span
+                            key={i}
+                            style={{
+                              background: 'rgba(6, 182, 212, 0.12)',
+                              border: '1px solid rgba(6, 182, 212, 0.3)',
+                              color: 'var(--primary)',
+                              padding: '0.3rem 0.65rem',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontWeight: '700'
+                            }}
+                          >
+                            📱 {app}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Culinary Profile & Dietary Notes */}
+                  <div>
+                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Utensils size={16} /> Gastronomy & Dietary Intelligence
+                    </h4>
+                    {food.signature && food.signature.length > 0 && (
+                      <div style={{ marginBottom: '0.6rem' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: '600', textTransform: 'uppercase' }}>Must-Try Signature Dishes:</span>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                          {food.signature.map((dish, i) => (
+                            <span key={i} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.78rem' }}>
+                              🥢 {dish}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {food.halalFriendly && (
+                      <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '6px', padding: '0.55rem 0.75rem', fontSize: '0.78rem', color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                        <strong style={{ color: '#f59e0b' }}>🕌 Halal & Dietary Guidance: </strong> {food.halalFriendly}
+                      </div>
+                    )}
+                    {food.dietaryNotes && (
+                      <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                        <strong>🥗 Allergy & Veg Guidelines: </strong> {food.dietaryNotes}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. Linked Attractions */}
+                  <div>
+                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>📍 Linked Attractions in {selectedItem.name} ({cityObjects.length})</span>
+                    </h4>
+                    {cityObjects.length === 0 ? (
+                      <p style={{ margin: 0, color: 'var(--text-subtle)', fontSize: '0.78rem' }}>No tour objects currently linked to this city hub.</p>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        {cityObjects.map(obj => (
+                          <div
+                            key={obj.id}
+                            onClick={() => setSelectedItem({ ...obj, entityType: 'object' })}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '6px',
+                              padding: '0.55rem 0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
+                              <strong style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>{obj.name}</strong>
+                              <span style={{ fontSize: '0.68rem', color: getCategoryColor(obj.category), fontWeight: '700' }}>{obj.category}</span>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>⏱️ {obj.est_duration_minutes || 90}m</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5. Master Routes Visiting this City */}
+                  {cityRoutes.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: 'var(--accent-indigo)' }}>
+                        🛣️ Master Tour Routes Stopping Here ({cityRoutes.length}):
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {cityRoutes.map(rt => (
+                          <div
+                            key={rt.id}
+                            onClick={() => setSelectedItem({ ...rt, entityType: 'route' })}
+                            style={{
+                              background: 'rgba(99, 102, 241, 0.06)',
+                              border: '1px solid rgba(99, 102, 241, 0.25)',
+                              borderRadius: '6px',
+                              padding: '0.45rem 0.65rem',
+                              fontSize: '0.78rem',
+                              color: 'var(--text-main)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <span>🗺️ <strong>{rt.title}</strong></span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: '700' }}>{rt.duration_days}D{rt.duration_nights}N</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Country Details */}
             {selectedItem.entityType === 'country' && (
