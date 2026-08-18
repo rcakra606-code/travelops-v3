@@ -7,8 +7,8 @@ import {
   Plus, Filter, Clock, ShieldAlert, Zap, FileText, CheckCircle2, 
   AlertTriangle, Trash2, Edit3, ChevronRight, ChevronDown, 
   ExternalLink, Info, Coffee, HelpCircle, X, Eye, Printer, Copy, Check,
-  Route, ArrowRight, Calendar, Layers, CheckCheck, RefreshCw,
-  HeartPulse, Utensils, Plane, Smartphone, ShieldCheck
+  Route, ArrowRight, Calendar, Layers, CheckCheck, RefreshCw, Activity,
+  SlidersHorizontal, CheckCircle, AlertCircle, ArrowUpRight
 } from 'lucide-react';
 
 const KnowledgeBase = () => {
@@ -27,6 +27,14 @@ const KnowledgeBase = () => {
   const [selectedItem, setSelectedItem] = useState(null); // for detail inspector
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [guideCountry, setGuideCountry] = useState('');
+
+  // Live Data Checker State
+  const [showCheckerModal, setShowCheckerModal] = useState(false);
+  const [checkerFilter, setCheckerFilter] = useState('all'); // 'all', 'updates_only', 'verified_only'
+  const [checkerTypeFilter, setCheckerTypeFilter] = useState('all'); // 'all', 'country', 'city', 'object', 'route'
+  const [isApplyingAll, setIsApplyingAll] = useState(false);
+  const [singleAuditingId, setSingleAuditingId] = useState(null);
+  const [singleAuditResult, setSingleAuditResult] = useState(null);
 
   // PDF Importer State
   const [pdfFile, setPdfFile] = useState(null);
@@ -50,11 +58,13 @@ const KnowledgeBase = () => {
 
   const { 
     countries, cities, tourObjects, tourRoutes, loading,
+    isAuditing, auditProgress, auditResults, lastAuditDate,
     addCountry, updateCountry, deleteCountry,
     addCity, updateCity, deleteCity,
     addObject, updateObject, deleteObject,
     addTourRoute, updateTourRoute, deleteTourRoute,
-    computeRouteSignature, parsePdfItinerary, generateWithAi, saveExtractedKnowledge
+    computeRouteSignature, parsePdfItinerary, generateWithAi, saveExtractedKnowledge,
+    checkEntityFreshness, runBatchKnowledgeChecker, applyEntityUpdate, applyAllPendingUpdates
   } = useKnowledge();
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -68,7 +78,6 @@ const KnowledgeBase = () => {
     return ['All', ...Array.from(set)];
   }, [countries]);
 
-  // Categories list
   const categories = ['All', 'Historical', 'Cultural', 'Religious', 'Nature', 'Theme Park', 'Shopping', 'Museum', 'Landmark', 'Culinary'];
   const themes = ['All', 'Leisure', 'Cultural', 'Nature & Scenic', 'Winter & Ski', 'Luxury', 'Adventure', 'Family', 'Shopping & Culinary'];
 
@@ -246,6 +255,43 @@ const KnowledgeBase = () => {
     }
   };
 
+  // Single Item Freshness Check
+  const handleCheckSingleFreshness = async (item, type) => {
+    try {
+      setSingleAuditingId(item.id);
+      setSingleAuditResult(null);
+      const res = await checkEntityFreshness(item, type);
+      setSingleAuditResult(res);
+    } catch (err) {
+      alert('Freshness check failed: ' + err.message);
+    } finally {
+      setSingleAuditingId(null);
+    }
+  };
+
+  // Apply Single Audited Update
+  const handleApplySingleUpdate = async (itemResult) => {
+    try {
+      await applyEntityUpdate(itemResult.id, itemResult.type, itemResult.updatedEntity);
+      alert(`✓ Updated ${itemResult.name} successfully!`);
+    } catch (err) {
+      alert('Failed to apply update: ' + err.message);
+    }
+  };
+
+  // Apply 1-Click All Pending Updates
+  const handleApplyAllUpdates = async () => {
+    try {
+      setIsApplyingAll(true);
+      const res = await applyAllPendingUpdates();
+      alert(res.message);
+    } catch (err) {
+      alert('Failed to apply updates: ' + err.message);
+    } finally {
+      setIsApplyingAll(false);
+    }
+  };
+
   // Category Color Map
   const getCategoryColor = (cat) => {
     const map = {
@@ -273,6 +319,26 @@ const KnowledgeBase = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Audit Metrics Calculation
+  const auditMetrics = useMemo(() => {
+    const total = auditResults.length;
+    const updatesCount = auditResults.filter(r => r.status === 'update_available' || (r.changes && r.changes.length > 0)).length;
+    const criticalCount = auditResults.filter(r => r.status === 'critical_alert').length;
+    const verifiedCount = total - updatesCount - criticalCount;
+    return { total, updatesCount, criticalCount, verifiedCount };
+  }, [auditResults]);
+
+  // Filtered Audit Results
+  const filteredAuditResults = useMemo(() => {
+    return auditResults.filter(r => {
+      const matchType = checkerTypeFilter === 'all' || r.type === checkerTypeFilter;
+      const matchStatus = checkerFilter === 'all' ? true :
+                          checkerFilter === 'updates_only' ? (r.status !== 'verified' || (r.changes && r.changes.length > 0)) :
+                          (r.status === 'verified' && (!r.changes || r.changes.length === 0));
+      return matchType && matchStatus;
+    });
+  }, [auditResults, checkerFilter, checkerTypeFilter]);
 
   return (
     <div className="app-container fade-in">
@@ -314,7 +380,7 @@ const KnowledgeBase = () => {
                       Destination & Route Intelligence Hub
                     </h1>
                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-subtle)' }}>
-                      Master tour routes catalog, cultural etiquette, POI dress codes & automatic duplicate elimination
+                      Master tour routes catalog, live travel updates checker, visa & POI intelligence
                     </p>
                   </div>
                 </div>
@@ -322,6 +388,28 @@ const KnowledgeBase = () => {
 
               {/* Action Toolbar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                {/* LIVE DATA FRESHNESS CHECKER BUTTON */}
+                <button
+                  onClick={() => setShowCheckerModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.18), rgba(249, 115, 22, 0.18))',
+                    color: '#eab308',
+                    border: '1px solid rgba(234, 179, 8, 0.4)',
+                    padding: '0.55rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(234, 179, 8, 0.15)'
+                  }}
+                >
+                  <span className="pulse-dot pulse-dot-amber" />
+                  <Zap size={15} /> ⚡ Live Data Checker
+                </button>
+
                 <button
                   onClick={() => setShowPdfModal(true)}
                   style={{
@@ -453,19 +541,25 @@ const KnowledgeBase = () => {
                 </div>
               </div>
 
-              <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div 
+                className="card" 
+                onClick={() => setShowCheckerModal(true)}
+                style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid rgba(234, 179, 8, 0.3)' }}
+              >
                 <div style={{
                   width: '42px', height: '42px', borderRadius: '10px',
-                  background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)',
+                  background: 'rgba(234, 179, 8, 0.15)', color: '#eab308',
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
-                  <CheckCheck size={22} />
+                  <Activity size={22} />
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Deduplication Engine</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Intelligence Health</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem' }}>
                     <span className="pulse-dot pulse-dot-green" />
-                    <span style={{ fontSize: '0.825rem', fontWeight: '700', color: 'var(--text-main)' }}>Exact Match Guard Active</span>
+                    <span style={{ fontSize: '0.825rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                      {lastAuditDate ? `Audited Recently` : `Ready to Scan`}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -917,11 +1011,9 @@ const KnowledgeBase = () => {
                       filteredCities.map(ct => {
                         const country = countries.find(c => c.id === ct.country_id);
                         const cityObjects = tourObjects.filter(o => o.city_id === ct.id);
-                        const food = ct.food_highlights || {};
-                        const hospitals = ct.hospital_contacts || [];
 
                         return (
-                          <div key={ct.id} className="card fade-in" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderTop: '3px solid var(--accent-indigo)' }}>
+                          <div key={ct.id} className="card fade-in" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                             <div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                                 <span style={{
@@ -937,96 +1029,45 @@ const KnowledgeBase = () => {
                                 </span>
                                 <button
                                   onClick={() => handleDelete('city', ct.id, ct.name)}
-                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '0.15rem' }}
-                                  title="Delete City"
+                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               </div>
 
-                              <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: '800' }}>
+                              <h3 style={{ margin: '0 0 0.4rem', fontSize: '1.2rem', fontWeight: '800' }}>
                                 {ct.name}
                               </h3>
 
-                              {/* Airports & Seasonality */}
-                              <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
-                                {ct.airports && ct.airports.length > 0 && ct.airports.map(ap => (
-                                  <span key={ap} style={{ fontSize: '0.68rem', fontWeight: '700', background: 'rgba(6, 182, 212, 0.12)', color: 'var(--primary)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
-                                    ✈️ {ap}
-                                  </span>
-                                ))}
-                                {ct.best_months && ct.best_months.length > 0 && (
-                                  <span style={{ fontSize: '0.68rem', fontWeight: '700', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
-                                    🌤️ {ct.best_months.slice(0, 3).join(', ')}{ct.best_months.length > 3 ? '...' : ''}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Transport Apps */}
-                              {ct.transport_apps && ct.transport_apps.length > 0 && (
-                                <div style={{ marginBottom: '0.65rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-                                  <span style={{ fontWeight: '600' }}>Apps: </span>
-                                  <span style={{ color: 'var(--text-main)' }}>
-                                    {ct.transport_apps.join(' • ')}
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Food / Halal Highlight */}
-                              {food.signature && food.signature.length > 0 && (
-                                <div style={{ marginBottom: '0.65rem', fontSize: '0.73rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                  <span style={{ color: 'var(--text-subtle)', fontWeight: '600' }}>Must-Try:</span>
-                                  {food.signature.slice(0, 2).map((dish, i) => (
-                                    <span key={i} style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '0.1rem 0.4rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                                      🍜 {dish}
+                              {ct.airports && ct.airports.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                  {ct.airports.map(ap => (
+                                    <span key={ap} style={{ fontSize: '0.7rem', fontWeight: '700', background: 'rgba(255, 255, 255, 0.05)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                                      ✈️ {ap}
                                     </span>
                                   ))}
                                 </div>
                               )}
 
-                              {/* Halal / Muslim-Friendly Badge */}
-                              {food.halalFriendly && (
-                                <div style={{
-                                  background: 'rgba(16, 185, 129, 0.08)',
-                                  border: '1px solid rgba(16, 185, 129, 0.25)',
-                                  borderRadius: '6px',
-                                  padding: '0.3rem 0.5rem',
-                                  fontSize: '0.7rem',
-                                  color: 'var(--success)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  marginBottom: '0.65rem'
-                                }}>
-                                  <span style={{ fontWeight: '800' }}>🕌 Halal:</span>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-main)' }}>
-                                    {food.halalStatus ? `[${food.halalStatus}] ` : ''}{food.halalFriendly}
+                              {ct.best_months && ct.best_months.length > 0 && (
+                                <div style={{ marginBottom: '0.75rem' }}>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Best Season: </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600' }}>
+                                    {ct.best_months.join(', ')}
                                   </span>
                                 </div>
                               )}
 
-                              {/* Medical Support Indicator */}
-                              {hospitals.length > 0 && (
-                                <div style={{
-                                  background: 'rgba(16, 185, 129, 0.06)',
-                                  border: '1px solid rgba(16, 185, 129, 0.2)',
-                                  borderRadius: '6px',
-                                  padding: '0.35rem 0.5rem',
-                                  fontSize: '0.7rem',
-                                  color: 'var(--success)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  marginBottom: '0.65rem'
-                                }}>
-                                  <HeartPulse size={12} />
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {typeof hospitals[0] === 'string' ? hospitals[0] : (hospitals[0]?.name || 'Tourist Hospital')}
+                              {ct.transport_apps && ct.transport_apps.length > 0 && (
+                                <div style={{ marginBottom: '0.75rem' }}>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Recommended Apps: </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-main)' }}>
+                                    {ct.transport_apps.join(' • ')}
                                   </span>
                                 </div>
                               )}
 
-                              <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
                                 📍 <strong>{cityObjects.length}</strong> linked attractions
                               </div>
                             </div>
@@ -1035,7 +1076,7 @@ const KnowledgeBase = () => {
                               onClick={() => setSelectedItem({ ...ct, entityType: 'city' })}
                               style={{
                                 width: '100%',
-                                marginTop: '0.85rem',
+                                marginTop: '1rem',
                                 background: 'rgba(255, 255, 255, 0.04)',
                                 border: '1px solid var(--border)',
                                 color: 'var(--text-main)',
@@ -1043,14 +1084,10 @@ const KnowledgeBase = () => {
                                 borderRadius: '6px',
                                 fontSize: '0.78rem',
                                 fontWeight: '600',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.4rem'
+                                cursor: 'pointer'
                               }}
                             >
-                              <Eye size={14} /> View City Intel & Hospitals
+                              View City Intel & Hospitals
                             </button>
                           </div>
                         );
@@ -1276,7 +1313,368 @@ const KnowledgeBase = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: SMART PDF ITINERARY IMPORTER (WITH ROUTE CAPTURE & DEDUP)       */}
+      {/* MODAL: LIVE DATA FRESHNESS CHECKER & AUTO-UPDATER                         */}
+      {/* ========================================================================= */}
+      {showCheckerModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '880px', width: '92%', maxHeight: '90vh', overflowY: 'auto' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '10px',
+                  background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(249, 115, 22, 0.2))',
+                  border: '1px solid rgba(234, 179, 8, 0.4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#eab308'
+                }}>
+                  <Zap size={22} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800' }}>
+                    Live Knowledge Base Freshness Checker
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                    AI-powered audit for visa rules, opening hours, dress codes & ticketing updates with 1-click Auto-Update
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowCheckerModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Audit Status Bar / Trigger */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <span className={`pulse-dot ${isAuditing ? 'pulse-dot-amber' : auditMetrics.updatesCount > 0 ? 'pulse-dot-amber' : 'pulse-dot-green'}`} />
+                  <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                    {isAuditing ? 'Auditing Knowledge Base in Real-Time...' :
+                     auditResults.length > 0 ? `Audit Complete (${auditMetrics.updatesCount} updates available)` :
+                     'Audit Ready to Run'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                  {lastAuditDate ? `Last verified: ${new Date(lastAuditDate).toLocaleString()}` : 'Database has not been audited yet'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <button
+                  disabled={isAuditing}
+                  onClick={() => runBatchKnowledgeChecker({ filterType: 'all' })}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    color: 'var(--text-main)',
+                    border: '1px solid var(--border)',
+                    padding: '0.55rem 0.95rem',
+                    borderRadius: '8px',
+                    fontSize: '0.825rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RefreshCw size={14} className={isAuditing ? 'spinner' : ''} /> {isAuditing ? 'Auditing...' : 'Run Freshness Scan'}
+                </button>
+
+                {auditMetrics.updatesCount > 0 && (
+                  <button
+                    disabled={isApplyingAll || isAuditing}
+                    onClick={handleApplyAllUpdates}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.55rem 1.1rem',
+                      borderRadius: '8px',
+                      fontSize: '0.825rem',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                    }}
+                  >
+                    <CheckCheck size={16} /> {isApplyingAll ? 'Updating All...' : `⚡ Auto-Update All (${auditMetrics.updatesCount})`}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Live Progress Bar during active scan */}
+            {isAuditing && (
+              <div style={{
+                background: 'rgba(234, 179, 8, 0.08)',
+                border: '1px solid rgba(234, 179, 8, 0.25)',
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                marginBottom: '1.25rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.4rem', color: '#eab308' }}>
+                  <span>Auditing item {auditProgress.current} of {auditProgress.total}: {auditProgress.currentItem}</span>
+                  <span>{Math.round((auditProgress.current / (auditProgress.total || 1)) * 100)}%</span>
+                </div>
+                <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${(auditProgress.current / (auditProgress.total || 1)) * 100}%`, height: '100%', background: '#eab308', transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Metrics Breakdown */}
+            {auditResults.length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '0.75rem',
+                marginBottom: '1.25rem'
+              }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Items Audited</span>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800' }}>{auditMetrics.total}</div>
+                </div>
+
+                <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '600' }}>🟢 Verified (Up-to-Date)</span>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--success)' }}>{auditMetrics.verifiedCount}</div>
+                </div>
+
+                <div style={{ background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#eab308', fontWeight: '600' }}>🟡 Updates Available</span>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#eab308' }}>{auditMetrics.updatesCount}</div>
+                </div>
+
+                <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#f87171', fontWeight: '600' }}>🔴 Critical Alerts</span>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#f87171' }}>{auditMetrics.criticalCount}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Filter controls inside modal */}
+            {auditResults.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <button
+                    onClick={() => setCheckerFilter('all')}
+                    style={{
+                      fontSize: '0.75rem', fontWeight: '700', padding: '0.3rem 0.65rem', borderRadius: '6px',
+                      background: checkerFilter === 'all' ? 'rgba(6, 182, 212, 0.18)' : 'rgba(255, 255, 255, 0.03)',
+                      color: checkerFilter === 'all' ? 'var(--primary)' : 'var(--text-subtle)',
+                      border: `1px solid ${checkerFilter === 'all' ? 'rgba(6, 182, 212, 0.3)' : 'var(--border)'}`,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    All Items ({auditResults.length})
+                  </button>
+
+                  <button
+                    onClick={() => setCheckerFilter('updates_only')}
+                    style={{
+                      fontSize: '0.75rem', fontWeight: '700', padding: '0.3rem 0.65rem', borderRadius: '6px',
+                      background: checkerFilter === 'updates_only' ? 'rgba(234, 179, 8, 0.18)' : 'rgba(255, 255, 255, 0.03)',
+                      color: checkerFilter === 'updates_only' ? '#eab308' : 'var(--text-subtle)',
+                      border: `1px solid ${checkerFilter === 'updates_only' ? 'rgba(234, 179, 8, 0.3)' : 'var(--border)'}`,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Updates Available ({auditMetrics.updatesCount})
+                  </button>
+
+                  <button
+                    onClick={() => setCheckerFilter('verified_only')}
+                    style={{
+                      fontSize: '0.75rem', fontWeight: '700', padding: '0.3rem 0.65rem', borderRadius: '6px',
+                      background: checkerFilter === 'verified_only' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.03)',
+                      color: checkerFilter === 'verified_only' ? 'var(--success)' : 'var(--text-subtle)',
+                      border: `1px solid ${checkerFilter === 'verified_only' ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Verified ({auditMetrics.verifiedCount})
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>Type:</span>
+                  <select
+                    value={checkerTypeFilter}
+                    onChange={(e) => setCheckerTypeFilter(e.target.value)}
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="country">Countries</option>
+                    <option value="city">Cities</option>
+                    <option value="object">Tour POIs</option>
+                    <option value="route">Tour Routes</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Audit Results List & Visual Diffs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {auditResults.length === 0 && !isAuditing ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-subtle)' }}>
+                  <Activity size={44} color="#eab308" style={{ margin: '0 auto 0.75rem' }} />
+                  <h4 style={{ margin: '0 0 0.35rem', fontSize: '1rem', color: 'var(--text-main)' }}>
+                    No Knowledge Audit Performed Yet
+                  </h4>
+                  <p style={{ margin: '0 0 1rem', fontSize: '0.8rem' }}>
+                    Click "Run Freshness Scan" to check all stored destination rules, visa policies, dress codes & ticketing updates.
+                  </p>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => runBatchKnowledgeChecker({ filterType: 'all' })}
+                    style={{ margin: '0 auto', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+                  >
+                    <Zap size={16} /> Start Full Freshness Scan
+                  </button>
+                </div>
+              ) : (
+                filteredAuditResults.map(item => {
+                  const hasUpdates = item.changes && item.changes.length > 0;
+                  const statusColor = item.status === 'critical_alert' ? '#f87171' : hasUpdates ? '#eab308' : 'var(--success)';
+
+                  return (
+                    <div
+                      key={`${item.type}-${item.id}`}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: `1px solid ${hasUpdates ? 'rgba(234, 179, 8, 0.3)' : 'var(--border)'}`,
+                        borderRadius: '10px',
+                        padding: '1.1rem',
+                        borderLeft: `4px solid ${statusColor}`
+                      }}
+                    >
+                      {/* Item Top Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.65rem' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: '800',
+                              textTransform: 'uppercase',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px',
+                              background: 'rgba(255, 255, 255, 0.06)',
+                              color: 'var(--primary)'
+                            }}>
+                              {item.type === 'object' ? '📍 Attraction' : item.type === 'country' ? '🌍 Country' : item.type === 'city' ? '🏙️ City' : '🛣️ Route'}
+                            </span>
+
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: '700',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '6px',
+                              background: `${statusColor}20`,
+                              color: statusColor,
+                              border: `1px solid ${statusColor}40`
+                            }}>
+                              {item.status === 'critical_alert' ? '🔴 Critical Alert' : hasUpdates ? '🟡 Update Available' : '🟢 Verified (Up-to-Date)'}
+                            </span>
+                          </div>
+
+                          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800' }}>
+                            {item.name}
+                          </h3>
+                        </div>
+
+                        {hasUpdates && (
+                          <button
+                            onClick={() => handleApplySingleUpdate(item)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: 'var(--success)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Check size={13} /> Apply Update
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Summary text */}
+                      <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--text-subtle)', lineHeight: '1.4' }}>
+                        {item.summary}
+                      </p>
+
+                      {/* Field Diff Breakdown */}
+                      {hasUpdates && (
+                        <div style={{
+                          background: 'rgba(0, 0, 0, 0.25)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '8px',
+                          padding: '0.75rem',
+                          marginBottom: '0.5rem'
+                        }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: '800', color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Detected Field Diffs:
+                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.45rem' }}>
+                            {item.changes.map((ch, idx) => (
+                              <div key={idx} style={{ fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.02)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                  <strong style={{ color: 'var(--text-main)' }}>{ch.label || ch.field}</strong>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontStyle: 'italic' }}>{ch.reason}</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                  <div style={{ color: '#f87171', background: 'rgba(239, 68, 68, 0.06)', padding: '0.35rem', borderRadius: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', display: 'block', opacity: 0.8 }}>Current:</span>
+                                    {typeof ch.oldValue === 'object' ? JSON.stringify(ch.oldValue) : String(ch.oldValue || 'None')}
+                                  </div>
+                                  <div style={{ color: 'var(--success)', background: 'rgba(16, 185, 129, 0.06)', padding: '0.35rem', borderRadius: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', display: 'block', opacity: 0.8 }}>Updated:</span>
+                                    {typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue) : String(ch.newValue || 'Updated')}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>💡 Source Note: {item.verificationNotes || 'Verified against global tourism & embassy registries'}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+              <button className="btn btn-secondary" onClick={() => setShowCheckerModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: SMART PDF ITINERARY IMPORTER                                       */}
       {/* ========================================================================= */}
       {showPdfModal && (
         <div className="modal-overlay">
@@ -1502,7 +1900,7 @@ const KnowledgeBase = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: QUICK AI DOSSIER & ROUTE GENERATOR                               */}
+      {/* MODAL: QUICK AI DOSSIER & ROUTE GENERATOR                                 */}
       {/* ========================================================================= */}
       {showAiModal && (
         <div className="modal-overlay">
@@ -1583,14 +1981,7 @@ const KnowledgeBase = () => {
                   </p>
                 )}
                 {aiType === 'country' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Currency: {aiGeneratedData.currency?.code} • Plugs: {aiGeneratedData.powerPlugs?.types?.join('/')}</p>}
-                {aiType === 'city' && (
-                  <p style={{ margin: 0, color: 'var(--text-subtle)', lineHeight: '1.4' }}>
-                    <strong>Airports:</strong> {aiGeneratedData.airports?.join(', ') || 'N/A'} • <strong>Best Season:</strong> {aiGeneratedData.bestMonths?.join(', ') || 'Year-round'}<br />
-                    <strong>Apps:</strong> {aiGeneratedData.transportApps?.join(', ') || 'N/A'}<br />
-                    <strong>Must-Try Dishes:</strong> {aiGeneratedData.foodHighlights?.signature?.join(', ') || 'N/A'}<br />
-                    <strong>Medical ER:</strong> {aiGeneratedData.hospitalContacts?.[0] || 'Local ER clinics'}
-                  </p>
-                )}
+                {aiType === 'city' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Airports: {aiGeneratedData.airports?.join(', ')} • Apps: {aiGeneratedData.transportApps?.join(', ')}</p>}
                 {aiType === 'object' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Category: {aiGeneratedData.category} • Duration: {aiGeneratedData.estDurationMinutes}m • Dress: {aiGeneratedData.dressCode || 'None'}</p>}
               </div>
             )}
@@ -1622,7 +2013,7 @@ const KnowledgeBase = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 3: MANUAL ADD ENTRY                                                 */}
+      {/* MODAL: MANUAL ADD ENTRY                                                   */}
       {/* ========================================================================= */}
       {showManualModal && (
         <div className="modal-overlay">
@@ -1660,31 +2051,11 @@ const KnowledgeBase = () => {
                   });
                   alert('Country added successfully!');
                 } else if (manualType === 'city') {
-                  const airportsArr = (form.cityAirports?.value || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-                  const monthsArr = (form.cityMonths?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-                  const appsArr = (form.cityApps?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-                  const dishesArr = (form.cityDishes?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-                  const hospitalsArr = (form.cityHospitals?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-
-                  const mosquesArr = (form.cityMosques?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-
                   await addCity({
                     country_id: form.cityCountryId.value,
-                    name: form.cityName.value,
-                    airports: airportsArr,
-                    best_months: monthsArr,
-                    transport_apps: appsArr,
-                    food_highlights: {
-                      signature: dishesArr,
-                      halalStatus: form.cityHalalStatus?.value || 'Moderate',
-                      halalFriendly: form.cityHalal?.value || '',
-                      mosques: mosquesArr,
-                      ingredientCautions: form.cityIngredientCautions?.value || '',
-                      dietaryNotes: form.cityDietary?.value || ''
-                    },
-                    hospital_contacts: hospitalsArr
+                    name: form.cityName.value
                   });
-                  alert('City intelligence added successfully!');
+                  alert('City added successfully!');
                 } else {
                   await addObject({
                     name: form.objName.value,
@@ -1780,61 +2151,15 @@ const KnowledgeBase = () => {
 
               {manualType === 'city' && (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Country:</label>
-                      <select name="cityCountryId" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
-                        {countries.map(c => <option key={c.id} value={c.id}>{c.name} ({c.id})</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>City Name:</label>
-                      <input name="cityName" placeholder="e.g. Kyoto" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Airports (comma separated):</label>
-                      <input name="cityAirports" placeholder="e.g. HND, NRT" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Best Months (comma separated):</label>
-                      <input name="cityMonths" placeholder="e.g. Mar, Apr, Oct, Nov" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
-                  </div>
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Transport & Taxi Apps (comma separated):</label>
-                    <input name="cityApps" placeholder="e.g. Suica, Pasmo, Go Taxi, Navitime" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                  </div>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Signature Dishes (comma separated):</label>
-                    <input name="cityDishes" placeholder="e.g. Matcha Parfait, Kaiseki Dinner, Yudofu Tofu" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Halal Friendly Rating:</label>
-                      <select name="cityHalalStatus" defaultValue="Moderate" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
-                        <option value="High">High (Abundant Halal / Certified)</option>
-                        <option value="Moderate">Moderate (Key Areas Only)</option>
-                        <option value="Limited">Limited (Vegetarian Backup)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Halal Dining Guide & Districts:</label>
-                      <input name="cityHalal" placeholder="e.g. Halal ramen & Wagyu in Asakusa & Shinjuku" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nearby Mosques / Prayer Rooms (comma separated):</label>
-                    <input name="cityMosques" placeholder="e.g. Tokyo Camii Mosque, Asakusa Mosque, Airport Prayer Room" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                  </div>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Hidden Non-Halal Ingredients Warning:</label>
-                    <input name="cityIngredientCautions" placeholder="e.g. Check for Mirin, Cooking Sake, Pork broth, Animal gelatin, Lard" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Country:</label>
+                    <select name="cityCountryId" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
+                      {countries.map(c => <option key={c.id} value={c.id}>{c.name} ({c.id})</option>)}
+                    </select>
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Tourist Hospitals / Emergency Centers (1 per line):</label>
-                    <textarea name="cityHospitals" rows="2" placeholder="e.g. St. Luke's International Hospital (Tsukiji - English ER: +81-3-3541-5151)" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: '0.8rem' }} />
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>City Name:</label>
+                    <input name="cityName" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
                 </>
               )}
@@ -1880,7 +2205,7 @@ const KnowledgeBase = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 4: DETAIL INSPECTOR DRAWER (WITH DAY-BY-DAY ROUTE TIMELINE)         */}
+      {/* MODAL: DETAIL INSPECTOR (WITH SINGLE-ITEM AUDIT BUTTON)                    */}
       {/* ========================================================================= */}
       {selectedItem && (
         <div className="modal-overlay">
@@ -1894,10 +2219,81 @@ const KnowledgeBase = () => {
                   {selectedItem.title || selectedItem.name}
                 </h2>
               </div>
-              <button onClick={() => setSelectedItem(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <button onClick={() => { setSelectedItem(null); setSingleAuditResult(null); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
             </div>
+
+            {/* Quick Single-Item Live Audit Bar */}
+            <div style={{
+              background: 'rgba(234, 179, 8, 0.08)',
+              border: '1px solid rgba(234, 179, 8, 0.25)',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem'
+            }}>
+              <div style={{ fontSize: '0.78rem' }}>
+                <strong style={{ color: '#eab308' }}>Live Intelligence Status:</strong>
+                <span style={{ marginLeft: '0.4rem', color: 'var(--text-subtle)' }}>
+                  {selectedItem.last_verified_at ? `Verified ${new Date(selectedItem.last_verified_at).toLocaleDateString()}` : 'Not yet verified'}
+                </span>
+              </div>
+
+              <button
+                disabled={singleAuditingId === selectedItem.id}
+                onClick={() => handleCheckSingleFreshness(selectedItem, selectedItem.entityType)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  background: '#eab308',
+                  color: '#000',
+                  border: 'none',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                <Zap size={13} /> {singleAuditingId === selectedItem.id ? 'Checking...' : 'Check Live Freshness'}
+              </button>
+            </div>
+
+            {singleAuditResult && (
+              <div style={{
+                background: singleAuditResult.changes && singleAuditResult.changes.length > 0 ? 'rgba(234, 179, 8, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                border: `1px solid ${singleAuditResult.changes && singleAuditResult.changes.length > 0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                borderRadius: '8px',
+                padding: '0.85rem',
+                marginBottom: '1rem',
+                fontSize: '0.8rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <strong style={{ color: singleAuditResult.changes && singleAuditResult.changes.length > 0 ? '#eab308' : 'var(--success)' }}>
+                    {singleAuditResult.status === 'verified' ? '✓ Data Verified - 100% Up to Date' : '🟡 Updates Detected'}
+                  </strong>
+                  {singleAuditResult.changes && singleAuditResult.changes.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        await handleApplySingleUpdate({ id: selectedItem.id, type: selectedItem.entityType, name: selectedItem.name || selectedItem.title, updatedEntity: singleAuditResult.updatedEntity });
+                        setSingleAuditResult(null);
+                        setSelectedItem(null);
+                      }}
+                      className="btn btn-primary"
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.72rem' }}
+                    >
+                      Apply Update Now
+                    </button>
+                  )}
+                </div>
+                <p style={{ margin: 0, color: 'var(--text-main)' }}>{singleAuditResult.summary}</p>
+              </div>
+            )}
 
             {/* Route Details & Day-by-Day Timeline */}
             {selectedItem.entityType === 'route' && (
@@ -2013,266 +2409,6 @@ const KnowledgeBase = () => {
               </div>
             )}
 
-            {/* City Details */}
-            {selectedItem.entityType === 'city' && (() => {
-              const country = countries.find(c => c.id === selectedItem.country_id);
-              const cityObjects = tourObjects.filter(o => o.city_id === selectedItem.id);
-              const cityRoutes = tourRoutes.filter(r => (r.cities_sequence || []).some(cs => typeof cs === 'string' && cs.toLowerCase() === selectedItem.name?.toLowerCase()));
-              const food = selectedItem.food_highlights || {};
-              const hospitals = selectedItem.hospital_contacts || [];
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem', fontSize: '0.85rem' }}>
-                  {/* Top Meta Grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: '0.75rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    padding: '0.85rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)'
-                  }}>
-                    <div>
-                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>Country / Region:</span>
-                      <div style={{ fontWeight: '700', color: 'var(--accent-indigo)' }}>
-                        🌍 {country?.name || selectedItem.country_id} ({country?.region || 'Global'})
-                      </div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>Airports / Gateway:</span>
-                      <div style={{ fontWeight: '700', color: 'var(--primary)' }}>
-                        ✈️ {selectedItem.airports && selectedItem.airports.length > 0 ? selectedItem.airports.join(', ') : 'Domestic Hub'}
-                      </div>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>Best Travel Months:</span>
-                      <div style={{ fontWeight: '700', color: 'var(--success)' }}>
-                        🌤️ {selectedItem.best_months && selectedItem.best_months.length > 0 ? selectedItem.best_months.join(', ') : 'Year-round'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 1. Tourist Emergency & Medical Support */}
-                  <div>
-                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <HeartPulse size={16} /> Tourist-Friendly Medical Centers & English ER
-                    </h4>
-                    {hospitals.length === 0 ? (
-                      <p style={{ margin: 0, color: 'var(--text-subtle)', fontSize: '0.78rem' }}>No medical centers recorded for this city.</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                        {hospitals.map((hosp, i) => (
-                          <div
-                            key={i}
-                            style={{
-                              background: 'rgba(16, 185, 129, 0.08)',
-                              border: '1px solid rgba(16, 185, 129, 0.25)',
-                              borderRadius: '6px',
-                              padding: '0.55rem 0.75rem',
-                              fontSize: '0.8rem',
-                              color: 'var(--text-main)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between'
-                            }}
-                          >
-                            <span>🏥 {typeof hosp === 'string' ? hosp : hosp.name}</span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: '700', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                              English Available
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 2. Transit Ecosystem & Recommended Apps */}
-                  {selectedItem.transport_apps && selectedItem.transport_apps.length > 0 && (
-                    <div>
-                      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Smartphone size={16} /> Local Transport & Taxi Hailing Apps
-                      </h4>
-                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        {selectedItem.transport_apps.map((app, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              background: 'rgba(6, 182, 212, 0.12)',
-                              border: '1px solid rgba(6, 182, 212, 0.3)',
-                              color: 'var(--primary)',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '6px',
-                              fontSize: '0.78rem',
-                              fontWeight: '700'
-                            }}
-                          >
-                            📱 {app}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 3. Culinary Profile & Local Specialties */}
-                  <div>
-                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Utensils size={16} /> Gastronomy & Must-Try Specialties
-                    </h4>
-                    {food.signature && food.signature.length > 0 && (
-                      <div style={{ marginBottom: '0.6rem' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          {food.signature.map((dish, i) => (
-                            <span key={i} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', padding: '0.2rem 0.55rem', borderRadius: '4px', fontSize: '0.78rem' }}>
-                              🥢 {dish}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {food.dietaryNotes && (
-                      <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
-                        <strong>🥗 General Dietary / Vegetarian: </strong> {food.dietaryNotes}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 4. Dedicated Muslim Traveler & Halal Intelligence */}
-                  <div style={{
-                    background: 'rgba(16, 185, 129, 0.06)',
-                    border: '1px solid rgba(16, 185, 129, 0.25)',
-                    borderRadius: '8px',
-                    padding: '0.85rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <h4 style={{ margin: 0, fontSize: '0.88rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        🕌 Muslim Traveler & Halal Intelligence
-                      </h4>
-                      {food.halalStatus && (
-                        <span style={{
-                          fontSize: '0.68rem',
-                          fontWeight: '800',
-                          background: 'rgba(16, 185, 129, 0.2)',
-                          color: 'var(--success)',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(16, 185, 129, 0.4)'
-                        }}>
-                          Halal Availability: {food.halalStatus}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Halal Dining Guidance */}
-                    {food.halalFriendly ? (
-                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
-                        <strong>Dining Guide: </strong> {food.halalFriendly}
-                      </p>
-                    ) : (
-                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
-                        Halal dining guidance not yet recorded for this city.
-                      </p>
-                    )}
-
-                    {/* Mosques & Prayer Facilities */}
-                    {food.mosques && food.mosques.length > 0 && (
-                      <div style={{ marginBottom: '0.5rem' }}>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: '700', textTransform: 'uppercase' }}>Nearby Mosques & Prayer Rooms:</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
-                          {food.mosques.map((mosque, idx) => (
-                            <span key={idx} style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              🕋 {mosque}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Ingredient Caution Box */}
-                    {food.ingredientCautions && (
-                      <div style={{
-                        background: 'rgba(239, 68, 68, 0.08)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        borderRadius: '6px',
-                        padding: '0.45rem 0.65rem',
-                        fontSize: '0.75rem',
-                        color: '#fca5a5'
-                      }}>
-                        <strong style={{ color: '#f87171' }}>⚠️ Hidden Ingredients Alert: </strong> {food.ingredientCautions}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 4. Linked Attractions */}
-                  <div>
-                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>📍 Linked Attractions in {selectedItem.name} ({cityObjects.length})</span>
-                    </h4>
-                    {cityObjects.length === 0 ? (
-                      <p style={{ margin: 0, color: 'var(--text-subtle)', fontSize: '0.78rem' }}>No tour objects currently linked to this city hub.</p>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                        {cityObjects.map(obj => (
-                          <div
-                            key={obj.id}
-                            onClick={() => setSelectedItem({ ...obj, entityType: 'object' })}
-                            style={{
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '6px',
-                              padding: '0.55rem 0.75rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'space-between'
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                              <strong style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>{obj.name}</strong>
-                              <span style={{ fontSize: '0.68rem', color: getCategoryColor(obj.category), fontWeight: '700' }}>{obj.category}</span>
-                            </div>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>⏱️ {obj.est_duration_minutes || 90}m</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 5. Master Routes Visiting this City */}
-                  {cityRoutes.length > 0 && (
-                    <div>
-                      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.88rem', color: 'var(--accent-indigo)' }}>
-                        🛣️ Master Tour Routes Stopping Here ({cityRoutes.length}):
-                      </h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {cityRoutes.map(rt => (
-                          <div
-                            key={rt.id}
-                            onClick={() => setSelectedItem({ ...rt, entityType: 'route' })}
-                            style={{
-                              background: 'rgba(99, 102, 241, 0.06)',
-                              border: '1px solid rgba(99, 102, 241, 0.25)',
-                              borderRadius: '6px',
-                              padding: '0.45rem 0.65rem',
-                              fontSize: '0.78rem',
-                              color: 'var(--text-main)',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <span>🗺️ <strong>{rt.title}</strong></span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: '700' }}>{rt.duration_days}D{rt.duration_nights}N</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
             {/* Country Details */}
             {selectedItem.entityType === 'country' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
@@ -2305,14 +2441,14 @@ const KnowledgeBase = () => {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-              <button className="btn btn-secondary" onClick={() => setSelectedItem(null)}>Close</button>
+              <button className="btn btn-secondary" onClick={() => { setSelectedItem(null); setSingleAuditResult(null); }}>Close</button>
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 5: TOUR LEADER POCKET GUIDE EXPORTER                                */}
+      {/* MODAL: TOUR LEADER POCKET GUIDE EXPORTER                                  */}
       {/* ========================================================================= */}
       {showGuideModal && (
         <div className="modal-overlay">
@@ -2360,33 +2496,13 @@ const KnowledgeBase = () => {
                     onClick={() => {
                       const c = countries.find(co => co.id === guideCountry);
                       const objs = tourObjects.filter(o => o.country_id === guideCountry);
-                      const countryCts = cities.filter(ct => ct.country_id === guideCountry);
-
-                      const halalBriefing = countryCts.map(ct => {
-                        const food = ct.food_highlights || {};
-                        let lines = `🕌 *${ct.name} Halal & Dining:* ${food.halalFriendly || 'Standard options'}`;
-                        if (food.mosques && food.mosques.length > 0) {
-                          lines += `\n  🕋 Mosques: ${food.mosques.join(', ')}`;
-                        }
-                        if (food.ingredientCautions) {
-                          lines += `\n  ⚠️ Caution: ${food.ingredientCautions}`;
-                        }
-                        return lines;
-                      }).join('\n\n');
-
                       const text = `*TRAVELOPS TOUR LEADER POCKET GUIDE: ${c?.name}*\n` +
                         `🚨 Emergency Police/Amb: ${c?.emergency?.police || '112'} / ${c?.emergency?.ambulance || '112'}\n` +
                         `🔌 Power: ${c?.power_plugs?.types?.join('/') || 'Type C'} (${c?.power_plugs?.voltage || '220V'})\n` +
                         `💧 Water: ${c?.water_safety || 'Bottled'}\n\n` +
-                        (halalBriefing ? `*🕌 HALAL & MUSLIM-FRIENDLY TRAVEL NOTES:*\n${halalBriefing}\n\n` : '') +
                         `*ATTRACTION RESTRICTIONS & BRIEFINGS:*\n` +
                         objs.map(o => `• *${o.name}* (${o.est_duration_minutes || 90}m)\n  Dress: ${o.dress_code || 'Standard'}\n  Tip: ${o.guide_briefing_notes?.[0] || 'N/A'}`).join('\n\n');
-                      
-                      if (navigator.clipboard) {
-                        navigator.clipboard.writeText(text);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      }
+                      handleCopyGuideText(text);
                     }}
                     style={{
                       background: 'rgba(6, 182, 212, 0.15)',
@@ -2405,28 +2521,7 @@ const KnowledgeBase = () => {
                   </button>
                 </div>
 
-                {/* Halal & Muslim-Friendly Field Briefing Card */}
-                {cities.filter(ct => ct.country_id === guideCountry && ct.food_highlights?.halalFriendly).length > 0 && (
-                  <div style={{ background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '6px', padding: '0.65rem', marginBottom: '0.85rem', fontSize: '0.78rem' }}>
-                    <strong style={{ color: 'var(--success)', display: 'block', marginBottom: '0.35rem' }}>🕌 Halal & Muslim Traveler Briefing Notes:</strong>
-                    {cities.filter(ct => ct.country_id === guideCountry).map(ct => {
-                      const food = ct.food_highlights || {};
-                      if (!food.halalFriendly && !food.ingredientCautions) return null;
-                      return (
-                        <div key={ct.id} style={{ marginBottom: '0.35rem' }}>
-                          <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{ct.name}: </span>
-                          <span style={{ color: 'var(--text-subtle)' }}>{food.halalFriendly}</span>
-                          {food.ingredientCautions && (
-                            <div style={{ color: '#f87171', fontSize: '0.72rem', fontStyle: 'italic' }}>⚠️ Alert: {food.ingredientCautions}</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
                 <div style={{ color: 'var(--text-subtle)' }}>
-                  <strong style={{ color: 'var(--text-main)', display: 'block', marginBottom: '0.35rem', fontSize: '0.8rem' }}>📍 Attraction Rules & Dress Codes:</strong>
                   {tourObjects.filter(o => o.country_id === guideCountry).map(o => (
                     <div key={o.id} style={{ marginBottom: '0.75rem' }}>
                       <strong style={{ color: 'var(--text-main)' }}>📍 {o.name}</strong> ({o.est_duration_minutes || 90} mins)

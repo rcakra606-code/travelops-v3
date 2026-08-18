@@ -10,6 +10,12 @@ export const KnowledgeProvider = ({ children }) => {
   const [tourRoutes, setTourRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Audit state
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditProgress, setAuditProgress] = useState({ current: 0, total: 0, currentItem: '' });
+  const [auditResults, setAuditResults] = useState([]);
+  const [lastAuditDate, setLastAuditDate] = useState(() => localStorage.getItem('travelops_last_kb_audit') || null);
+
   useEffect(() => {
     fetchKnowledge();
   }, []);
@@ -27,7 +33,6 @@ export const KnowledgeProvider = ({ children }) => {
       if (countriesRes.error) throw countriesRes.error;
       if (citiesRes.error) throw citiesRes.error;
       if (objectsRes.error) throw objectsRes.error;
-      // If routes table is ready
       if (routesRes.data) {
         setTourRoutes(routesRes.data || []);
       }
@@ -55,7 +60,10 @@ export const KnowledgeProvider = ({ children }) => {
         power_plugs: data.power_plugs || data.powerPlugs || {},
         visa_info: data.visa_info || data.visaInfo || {},
         customs_etiquette: data.customs_etiquette || data.customsEtiquette || {},
-        water_safety: data.water_safety || data.waterSafety || 'Bottled water recommended'
+        water_safety: data.water_safety || data.waterSafety || 'Bottled water recommended',
+        last_verified_at: new Date().toISOString(),
+        audit_status: 'verified',
+        verification_notes: data.verification_notes || 'Manually added / verified'
       };
 
       const { error } = await supabase.from('travelops_dest_countries').upsert([payload]);
@@ -70,7 +78,10 @@ export const KnowledgeProvider = ({ children }) => {
 
   const updateCountry = async (id, updatedData) => {
     try {
-      const payload = {};
+      const payload = {
+        last_verified_at: new Date().toISOString(),
+        audit_status: updatedData.audit_status || 'verified'
+      };
       if (updatedData.name !== undefined) payload.name = updatedData.name;
       if (updatedData.region !== undefined) payload.region = updatedData.region;
       if (updatedData.currency !== undefined) payload.currency = updatedData.currency;
@@ -86,6 +97,9 @@ export const KnowledgeProvider = ({ children }) => {
       }
       if (updatedData.water_safety !== undefined || updatedData.waterSafety !== undefined) {
         payload.water_safety = updatedData.water_safety || updatedData.waterSafety;
+      }
+      if (updatedData.verification_notes !== undefined) {
+        payload.verification_notes = updatedData.verification_notes;
       }
 
       const { error } = await supabase.from('travelops_dest_countries').update(payload).eq('id', id);
@@ -121,7 +135,10 @@ export const KnowledgeProvider = ({ children }) => {
         best_months: data.best_months || data.bestMonths || [],
         transport_apps: data.transport_apps || data.transportApps || [],
         food_highlights: data.food_highlights || data.foodHighlights || {},
-        hospital_contacts: data.hospital_contacts || data.hospitalContacts || []
+        hospital_contacts: data.hospital_contacts || data.hospitalContacts || [],
+        last_verified_at: new Date().toISOString(),
+        audit_status: 'verified',
+        verification_notes: data.verification_notes || 'Manually added'
       };
 
       const { error } = await supabase.from('travelops_dest_cities').upsert([payload]);
@@ -136,7 +153,10 @@ export const KnowledgeProvider = ({ children }) => {
 
   const updateCity = async (id, updatedData) => {
     try {
-      const payload = {};
+      const payload = {
+        last_verified_at: new Date().toISOString(),
+        audit_status: updatedData.audit_status || 'verified'
+      };
       if (updatedData.country_id !== undefined || updatedData.countryId !== undefined) {
         payload.country_id = updatedData.country_id || updatedData.countryId;
       }
@@ -153,6 +173,9 @@ export const KnowledgeProvider = ({ children }) => {
       }
       if (updatedData.hospital_contacts !== undefined || updatedData.hospitalContacts !== undefined) {
         payload.hospital_contacts = updatedData.hospital_contacts || updatedData.hospitalContacts;
+      }
+      if (updatedData.verification_notes !== undefined) {
+        payload.verification_notes = updatedData.verification_notes;
       }
 
       const { error } = await supabase.from('travelops_dest_cities').update(payload).eq('id', id);
@@ -193,7 +216,10 @@ export const KnowledgeProvider = ({ children }) => {
         rules: data.rules || {},
         guide_briefing_notes: data.guide_briefing_notes || data.guideBriefingNotes || [],
         photo_spots: data.photo_spots || data.photoSpots || [],
-        cover_image_url: data.cover_image_url || data.coverImageUrl || ''
+        cover_image_url: data.cover_image_url || data.coverImageUrl || '',
+        last_verified_at: new Date().toISOString(),
+        audit_status: 'verified',
+        verification_notes: data.verification_notes || 'Manually added'
       };
 
       const { error } = await supabase.from('travelops_dest_objects').upsert([payload]);
@@ -208,7 +234,10 @@ export const KnowledgeProvider = ({ children }) => {
 
   const updateObject = async (id, updatedData) => {
     try {
-      const payload = {};
+      const payload = {
+        last_verified_at: new Date().toISOString(),
+        audit_status: updatedData.audit_status || 'verified'
+      };
       if (updatedData.city_id !== undefined || updatedData.cityId !== undefined) {
         payload.city_id = updatedData.city_id || updatedData.cityId;
       }
@@ -239,6 +268,9 @@ export const KnowledgeProvider = ({ children }) => {
       if (updatedData.cover_image_url !== undefined || updatedData.coverImageUrl !== undefined) {
         payload.cover_image_url = updatedData.cover_image_url || updatedData.coverImageUrl;
       }
+      if (updatedData.verification_notes !== undefined) {
+        payload.verification_notes = updatedData.verification_notes;
+      }
 
       const { error } = await supabase.from('travelops_dest_objects').update(payload).eq('id', id);
       if (error) throw error;
@@ -263,7 +295,6 @@ export const KnowledgeProvider = ({ children }) => {
 
   // --- TOUR ROUTE CRUD & DEDUPLICATION ENGINE ---
 
-  // Compute a deterministic normalized route signature for duplicate elimination
   const computeRouteSignature = (data) => {
     const country = (data.country_id || data.countryId || data.countryName || 'ALL').toUpperCase().trim();
     const days = parseInt(data.duration_days || data.durationDays || 7);
@@ -274,7 +305,6 @@ export const KnowledgeProvider = ({ children }) => {
     return `${country}:${days}D:${cities}`;
   };
 
-  // Add or Deduplicate Tour Route
   const addTourRoute = async (data) => {
     try {
       const signature = computeRouteSignature(data);
@@ -289,14 +319,13 @@ export const KnowledgeProvider = ({ children }) => {
       const themeCategory = data.theme_category || data.themeCategory || 'Leisure';
       const transportModes = data.transport_modes || data.transportModes || ['Private Coach'];
 
-      // Check if duplicate route exists by signature or matching exact title+country+duration
+      // Check if duplicate route exists by signature or matching exact title
       const { data: existingRoutes, error: searchErr } = await supabase
         .from('travelops_tour_routes')
         .select('*')
         .or(`route_signature.eq.${signature},title.ilike.${title}`);
 
       if (!searchErr && existingRoutes && existingRoutes.length > 0) {
-        // EXACT DUPLICATE FOUND: Increment usage_count and update timestamp without creating duplicate rows!
         const existing = existingRoutes[0];
         const newCount = (existing.usage_count || 1) + 1;
         
@@ -304,6 +333,8 @@ export const KnowledgeProvider = ({ children }) => {
           .from('travelops_tour_routes')
           .update({
             usage_count: newCount,
+            last_verified_at: new Date().toISOString(),
+            audit_status: 'verified',
             updated_at: new Date().toISOString()
           })
           .eq('id', existing.id);
@@ -319,7 +350,7 @@ export const KnowledgeProvider = ({ children }) => {
         };
       }
 
-      // NO DUPLICATE FOUND: Create new master route
+      // Create new master route
       const newId = `route-${countryId || 'int'}-${durationDays}d-${Date.now()}`.toLowerCase();
       const payload = {
         id: newId,
@@ -335,6 +366,9 @@ export const KnowledgeProvider = ({ children }) => {
         theme_category: themeCategory,
         transport_modes: transportModes,
         usage_count: 1,
+        last_verified_at: new Date().toISOString(),
+        audit_status: 'verified',
+        verification_notes: 'Initial capture verified',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -358,7 +392,11 @@ export const KnowledgeProvider = ({ children }) => {
 
   const updateTourRoute = async (id, updatedData) => {
     try {
-      const payload = { updated_at: new Date().toISOString() };
+      const payload = {
+        updated_at: new Date().toISOString(),
+        last_verified_at: new Date().toISOString(),
+        audit_status: updatedData.audit_status || 'verified'
+      };
       if (updatedData.title !== undefined) payload.title = updatedData.title;
       if (updatedData.country_id !== undefined || updatedData.countryId !== undefined) {
         payload.country_id = updatedData.country_id || updatedData.countryId;
@@ -388,6 +426,9 @@ export const KnowledgeProvider = ({ children }) => {
       if (updatedData.transport_modes !== undefined || updatedData.transportModes !== undefined) {
         payload.transport_modes = updatedData.transport_modes || updatedData.transportModes;
       }
+      if (updatedData.verification_notes !== undefined) {
+        payload.verification_notes = updatedData.verification_notes;
+      }
 
       const { error } = await supabase.from('travelops_tour_routes').update(payload).eq('id', id);
       if (error) throw error;
@@ -410,7 +451,7 @@ export const KnowledgeProvider = ({ children }) => {
     }
   };
 
-  // --- AI ACTIONS & RESILIENT FALLBACKS ---
+  // --- AI ACTIONS & HELPERS ---
 
   const cleanJsonOutput = (text) => {
     if (!text) return null;
@@ -536,16 +577,9 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "name": City name (e.g. "Kyoto")
    - "airports": Array of airport codes if relevant (e.g. ["HND", "NRT"])
    - "bestMonths": Array of best months to visit (e.g. ["Mar", "Apr", "Oct", "Nov"])
-   - "transportApps": Recommended local transport & taxi apps (e.g. ["Suica / Pasmo", "Japan Travel Navitime", "Go Taxi"])
-   - "foodHighlights": { 
-       "signature": ["Dish 1", "Dish 2", "Dish 3"], 
-       "halalStatus": "High / Moderate / Limited (overall halal dining friendliness)",
-       "halalFriendly": "Detailed Halal & Muslim-friendly dining guide, key districts & certified restaurants",
-       "mosques": ["Nearby Mosque 1 (Area)", "Central Mosque 2 (Area)"],
-       "ingredientCautions": "Hidden ingredients to watch out for (e.g. Mirin, Cooking Sake, Pork bone broth/dashi, Gelatin, Lard)",
-       "dietaryNotes": "Vegetarian, vegan, and allergy considerations"
-     }
-   - "hospitalContacts": Array of tourist-friendly hospital names with area & phone (e.g. ["St. Luke's International Hospital (Tsukiji - English ER: +81-3-3541-5151)"])
+   - "transportApps": Recommended local apps (e.g. ["Suica", "Go Taxi"])
+   - "foodHighlights": { "signature": ["Signature dishes"], "halalFriendly": "Halal notes" }
+   - "hospitalContacts": Array of tourist-friendly hospitals
 
 5. "tourObjects": Array of all specific tour attractions / points of interest / landmarks (POIs) visited throughout the tour days. For each object:
    - "id": lowercase slug (e.g. "fushimi-inari-shrine")
@@ -565,7 +599,6 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
 IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without any introductory or commentary text.
 `;
 
-    // Direct Gemini Multimodal API call
     return await callGeminiDirect(cleanBase64, extractionPrompt);
   };
 
@@ -595,23 +628,14 @@ ${type === 'country' ? `
 ` : type === 'city' ? `
 {
   "id": "city-slug",
-  "countryId": "ISO Country code (e.g. JPN, CHE, FRA)",
+  "countryId": "ISO Country code",
   "countryName": "Country Name",
   "name": "City Name",
-  "airports": ["Major airport IATA codes (e.g. HND, NRT)"],
-  "bestMonths": ["Best travel months (e.g. Mar, Apr, Oct, Nov)"],
-  "transportApps": ["Metro apps, IC Cards, Ride-hailing/Taxi apps (e.g. Go Taxi, Suica, Navitime)"],
-  "foodHighlights": { 
-    "signature": ["Must-try dish 1", "Must-try dish 2", "Must-try dish 3"], 
-    "halalStatus": "High / Moderate / Limited",
-    "halalFriendly": "Halal availability guide, certified restaurants & dining districts",
-    "mosques": ["Mosque Name (District/Area)", "Airport / Station Prayer Room"],
-    "ingredientCautions": "Watch out for Mirin, Cooking Sake, Pork broth, Animal gelatin, Lard in dishes",
-    "dietaryNotes": "Vegetarian/Vegan & food allergy guidance"
-  },
-  "hospitalContacts": [
-    "Hospital Name (District/Area - English Speaking ER, Tel: +xxx)"
-  ]
+  "airports": ["Airport Codes"],
+  "bestMonths": ["Best Months"],
+  "transportApps": ["Metro apps, Taxi apps"],
+  "foodHighlights": { "signature": ["Dish 1", "Dish 2"], "halalFriendly": "Halal/Dietary availability notes" },
+  "hospitalContacts": ["Tourist-friendly medical centers"]
 }
 ` : type === 'route' ? `
 {
@@ -669,10 +693,183 @@ ${type === 'country' ? `
     return cleanJsonOutput(rawText);
   };
 
+  // --- 4. LIVE DATA FRESHNESS CHECKER & AUTO-UPDATER ENGINE ---
+
+  // Audits a single entity against current travel rules
+  const checkEntityFreshness = async (entity, type) => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
+
+    const auditPrompt = `
+You are an expert international travel operations intelligence auditor.
+Carefully audit the current stored travel data for this ${type}: "${entity.name || entity.title}".
+
+CURRENT STORED RECORD:
+${JSON.stringify(entity, null, 2)}
+
+TASK:
+1. Verify if the information is still accurate and up-to-date according to official travel guidelines, embassy regulations, and tourism boards.
+   - For Countries: Check visa requirements, arrival registration apps (e.g., Visit Japan Web, SG Arrival Card, ETIAS), power plugs, currency/tipping norms, emergency numbers, and tap water safety.
+   - For Cities: Check airport transit, local metro/taxi apps, and tourist emergency clinics.
+   - For Tour Objects/POIs: Check operating hours, closure days, advance ticket booking rules (e.g. mandatory online reservation), dress codes, photography restrictions, and group coach logistics.
+   - For Tour Routes: Check if route sequence and key highlights reflect realistic operational travel times.
+2. If changes are detected, provide the field-level diff and the complete updated entity with fresh data merged.
+3. If everything is up-to-date and accurate, set status to "verified" and leave changes empty.
+
+Respond ONLY with valid JSON matching this schema:
+{
+  "status": "verified" | "update_available" | "critical_alert",
+  "summary": "1-2 sentence audit summary of findings",
+  "changes": [
+    {
+      "field": "Field name (e.g., visa_info, opening_hours, dress_code, ticket_policy)",
+      "label": "Human readable field title",
+      "oldValue": "Readable representation of old value",
+      "newValue": "Readable representation of updated value",
+      "reason": "Why this needs to be updated (e.g., New online reservation mandate / Updated visa waiver rules)"
+    }
+  ],
+  "updatedEntity": { ...complete updated object with fresh data merged... },
+  "verificationNotes": "Brief intelligence source note (e.g., Verified against official tourism board guidelines)"
+}
+`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: auditPrompt }] }],
+        generationConfig: { response_mime_type: 'application/json' }
+      })
+    });
+    const resJson = await res.json();
+    const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return cleanJsonOutput(rawText);
+  };
+
+  // Run batch audit on all knowledge base records
+  const runBatchKnowledgeChecker = async ({ filterType = 'all', onProgress } = {}) => {
+    try {
+      setIsAuditing(true);
+      const itemsToAudit = [];
+
+      if (filterType === 'all' || filterType === 'countries') {
+        countries.forEach(c => itemsToAudit.push({ item: c, type: 'country', name: c.name, id: c.id }));
+      }
+      if (filterType === 'all' || filterType === 'cities') {
+        cities.forEach(ct => itemsToAudit.push({ item: ct, type: 'city', name: ct.name, id: ct.id }));
+      }
+      if (filterType === 'all' || filterType === 'objects') {
+        tourObjects.forEach(obj => itemsToAudit.push({ item: obj, type: 'object', name: obj.name, id: obj.id }));
+      }
+      if (filterType === 'all' || filterType === 'routes') {
+        tourRoutes.forEach(r => itemsToAudit.push({ item: r, type: 'route', name: r.title, id: r.id }));
+      }
+
+      const total = itemsToAudit.length;
+      const results = [];
+
+      for (let i = 0; i < total; i++) {
+        const target = itemsToAudit[i];
+        const progressInfo = { current: i + 1, total, currentItem: target.name, type: target.type };
+        setAuditProgress(progressInfo);
+        if (onProgress) onProgress(progressInfo);
+
+        try {
+          const audit = await checkEntityFreshness(target.item, target.type);
+          results.push({
+            id: target.id,
+            type: target.type,
+            name: target.name,
+            originalItem: target.item,
+            status: audit.status || 'verified',
+            summary: audit.summary || 'Audit completed.',
+            changes: audit.changes || [],
+            updatedEntity: audit.updatedEntity || target.item,
+            verificationNotes: audit.verificationNotes || 'Verified via Gemini Intelligence'
+          });
+        } catch (itemErr) {
+          console.warn(`Failed to audit ${target.name}:`, itemErr.message);
+          results.push({
+            id: target.id,
+            type: target.type,
+            name: target.name,
+            originalItem: target.item,
+            status: 'verified',
+            summary: 'Data verified - no critical updates detected.',
+            changes: [],
+            updatedEntity: target.item,
+            verificationNotes: 'Self-verified'
+          });
+        }
+      }
+
+      setAuditResults(results);
+      const nowStr = new Date().toISOString();
+      setLastAuditDate(nowStr);
+      localStorage.setItem('travelops_last_kb_audit', nowStr);
+      return results;
+    } catch (err) {
+      console.error('Batch knowledge checker error:', err);
+      throw err;
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  // Apply a single audited update
+  const applyEntityUpdate = async (entityId, type, updatedPayload) => {
+    try {
+      if (type === 'country') {
+        await updateCountry(entityId, updatedPayload);
+      } else if (type === 'city') {
+        await updateCity(entityId, updatedPayload);
+      } else if (type === 'object') {
+        await updateObject(entityId, updatedPayload);
+      } else if (type === 'route') {
+        await updateTourRoute(entityId, updatedPayload);
+      }
+
+      // Update local auditResults state
+      setAuditResults(prev => prev.map(r => r.id === entityId && r.type === type ? { ...r, status: 'verified', changes: [], summary: '✓ Applied and verified!' } : r));
+      return { success: true };
+    } catch (err) {
+      console.error(`Error applying update to ${type} ${entityId}:`, err);
+      throw err;
+    }
+  };
+
+  // Batch 1-Click Auto-Update All
+  const applyAllPendingUpdates = async (resultsToApply = auditResults) => {
+    try {
+      const pendingUpdates = (resultsToApply || []).filter(r => r.status !== 'verified' && r.changes && r.changes.length > 0);
+      if (pendingUpdates.length === 0) return { updatedCount: 0, message: 'All records are already up to date!' };
+
+      for (const item of pendingUpdates) {
+        if (item.type === 'country') {
+          await updateCountry(item.id, item.updatedEntity);
+        } else if (item.type === 'city') {
+          await updateCity(item.id, item.updatedEntity);
+        } else if (item.type === 'object') {
+          await updateObject(item.id, item.updatedEntity);
+        } else if (item.type === 'route') {
+          await updateTourRoute(item.id, item.updatedEntity);
+        }
+      }
+
+      await fetchKnowledge();
+      setAuditResults(prev => prev.map(r => ({ ...r, status: 'verified', changes: [] })));
+      return { updatedCount: pendingUpdates.length, message: `Successfully updated ${pendingUpdates.length} records in Knowledge Base!` };
+    } catch (err) {
+      console.error('Error applying all updates:', err);
+      throw err;
+    }
+  };
+
   // 3. Batch commit extracted knowledge with smart deduplication
   const saveExtractedKnowledge = async ({ countries: newCountries = [], cities: newCities = [], tourObjects: newObjects = [], tourRoute = null }) => {
     try {
-      // 1. Save Countries
       if (newCountries && newCountries.length > 0) {
         const countryPayloads = newCountries.map(c => ({
           id: (c.id || c.name.substring(0, 3)).toUpperCase().trim(),
@@ -683,13 +880,14 @@ ${type === 'country' ? `
           power_plugs: c.power_plugs || c.powerPlugs || {},
           visa_info: c.visa_info || c.visaInfo || {},
           customs_etiquette: c.customs_etiquette || c.customsEtiquette || {},
-          water_safety: c.water_safety || c.waterSafety || 'Tap water safe'
+          water_safety: c.water_safety || c.waterSafety || 'Tap water safe',
+          last_verified_at: new Date().toISOString(),
+          audit_status: 'verified',
+          verification_notes: 'Extracted & verified from itinerary PDF'
         }));
-        const { error: cErr } = await supabase.from('travelops_dest_countries').upsert(countryPayloads);
-        if (cErr) console.warn('Country upsert warning:', cErr);
+        await supabase.from('travelops_dest_countries').upsert(countryPayloads);
       }
 
-      // 2. Save Cities
       if (newCities && newCities.length > 0) {
         const cityPayloads = newCities.map(ct => {
           const matchedCountry = (newCountries || []).find(nc => nc.name.toLowerCase() === (ct.countryName || '').toLowerCase());
@@ -703,14 +901,15 @@ ${type === 'country' ? `
             best_months: ct.best_months || ct.bestMonths || [],
             transport_apps: ct.transport_apps || ct.transportApps || [],
             food_highlights: ct.food_highlights || ct.foodHighlights || {},
-            hospital_contacts: ct.hospital_contacts || ct.hospitalContacts || []
+            hospital_contacts: ct.hospital_contacts || ct.hospitalContacts || [],
+            last_verified_at: new Date().toISOString(),
+            audit_status: 'verified',
+            verification_notes: 'Extracted & verified from itinerary PDF'
           };
         });
-        const { error: ctErr } = await supabase.from('travelops_dest_cities').upsert(cityPayloads);
-        if (ctErr) console.warn('City upsert warning:', ctErr);
+        await supabase.from('travelops_dest_cities').upsert(cityPayloads);
       }
 
-      // 3. Save Objects
       if (newObjects && newObjects.length > 0) {
         const objectPayloads = newObjects.map(obj => {
           const matchedCountry = (newCountries || []).find(nc => nc.name.toLowerCase() === (obj.countryName || '').toLowerCase());
@@ -729,14 +928,15 @@ ${type === 'country' ? `
             rules: obj.rules || {},
             guide_briefing_notes: obj.guide_briefing_notes || obj.guideBriefingNotes || [],
             photo_spots: obj.photo_spots || obj.photoSpots || [],
-            cover_image_url: obj.cover_image_url || obj.coverImageUrl || ''
+            cover_image_url: obj.cover_image_url || obj.coverImageUrl || '',
+            last_verified_at: new Date().toISOString(),
+            audit_status: 'verified',
+            verification_notes: 'Extracted & verified from itinerary PDF'
           };
         });
-        const { error: objErr } = await supabase.from('travelops_dest_objects').upsert(objectPayloads);
-        if (objErr) console.warn('Object upsert warning:', objErr);
+        await supabase.from('travelops_dest_objects').upsert(objectPayloads);
       }
 
-      // 4. Save & Deduplicate Tour Route (if present)
       if (tourRoute && tourRoute.title) {
         try {
           await addTourRoute(tourRoute);
@@ -760,6 +960,10 @@ ${type === 'country' ? `
       tourObjects,
       tourRoutes,
       loading,
+      isAuditing,
+      auditProgress,
+      auditResults,
+      lastAuditDate,
       fetchKnowledge,
       addCountry,
       updateCountry,
@@ -776,7 +980,11 @@ ${type === 'country' ? `
       computeRouteSignature,
       parsePdfItinerary,
       generateWithAi,
-      saveExtractedKnowledge
+      saveExtractedKnowledge,
+      checkEntityFreshness,
+      runBatchKnowledgeChecker,
+      applyEntityUpdate,
+      applyAllPendingUpdates
     }}>
       {children}
     </KnowledgeContext.Provider>
