@@ -2,16 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, ACCENT_PRESETS } from '../context/ThemeContext';
+import { useTours } from '../context/TourContext';
+import { useCruises } from '../context/CruiseContext';
 import { supabase } from '../supabaseClient';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
-import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Check, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Check, Eye, EyeOff, CheckCircle2, AlertCircle, RefreshCw, Bell, PlayCircle, Calendar, Sparkles } from 'lucide-react';
 import { logSystemAction } from '../utils/logger';
 
 const Settings = () => {
   const { settings, updateSettings } = useSettings();
   const { user, forceLogoutAll } = useAuth();
   const { theme, toggleTheme, accent, changeAccent } = useTheme();
+  const { tours } = useTours();
+  const { cruises } = useCruises();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database');
   const [testEmailTarget, setTestEmailTarget] = useState('');
@@ -19,6 +23,11 @@ const Settings = () => {
   const [testEmailError, setTestEmailError] = useState('');
   const [testEmailResult, setTestEmailResult] = useState('');
   const [showSmtpPass, setShowSmtpPass] = useState(false);
+
+  // Manual Reminders Trigger State
+  const [manualTriggerStatus, setManualTriggerStatus] = useState('idle'); // 'idle' | 'running' | 'completed' | 'error'
+  const [manualTriggerReport, setManualTriggerReport] = useState(null);
+  const [manualTargetEmail, setManualTargetEmail] = useState('');
   
   const [formData, setFormData] = useState({
     idleTimeout: settings.idleTimeout || 15,
@@ -213,6 +222,154 @@ const Settings = () => {
       setTestEmailError(err.message || 'Could not connect to the backend server endpoint.');
       logSystemAction(user, 'SMTP Test Failed', `Error connecting to SMTP endpoint: ${err.message}`);
     }
+  };
+
+  const handleManualTriggerReminders = async () => {
+    setManualTriggerStatus('running');
+    setManualTriggerReport(null);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const getDiffDays = (targetDate) => {
+      if (!targetDate) return null;
+      const target = new Date(targetDate);
+      if (isNaN(target.getTime())) return null;
+      target.setHours(0, 0, 0, 0);
+      const diffTime = target - today;
+      return Math.round(diffTime / (1000 * 60 * 60 * 24));
+    };
+
+    const targetIntervals = [30, 15, 7, 5, 3, 2, 1, 0];
+    const detectedReminders = [];
+
+    const checkItem = (item, type) => {
+      const departureDate = type === 'Tour' ? item.departureDate : item.sailingStart;
+      const returnDate = type === 'Tour' ? item.returnDate : item.sailingEnd;
+
+      if (!departureDate && !returnDate) return;
+
+      const diffDep = departureDate ? getDiffDays(departureDate) : null;
+      const diffRet = returnDate ? getDiffDays(returnDate) : null;
+
+      const code = type === 'Tour' 
+        ? (item.tourCode || item.bookingCode || `Tour #${item.id}`) 
+        : (item.bookingRef || `Cruise #${item.id}`);
+
+      const title = type === 'Tour'
+        ? (item.packageName || item.tourName || item.destination || code)
+        : (item.shipName || item.cruiseBrand || code);
+
+      if (diffDep !== null && targetIntervals.includes(diffDep)) {
+        detectedReminders.push({
+          type,
+          code,
+          title,
+          targetDate: departureDate,
+          milestone: diffDep === 0 ? 'Departure Today (Day 0)' : `${diffDep} Day${diffDep > 1 ? 's' : ''} to Departure`,
+          daysRemaining: diffDep
+        });
+      }
+
+      if (diffRet === 0) {
+        detectedReminders.push({
+          type,
+          code,
+          title,
+          targetDate: returnDate,
+          milestone: 'Return Day (Day 0)',
+          daysRemaining: 0
+        });
+      }
+    };
+
+    const tourList = Array.isArray(tours) ? tours : [];
+    const cruiseList = Array.isArray(cruises) ? cruises : [];
+
+    tourList.forEach(t => checkItem(t, 'Tour'));
+    cruiseList.forEach(c => checkItem(c, 'Cruise'));
+
+    const host = formData.smtpHost || settings.smtpHost || 'smtp.gmail.com';
+    const port = Number(formData.smtpPort || settings.smtpPort || 587);
+    const userEmail = formData.smtpUser || settings.smtpUser;
+    const userPass = formData.smtpPass || settings.smtpPass;
+    const senderName = formData.smtpSenderName || settings.smtpSenderName || 'TravelOps System';
+    const targetRecipient = manualTargetEmail || user?.email || userEmail;
+
+    let sentCount = 0;
+    let failedCount = 0;
+    const results = [];
+
+    if (detectedReminders.length > 0 && userEmail && userPass && userEmail !== 'your_email@gmail.com' && targetRecipient) {
+      for (const rem of detectedReminders) {
+        try {
+          const res = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: targetRecipient,
+              subject: `[MANUAL REMINDER] ${rem.type} ${rem.code} - ${rem.milestone}`,
+              text: `TravelOps Manual Reminder Dispatch\n\nType: ${rem.type}\nItem: ${rem.title} (${rem.code})\nMilestone: ${rem.milestone}\nTarget Date: ${rem.targetDate}\n\nProcessed at: ${new Date().toLocaleString()}`,
+              html: `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  <h3 style="color: #0284c7; margin-top: 0;">⚡ TravelOps Manual Reminder Notice</h3>
+                  <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+                    <p style="margin: 4px 0;"><strong>Category:</strong> ${rem.type}</p>
+                    <p style="margin: 4px 0;"><strong>Booking/Tour Code:</strong> ${rem.code}</p>
+                    <p style="margin: 4px 0;"><strong>Name / Title:</strong> ${rem.title}</p>
+                    <p style="margin: 4px 0;"><strong>Milestone:</strong> <span style="color: #0284c7; font-weight: 600;">${rem.milestone}</span></p>
+                    <p style="margin: 4px 0;"><strong>Date:</strong> ${rem.targetDate}</p>
+                  </div>
+                  <p style="font-size: 0.8rem; color: #64748b;">Manual Trigger executed by ${user?.name || user?.email || 'Admin'} at ${new Date().toLocaleString()}</p>
+                </div>
+              `,
+              smtpConfig: { host, port, user: userEmail, pass: userPass, senderName }
+            })
+          });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok && d.success) {
+            sentCount++;
+            results.push({ ...rem, status: 'sent', detail: d.message || 'Delivered successfully' });
+          } else {
+            failedCount++;
+            results.push({ ...rem, status: 'failed', detail: d.error || 'Failed delivery' });
+          }
+        } catch (e) {
+          failedCount++;
+          results.push({ ...rem, status: 'failed', detail: e.message || 'Network error' });
+        }
+      }
+    } else {
+      detectedReminders.forEach(rem => {
+        results.push({ 
+          ...rem, 
+          status: userEmail && userPass ? 'ready' : 'identified', 
+          detail: userEmail && userPass ? 'Identified (Ready)' : 'Identified (Configure SMTP to auto-send)' 
+        });
+      });
+    }
+
+    const report = {
+      timestamp: new Date().toLocaleTimeString(),
+      checkedTours: tourList.length,
+      checkedCruises: cruiseList.length,
+      matchedReminders: results,
+      sentCount,
+      failedCount,
+      recipient: targetRecipient || 'None specified'
+    };
+
+    setManualTriggerReport(report);
+    setManualTriggerStatus('completed');
+    
+    // Broadcast event to sync ReminderEngine toast & logs
+    window.dispatchEvent(new CustomEvent('trigger-reminders-check'));
+
+    logSystemAction(
+      user, 
+      'Manual Reminders Triggered', 
+      `Scanned ${tourList.length} tours & ${cruiseList.length} cruises. Found ${results.length} reminder milestones (${sentCount} sent, ${failedCount} failed).`
+    );
   };
 
   const handleForceLogoutAll = () => {
@@ -760,6 +917,151 @@ const Settings = () => {
                             </ul>
                           </div>
                         </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Manual Reminders Trigger & Emergency Dispatch */}
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem', background: 'linear-gradient(180deg, rgba(2, 132, 199, 0.04) 0%, rgba(2, 132, 199, 0.01) 100%)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(2, 132, 199, 0.2)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                      <div>
+                        <h4 style={{ margin: '0 0 0.35rem 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
+                          <Bell size={18} color="var(--primary)" /> Manual Trigger & Operations Reminders Diagnostic
+                        </h4>
+                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.4' }}>
+                          Trigger an immediate diagnostic scan across all Tours and Cruises in the database. If automated scheduling encountered errors or missed reminders, this will check every milestone and dispatch email notices on demand.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                      <div style={{ flex: '1 1 250px', maxWidth: '350px' }}>
+                        <input 
+                          type="email" 
+                          value={manualTargetEmail} 
+                          onChange={(e) => setManualTargetEmail(e.target.value)} 
+                          placeholder={user?.email || formData.smtpUser || "recipient@company.com"} 
+                          disabled={manualTriggerStatus === 'running'} 
+                          style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-main)' }} 
+                        />
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
+                          Optional: Override alert notification recipient (defaults to active user/admin)
+                        </span>
+                      </div>
+
+                      <button 
+                        type="button" 
+                        onClick={handleManualTriggerReminders} 
+                        disabled={manualTriggerStatus === 'running'} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.5rem', 
+                          background: manualTriggerStatus === 'running' ? 'var(--bg-dark)' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
+                          color: '#fff', 
+                          border: 'none', 
+                          padding: '0.75rem 1.5rem', 
+                          borderRadius: '8px', 
+                          cursor: manualTriggerStatus === 'running' ? 'not-allowed' : 'pointer', 
+                          fontWeight: '600', 
+                          whiteSpace: 'nowrap', 
+                          transition: 'all 0.2s',
+                          boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)'
+                        }}
+                      >
+                        {manualTriggerStatus === 'running' ? (
+                          <>
+                            <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                            <span>Scanning All Bookings...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw size={16} /> Run Manual Reminders Check
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Manual Trigger Report Results */}
+                    {manualTriggerReport && (
+                      <div style={{ marginTop: '1.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1.25rem', animation: 'fadeIn 0.3s ease-out' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Calendar size={16} color="var(--primary)" /> Scan Results (Executed at {manualTriggerReport.timestamp})
+                          </span>
+                          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem' }}>
+                            <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.2rem 0.6rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                              Checked: <strong>{manualTriggerReport.checkedTours}</strong> Tours • <strong>{manualTriggerReport.checkedCruises}</strong> Cruises
+                            </span>
+                            <span style={{ background: manualTriggerReport.matchedReminders.length > 0 ? 'rgba(2, 132, 199, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: manualTriggerReport.matchedReminders.length > 0 ? 'var(--primary)' : 'var(--success)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: '600' }}>
+                              Due Reminders: {manualTriggerReport.matchedReminders.length}
+                            </span>
+                          </div>
+                        </div>
+
+                        {manualTriggerReport.matchedReminders.length === 0 ? (
+                          <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--success)', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                            <CheckCircle2 size={24} style={{ display: 'block', margin: '0 auto 0.5rem auto' }} />
+                            <strong style={{ display: 'block', fontSize: '0.95rem' }}>All Tours & Cruises Up to Date</strong>
+                            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                              Scanned {manualTriggerReport.checkedTours} active tours and {manualTriggerReport.checkedCruises} active cruises. No departure or return milestones are due today (30, 15, 7, 5, 3, 2, 1, 0 days).
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              <span>Sent: <strong style={{ color: 'var(--success)' }}>{manualTriggerReport.sentCount}</strong></span>
+                              <span>•</span>
+                              <span>Failed: <strong style={{ color: manualTriggerReport.failedCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{manualTriggerReport.failedCount}</strong></span>
+                              <span>•</span>
+                              <span>Target: <code>{manualTriggerReport.recipient}</code></span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '250px', overflowY: 'auto' }}>
+                              {manualTriggerReport.matchedReminders.map((rem, idx) => (
+                                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.65rem 0.9rem', gap: '1rem', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <span style={{ 
+                                      fontSize: '0.7rem', 
+                                      fontWeight: '700', 
+                                      padding: '0.2rem 0.5rem', 
+                                      borderRadius: '4px',
+                                      background: rem.type === 'Tour' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(168, 85, 247, 0.15)',
+                                      color: rem.type === 'Tour' ? '#60a5fa' : '#c084fc'
+                                    }}>
+                                      {rem.type}
+                                    </span>
+                                    <div>
+                                      <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                                        {rem.code} — {rem.title}
+                                      </div>
+                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                                        Target Date: {rem.targetDate}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: '500' }}>
+                                      🔔 {rem.milestone}
+                                    </span>
+
+                                    <span style={{ 
+                                      fontSize: '0.75rem', 
+                                      fontWeight: '600',
+                                      padding: '0.2rem 0.5rem', 
+                                      borderRadius: '4px',
+                                      background: rem.status === 'sent' ? 'rgba(16, 185, 129, 0.15)' : rem.status === 'failed' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.1)',
+                                      color: rem.status === 'sent' ? 'var(--success)' : rem.status === 'failed' ? 'var(--danger)' : 'var(--text-main)'
+                                    }}>
+                                      {rem.status === 'sent' ? '✓ Dispatched' : rem.status === 'failed' ? '✕ Failed' : '● Ready'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
