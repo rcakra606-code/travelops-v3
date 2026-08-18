@@ -401,46 +401,61 @@ ${type === 'country' ? `
     res.status(500).json({ success: false, error: error.message || 'AI Generation failed' });
   }
 });
-app.post('/api/send-email', emailLimiter, (req, res) => {
-  const { to, subject, text, html } = req.body;
+app.post('/api/send-email', emailLimiter, async (req, res) => {
+  const { to, subject, text, html, smtpConfig } = req.body;
 
-  // Verify that SMTP variables are actually loaded
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.error("[EMAIL ERROR] SMTP_USER or SMTP_PASS is undefined in process.env!");
-    return res.status(500).json({ 
+  const host = smtpConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = Number(smtpConfig?.port || process.env.SMTP_PORT || 587);
+  const user = smtpConfig?.user || process.env.SMTP_USER;
+  const pass = smtpConfig?.pass || process.env.SMTP_PASS;
+  const senderName = smtpConfig?.senderName || 'TravelOps System';
+
+  if (!to) {
+    return res.status(400).json({ success: false, error: 'Recipient email (to) is required.' });
+  }
+
+  // Verify that SMTP variables are provided
+  if (!user || !pass || user === 'your_email@gmail.com' || pass === 'your_app_password') {
+    console.error("[EMAIL ERROR] SMTP_USER or SMTP_PASS is missing or using placeholder values!");
+    return res.status(400).json({ 
       success: false, 
-      error: 'SMTP Configuration Missing. Please check Railway Environment Variables.' 
+      error: 'SMTP credentials missing. Please enter your valid SMTP Username/Email and Password in Settings.' 
     });
   }
 
-  // 1. Return immediately to prevent UI hanging
-  res.status(200).json({ success: true, message: 'Email successfully queued for background delivery.' });
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    });
 
-  // 2. Process the email sending asynchronously in the background
-  (async () => {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: process.env.SMTP_PORT || 587,
-        secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
+    await transporter.verify();
 
-      const info = await transporter.sendMail({
-        from: `"TravelOps System" <${process.env.SMTP_USER}>`,
-        to,
-        subject: subject || 'TravelOps Test Email',
-        text: text || 'This is a test email from TravelOps.',
-        html: html || '<b>This is a test email from TravelOps.</b>'
-      });
-      console.log(`[BACKGROUND TASK] Email successfully sent to ${to}. MessageID: ${info.messageId}`);
-    } catch (error) {
-      console.error(`[BACKGROUND TASK] Failed to send email to ${to}:`, error.message);
-    }
-  })();
+    const info = await transporter.sendMail({
+      from: `"${senderName}" <${user}>`,
+      to,
+      subject: subject || 'TravelOps Test Email',
+      text: text || 'This is a test email from TravelOps.',
+      html: html || '<b>This is a test email from TravelOps.</b>'
+    });
+
+    console.log(`[EMAIL DISPATCH] Email successfully sent to ${to}. MessageID: ${info.messageId}`);
+    return res.status(200).json({ 
+      success: true, 
+      message: `Email successfully delivered to ${to}! MessageID: ${info.messageId}` 
+    });
+  } catch (error) {
+    console.error(`[EMAIL ERROR] Failed to send email to ${to}:`, error.message);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to dispatch email via SMTP server.' 
+    });
+  }
 });
 
 

@@ -18,7 +18,10 @@ const DEFAULT_SETTINGS = {
   lockoutThreshold: 5,
   logRetentionDays: 30,
   smtpHost: 'smtp.gmail.com',
-  smtpPort: 587
+  smtpPort: 587,
+  smtpUser: '',
+  smtpPass: '',
+  smtpSenderName: 'TravelOps System'
 };
 
 export const SettingsProvider = ({ children }) => {

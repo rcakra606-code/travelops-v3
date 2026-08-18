@@ -5,7 +5,7 @@ import { useTheme, ACCENT_PRESETS } from '../context/ThemeContext';
 import { supabase } from '../supabaseClient';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
-import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Check } from 'lucide-react';
+import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Check, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { logSystemAction } from '../utils/logger';
 
 const Settings = () => {
@@ -15,7 +15,10 @@ const Settings = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database');
   const [testEmailTarget, setTestEmailTarget] = useState('');
-  const [testEmailStatus, setTestEmailStatus] = useState('idle');
+  const [testEmailStatus, setTestEmailStatus] = useState('idle'); // 'idle' | 'sending' | 'success' | 'error'
+  const [testEmailError, setTestEmailError] = useState('');
+  const [testEmailResult, setTestEmailResult] = useState('');
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
   
   const [formData, setFormData] = useState({
     idleTimeout: settings.idleTimeout || 15,
@@ -28,7 +31,12 @@ const Settings = () => {
     passwordRequireNumbers: settings.passwordRequireNumbers ?? true,
     passwordRequireSymbols: settings.passwordRequireSymbols ?? true,
     lockoutThreshold: settings.lockoutThreshold || 5,
-    logRetentionDays: settings.logRetentionDays || 30
+    logRetentionDays: settings.logRetentionDays || 30,
+    smtpHost: settings.smtpHost || 'smtp.gmail.com',
+    smtpPort: settings.smtpPort || 587,
+    smtpUser: settings.smtpUser || '',
+    smtpPass: settings.smtpPass || '',
+    smtpSenderName: settings.smtpSenderName || 'TravelOps System'
   });
 
   useEffect(() => {
@@ -45,7 +53,12 @@ const Settings = () => {
         passwordRequireNumbers: settings.passwordRequireNumbers ?? true,
         passwordRequireSymbols: settings.passwordRequireSymbols ?? true,
         lockoutThreshold: settings.lockoutThreshold || 5,
-        logRetentionDays: settings.logRetentionDays || 30
+        logRetentionDays: settings.logRetentionDays || 30,
+        smtpHost: settings.smtpHost || 'smtp.gmail.com',
+        smtpPort: settings.smtpPort || 587,
+        smtpUser: settings.smtpUser || '',
+        smtpPass: settings.smtpPass || '',
+        smtpSenderName: settings.smtpSenderName || 'TravelOps System'
       }));
     }
   }, [settings]);
@@ -127,7 +140,23 @@ const Settings = () => {
 
   const handleSendTestEmail = async () => {
     if (!testEmailTarget) return alert("Please enter an email address");
+
+    const host = formData.smtpHost || settings.smtpHost || 'smtp.gmail.com';
+    const port = Number(formData.smtpPort || settings.smtpPort || 587);
+    const userEmail = formData.smtpUser || settings.smtpUser;
+    const userPass = formData.smtpPass || settings.smtpPass;
+    const senderName = formData.smtpSenderName || settings.smtpSenderName || 'TravelOps System';
+
+    if (!userEmail || !userPass) {
+      setTestEmailStatus('error');
+      setTestEmailError('Please enter your SMTP Username (email) and Password/App Password above before sending a test.');
+      return;
+    }
+
     setTestEmailStatus('sending');
+    setTestEmailError('');
+    setTestEmailResult('');
+
     try {
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -135,23 +164,54 @@ const Settings = () => {
         body: JSON.stringify({
           to: testEmailTarget,
           subject: 'TravelOps SMTP Test Verification',
-          text: 'This is an automated test email from your TravelOps System. Your SMTP configuration is active and working properly!',
-          html: '<h3>TravelOps Automated Emailer</h3><p>This is a verification test email from your <strong>TravelOps System</strong>.</p><p>Your SMTP server connection is active and working properly!</p>'
+          text: `TravelOps Automated Emailer Verification\n\nThis confirms your SMTP server is actively connected and operational.\n\nServer: ${host}:${port}\nSender: ${senderName} <${userEmail}>\nRecipient: ${testEmailTarget}\nTimestamp: ${new Date().toLocaleString()}`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+                <span style="font-size: 24px;">✈️</span>
+                <h2 style="margin: 0; color: #0284c7; font-size: 20px;">TravelOps SMTP Verification</h2>
+              </div>
+              <p style="font-size: 15px; line-height: 1.5; color: #334155;">
+                This is a live confirmation email generated by your <strong>TravelOps Management Platform</strong>.
+              </p>
+              <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr><td style="padding: 4px 0; color: #64748b; width: 140px;"><strong>SMTP Server:</strong></td><td style="color: #0f172a;">${host}:${port}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;"><strong>Sender:</strong></td><td style="color: #0f172a;">${senderName} &lt;${userEmail}&gt;</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;"><strong>Recipient:</strong></td><td style="color: #0f172a;">${testEmailTarget}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;"><strong>Status:</strong></td><td><span style="color: #16a34a; font-weight: bold; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">Active & Operational</span></td></tr>
+                </table>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; margin: 0; text-align: center;">
+                TravelOps Operations System • Automated Dispatch Engine
+              </p>
+            </div>
+          `,
+          smtpConfig: {
+            host,
+            port,
+            user: userEmail,
+            pass: userPass,
+            senderName
+          }
         })
       });
+
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success !== false) {
+
+      if (res.ok && data.success) {
         setTestEmailStatus('success');
-        logSystemAction(user, 'SMTP Test', `Successfully sent test email to ${testEmailTarget}`);
+        setTestEmailResult(data.message || `Email successfully delivered to ${testEmailTarget}!`);
+        logSystemAction(user, 'SMTP Test', `Successfully sent test email to ${testEmailTarget} via ${host}`);
       } else {
-        setTestEmailStatus('success');
-        logSystemAction(user, 'SMTP Test', `Mock test email dispatched to ${testEmailTarget}`);
+        setTestEmailStatus('error');
+        setTestEmailError(data.error || 'Failed to dispatch email. Please check your SMTP host, port, username, or App Password.');
+        logSystemAction(user, 'SMTP Test Failed', `Failed sending test email to ${testEmailTarget}: ${data.error || 'Unknown error'}`);
       }
-    } catch {
-      setTestEmailStatus('success');
-      logSystemAction(user, 'SMTP Test', `Mock test email dispatched to ${testEmailTarget}`);
-    } finally {
-      setTimeout(() => setTestEmailStatus('idle'), 5000);
+    } catch (err) {
+      setTestEmailStatus('error');
+      setTestEmailError(err.message || 'Could not connect to the backend server endpoint.');
+      logSystemAction(user, 'SMTP Test Failed', `Error connecting to SMTP endpoint: ${err.message}`);
     }
   };
 
@@ -509,59 +569,199 @@ const Settings = () => {
               {activeTab === 'smtp' && (
                 <div className="card fade-in">
                   <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Mail size={20} color="var(--success)" /> SMTP Email Server
+                    <Mail size={20} color="var(--success)" /> SMTP Email Server Configuration
                   </h3>
-                  
-                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '1.5rem' }}>
-                    <p style={{ margin: '0', color: 'var(--text-main)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                      <Shield size={16} color="var(--success)" style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/>
-                      <strong>Security Notice:</strong> SMTP configurations (Host, Port, Username, Password) are now securely managed directly on the backend server via the <code>.env</code> file. They are no longer accessible or modifiable from the frontend to prevent credential leakage.
+
+                  {/* SMTP Credentials Form */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div className="form-group">
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        SMTP Server Host <span style={{ color: 'var(--danger)' }}>*</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        value={formData.smtpHost} 
+                        onChange={e => setFormData({...formData, smtpHost: e.target.value})} 
+                        placeholder="smtp.gmail.com" 
+                        style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+                      />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
+                        e.g. smtp.gmail.com, smtp.office365.com, mail.domain.com
+                      </span>
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        SMTP Port <span style={{ color: 'var(--danger)' }}>*</span>
+                      </label>
+                      <select 
+                        value={formData.smtpPort} 
+                        onChange={e => setFormData({...formData, smtpPort: Number(e.target.value)})}
+                        style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}
+                      >
+                        <option value={587}>587 (TLS / STARTTLS - Recommended)</option>
+                        <option value={465}>465 (SSL - Secure)</option>
+                        <option value={25}>25 (Standard / Unencrypted)</option>
+                        <option value={2525}>2525 (Alternative TLS)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        SMTP Username / Email <span style={{ color: 'var(--danger)' }}>*</span>
+                      </label>
+                      <input 
+                        type="email" 
+                        value={formData.smtpUser} 
+                        onChange={e => setFormData({...formData, smtpUser: e.target.value})} 
+                        placeholder="yourname@gmail.com" 
+                        style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        SMTP Password / App Password <span style={{ color: 'var(--danger)' }}>*</span>
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input 
+                          type={showSmtpPass ? "text" : "password"} 
+                          value={formData.smtpPass} 
+                          onChange={e => setFormData({...formData, smtpPass: e.target.value})} 
+                          placeholder="••••••••••••••••" 
+                          style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 2.5rem 0.75rem 0.75rem', borderRadius: '8px' }} 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setShowSmtpPass(!showSmtpPass)}
+                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                          {showSmtpPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
+                        For Gmail: Use a 16-character <strong>App Password</strong> (from Google Account &gt; Security).
+                      </span>
+                    </div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        Sender Display Name
+                      </label>
+                      <input 
+                        type="text" 
+                        value={formData.smtpSenderName} 
+                        onChange={e => setFormData({...formData, smtpSenderName: e.target.value})} 
+                        placeholder="TravelOps Operations" 
+                        style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Automated Reminders Checkbox */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule</h3>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={formData.enableReminders} 
+                        onChange={e => setFormData({...formData, enableReminders: e.target.checked})} 
+                        style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
+                      />
+                      Enable automated email reminders for Tours & Cruises
+                    </label>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem', marginLeft: '1.9rem' }}>
+                      Reminders are automatically sent at 30, 15, 7, 5, 3, 2, 1 days before departure, on departure day, and on return day.
                     </p>
                   </div>
 
-                  <h3 style={{ margin: '2rem 0 1rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders</h3>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formData.enableReminders}
-                      onChange={e => setFormData({...formData, enableReminders: e.target.checked})}
-                      style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
-                    />
-                    Enable automated email reminders for Tours & Cruises
-                  </label>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem', marginLeft: '1.9rem' }}>
-                    Reminders will be sent 30, 15, 7, 5, 3, 2, 1 days before departure, on departure day, and on return day.
-                  </p>
+                  {/* Live Test Email Console */}
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem', background: 'rgba(255, 255, 255, 0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Send size={18} color="var(--primary)" /> Send Verification Test Email
+                    </h4>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                      Test your SMTP credentials and delivery instantly. Enter your destination email address below.
+                    </p>
 
-                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
-                    <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)' }}>Test Email Configuration</h4>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>Send a test email to verify your SMTP backend is connected and working.</p>
-                    <div style={{ display: 'flex', gap: '10px', position: 'relative', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <input 
                         type="email" 
-                        value={testEmailTarget}
-                        onChange={(e) => setTestEmailTarget(e.target.value)}
-                        placeholder="admin@travelops.com" 
-                        disabled={testEmailStatus === 'sending'}
-                        style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-main)', flex: '1 1 200px', maxWidth: '300px' }}
+                        value={testEmailTarget} 
+                        onChange={(e) => setTestEmailTarget(e.target.value)} 
+                        placeholder="your-personal@email.com" 
+                        disabled={testEmailStatus === 'sending'} 
+                        style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-main)', flex: '1 1 250px', maxWidth: '350px' }} 
                       />
                       <button 
                         type="button" 
                         onClick={handleSendTestEmail} 
-                        disabled={testEmailStatus === 'sending'}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-dark)', color: testEmailStatus === 'sending' ? 'var(--text-muted)' : 'var(--success)', border: `1px solid ${testEmailStatus === 'sending' ? 'var(--border)' : 'var(--success)'}`, padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: testEmailStatus === 'sending' ? 'not-allowed' : 'pointer', fontWeight: '500', whiteSpace: 'nowrap', transition: 'all 0.3s' }}
-                        onMouseOver={e => { if (testEmailStatus !== 'sending') { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'; } }} 
-                        onMouseOut={e => { if (testEmailStatus !== 'sending') { e.currentTarget.style.background = 'var(--bg-dark)'; } }}
+                        disabled={testEmailStatus === 'sending'} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.5rem', 
+                          background: testEmailStatus === 'sending' ? 'var(--bg-dark)' : 'var(--primary)', 
+                          color: '#fff', 
+                          border: 'none', 
+                          padding: '0.75rem 1.5rem', 
+                          borderRadius: '8px', 
+                          cursor: testEmailStatus === 'sending' ? 'not-allowed' : 'pointer', 
+                          fontWeight: '600', 
+                          whiteSpace: 'nowrap', 
+                          transition: 'all 0.2s',
+                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                        }}
                       >
-                        {testEmailStatus === 'sending' ? '⏳ Sending...' : '📧 Send Test Email'}
+                        {testEmailStatus === 'sending' ? (
+                          <>
+                            <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                            <span>Verifying & Sending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mail size={16} /> Send Test Email
+                          </>
+                        )}
                       </button>
-                      
-                      {testEmailStatus === 'success' && (
-                        <span style={{ color: 'var(--success)', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.25rem', animation: 'fadeIn 0.3s ease-out' }}>
-                          ✓ Test Email Dispatched Successfully!
-                        </span>
-                      )}
                     </div>
+
+                    {/* Result Banner */}
+                    {testEmailStatus === 'success' && (
+                      <div style={{ marginTop: '1rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '1rem', borderRadius: '8px', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', animation: 'fadeIn 0.3s ease-out' }}>
+                        <CheckCircle2 size={20} color="var(--success)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                          <strong style={{ color: 'var(--success)', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>
+                            Connection Verified & Email Dispatched!
+                          </strong>
+                          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                            {testEmailResult || `Successfully sent verification email to ${testEmailTarget}. Please check your inbox and spam folder.`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {testEmailStatus === 'error' && (
+                      <div style={{ marginTop: '1rem', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1rem', borderRadius: '8px', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', animation: 'fadeIn 0.3s ease-out' }}>
+                        <AlertCircle size={20} color="var(--danger)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                          <strong style={{ color: 'var(--danger)', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>
+                            SMTP Connection Failed
+                          </strong>
+                          <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8125rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                            {testEmailError}
+                          </p>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                            💡 <strong>Troubleshooting tips:</strong>
+                            <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                              <li>If using <strong>Gmail</strong>, enable 2-Step Verification and generate a 16-letter <strong>App Password</strong>. Standard account passwords will be rejected.</li>
+                              <li>Verify your port setting (Port 587 for TLS, Port 465 for SSL).</li>
+                              <li>Make sure you click <strong>"Save Settings Changes"</strong> below to store your credentials.</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
