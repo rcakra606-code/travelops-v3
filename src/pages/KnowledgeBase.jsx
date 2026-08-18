@@ -8,7 +8,7 @@ import {
   AlertTriangle, Trash2, Edit3, ChevronRight, ChevronDown, 
   ExternalLink, Info, Coffee, HelpCircle, X, Eye, Printer, Copy, Check,
   Route, ArrowRight, Calendar, Layers, CheckCheck, RefreshCw, Activity,
-  SlidersHorizontal, CheckCircle, AlertCircle, ArrowUpRight
+  SlidersHorizontal, CheckCircle, AlertCircle, ArrowUpRight, BookOpen
 } from 'lucide-react';
 
 const KnowledgeBase = () => {
@@ -85,6 +85,7 @@ const KnowledgeBase = () => {
   const filteredRoutes = useMemo(() => {
     return tourRoutes.filter(r => {
       const matchSearch = r.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          r.general_info?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           r.country_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           r.country_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (r.cities_sequence || []).some(c => c.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -100,6 +101,7 @@ const KnowledgeBase = () => {
   const filteredCountries = useMemo(() => {
     return countries.filter(c => {
       const matchSearch = c.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          c.general_info?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           c.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           c.region?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchRegion = selectedRegion === 'All' || c.region === selectedRegion;
@@ -112,6 +114,7 @@ const KnowledgeBase = () => {
     return cities.filter(ct => {
       const country = countries.find(c => c.id === ct.country_id);
       const matchSearch = ct.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          ct.general_info?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           country?.name?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchRegion = selectedRegion === 'All' || country?.region === selectedRegion;
       return matchSearch && matchRegion;
@@ -124,6 +127,7 @@ const KnowledgeBase = () => {
       const country = countries.find(c => c.id === obj.country_id);
       const city = cities.find(ct => ct.id === obj.city_id);
       const matchSearch = obj.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          obj.general_info?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           obj.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           country?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           city?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -380,7 +384,7 @@ const KnowledgeBase = () => {
                       Destination & Route Intelligence Hub
                     </h1>
                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-subtle)' }}>
-                      Master tour routes catalog, live travel updates checker, visa & POI intelligence
+                      Master tour routes catalog, live travel updates checker, visa & POI intelligence with executive overviews
                     </p>
                   </div>
                 </div>
@@ -388,7 +392,6 @@ const KnowledgeBase = () => {
 
               {/* Action Toolbar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                {/* LIVE DATA FRESHNESS CHECKER BUTTON */}
                 <button
                   onClick={() => setShowCheckerModal(true)}
                   style={{
@@ -779,13 +782,30 @@ const KnowledgeBase = () => {
                               </div>
 
                               {/* Title */}
-                              <h3 style={{ margin: '0 0 0.35rem', fontSize: '1.15rem', fontWeight: '800', lineHeight: '1.3' }}>
+                              <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.15rem', fontWeight: '800', lineHeight: '1.3' }}>
                                 {route.title}
                               </h3>
 
-                              <p style={{ margin: '0 0 0.85rem', fontSize: '0.78rem', color: 'var(--text-subtle)', fontWeight: '600' }}>
+                              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: 'var(--primary)', fontWeight: '600' }}>
                                 🌍 {route.country_name || route.country_id}
                               </p>
+
+                              {/* Short General Info */}
+                              {route.general_info && (
+                                <p style={{
+                                  margin: '0 0 0.75rem',
+                                  fontSize: '0.78rem',
+                                  color: 'var(--text-subtle)',
+                                  lineHeight: '1.4',
+                                  fontStyle: 'italic',
+                                  background: 'rgba(255, 255, 255, 0.02)',
+                                  padding: '0.45rem 0.65rem',
+                                  borderRadius: '6px',
+                                  borderLeft: '2px solid var(--primary)'
+                                }}>
+                                  "{route.general_info}"
+                                </p>
+                              )}
 
                               {/* City Sequence Pathway */}
                               <div style={{
@@ -928,13 +948,29 @@ const KnowledgeBase = () => {
                                 </div>
                               </div>
 
-                              <h3 style={{ margin: '0 0 0.35rem', fontSize: '1.1rem', fontWeight: '700' }}>
+                              <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: '700' }}>
                                 {obj.name}
                               </h3>
 
-                              <p style={{ margin: '0 0 0.85rem', fontSize: '0.78rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600' }}>
+                              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600' }}>
                                 <MapPin size={13} /> {city?.name || 'Local City'}, {country?.name || obj.country_id}
                               </p>
+
+                              {/* General Info */}
+                              {obj.general_info && (
+                                <p style={{
+                                  margin: '0 0 0.75rem',
+                                  fontSize: '0.78rem',
+                                  color: 'var(--text-subtle)',
+                                  lineHeight: '1.4',
+                                  background: 'rgba(255, 255, 255, 0.02)',
+                                  padding: '0.45rem 0.65rem',
+                                  borderRadius: '6px',
+                                  borderLeft: `2px solid ${catColor}`
+                                }}>
+                                  {obj.general_info}
+                                </p>
+                              )}
 
                               {obj.dress_code && (
                                 <div style={{
@@ -953,17 +989,6 @@ const KnowledgeBase = () => {
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {obj.dress_code}
                                   </span>
-                                </div>
-                              )}
-
-                              {obj.guide_briefing_notes && obj.guide_briefing_notes.length > 0 && (
-                                <div style={{ marginBottom: '0.85rem' }}>
-                                  <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                    TL Briefing Highlight:
-                                  </span>
-                                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'var(--text-main)', lineHeight: '1.35', fontStyle: 'italic' }}>
-                                    "{obj.guide_briefing_notes[0]}"
-                                  </p>
                                 </div>
                               )}
                             </div>
@@ -1039,6 +1064,21 @@ const KnowledgeBase = () => {
                                 {ct.name}
                               </h3>
 
+                              {ct.general_info && (
+                                <p style={{
+                                  margin: '0 0 0.75rem',
+                                  fontSize: '0.78rem',
+                                  color: 'var(--text-subtle)',
+                                  lineHeight: '1.4',
+                                  background: 'rgba(255, 255, 255, 0.02)',
+                                  padding: '0.45rem 0.65rem',
+                                  borderRadius: '6px',
+                                  borderLeft: '2px solid var(--accent-indigo)'
+                                }}>
+                                  {ct.general_info}
+                                </p>
+                              )}
+
                               {ct.airports && ct.airports.length > 0 && (
                                 <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                                   {ct.airports.map(ap => (
@@ -1046,24 +1086,6 @@ const KnowledgeBase = () => {
                                       ✈️ {ap}
                                     </span>
                                   ))}
-                                </div>
-                              )}
-
-                              {ct.best_months && ct.best_months.length > 0 && (
-                                <div style={{ marginBottom: '0.75rem' }}>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Best Season: </span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600' }}>
-                                    {ct.best_months.join(', ')}
-                                  </span>
-                                </div>
-                              )}
-
-                              {ct.transport_apps && ct.transport_apps.length > 0 && (
-                                <div style={{ marginBottom: '0.75rem' }}>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '600' }}>Recommended Apps: </span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-main)' }}>
-                                    {ct.transport_apps.join(' • ')}
-                                  </span>
                                 </div>
                               )}
 
@@ -1144,9 +1166,24 @@ const KnowledgeBase = () => {
                                 </button>
                               </div>
 
-                              <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.3rem', fontWeight: '800' }}>
+                              <h3 style={{ margin: '0 0 0.4rem', fontSize: '1.3rem', fontWeight: '800' }}>
                                 {c.name}
                               </h3>
+
+                              {c.general_info && (
+                                <p style={{
+                                  margin: '0 0 0.75rem',
+                                  fontSize: '0.78rem',
+                                  color: 'var(--text-subtle)',
+                                  lineHeight: '1.4',
+                                  background: 'rgba(255, 255, 255, 0.02)',
+                                  padding: '0.45rem 0.65rem',
+                                  borderRadius: '6px',
+                                  borderLeft: '2px solid var(--primary)'
+                                }}>
+                                  {c.general_info}
+                                </p>
+                              )}
 
                               <div style={{
                                 display: 'inline-flex',
@@ -1186,20 +1223,6 @@ const KnowledgeBase = () => {
                                   <span style={{ color: 'var(--text-subtle)' }}>Power Plugs:</span>
                                   <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>
                                     {plugs.types ? plugs.types.join('/') : 'Type C'} ({plugs.voltage || '220V'})
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <span style={{ color: 'var(--text-subtle)' }}>Police / Amb:</span>
-                                  <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>
-                                    🚨 {emergency.police || '112'} / {emergency.ambulance || '112'}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <span style={{ color: 'var(--text-subtle)' }}>Water:</span>
-                                  <div style={{ fontWeight: '600', color: c.water_safety?.includes('safe') || c.water_safety?.includes('Tap') ? 'var(--success)' : '#f59e0b' }}>
-                                    💧 {c.water_safety || 'Bottled'}
                                   </div>
                                 </div>
                               </div>
@@ -1252,8 +1275,10 @@ const KnowledgeBase = () => {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                                 <Globe size={20} color="var(--primary)" />
-                                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>{c.name} ({c.id})</h3>
-                                <span style={{ fontSize: '0.75rem', background: 'rgba(255, 255, 255, 0.05)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>{c.region}</span>
+                                <div>
+                                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>{c.name} ({c.id})</h3>
+                                  {c.general_info && <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>{c.general_info}</p>}
+                                </div>
                               </div>
                               <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>
                                 {countryRoutes.length} Master Routes • {countryCities.length} Cities
@@ -1266,9 +1291,10 @@ const KnowledgeBase = () => {
 
                                 return (
                                   <div key={ct.id} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem' }}>
-                                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: 'var(--accent-indigo)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.95rem', color: 'var(--accent-indigo)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                       <Building size={15} /> {ct.name}
                                     </h4>
+                                    {ct.general_info && <p style={{ margin: '0 0 0.5rem', fontSize: '0.72rem', color: 'var(--text-subtle)', fontStyle: 'italic' }}>{ct.general_info}</p>}
 
                                     {cityObjects.length === 0 ? (
                                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-subtle)' }}>No attractions linked yet</p>
@@ -1318,7 +1344,6 @@ const KnowledgeBase = () => {
       {showCheckerModal && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '880px', width: '92%', maxHeight: '90vh', overflowY: 'auto' }}>
-            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{
@@ -1343,7 +1368,6 @@ const KnowledgeBase = () => {
               </button>
             </div>
 
-            {/* Audit Status Bar / Trigger */}
             <div style={{
               background: 'rgba(255, 255, 255, 0.02)',
               border: '1px solid var(--border)',
@@ -1416,7 +1440,6 @@ const KnowledgeBase = () => {
               </div>
             </div>
 
-            {/* Live Progress Bar during active scan */}
             {isAuditing && (
               <div style={{
                 background: 'rgba(234, 179, 8, 0.08)',
@@ -1465,67 +1488,6 @@ const KnowledgeBase = () => {
               </div>
             )}
 
-            {/* Filter controls inside modal */}
-            {auditResults.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '0.35rem' }}>
-                  <button
-                    onClick={() => setCheckerFilter('all')}
-                    style={{
-                      fontSize: '0.75rem', fontWeight: '700', padding: '0.3rem 0.65rem', borderRadius: '6px',
-                      background: checkerFilter === 'all' ? 'rgba(6, 182, 212, 0.18)' : 'rgba(255, 255, 255, 0.03)',
-                      color: checkerFilter === 'all' ? 'var(--primary)' : 'var(--text-subtle)',
-                      border: `1px solid ${checkerFilter === 'all' ? 'rgba(6, 182, 212, 0.3)' : 'var(--border)'}`,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    All Items ({auditResults.length})
-                  </button>
-
-                  <button
-                    onClick={() => setCheckerFilter('updates_only')}
-                    style={{
-                      fontSize: '0.75rem', fontWeight: '700', padding: '0.3rem 0.65rem', borderRadius: '6px',
-                      background: checkerFilter === 'updates_only' ? 'rgba(234, 179, 8, 0.18)' : 'rgba(255, 255, 255, 0.03)',
-                      color: checkerFilter === 'updates_only' ? '#eab308' : 'var(--text-subtle)',
-                      border: `1px solid ${checkerFilter === 'updates_only' ? 'rgba(234, 179, 8, 0.3)' : 'var(--border)'}`,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Updates Available ({auditMetrics.updatesCount})
-                  </button>
-
-                  <button
-                    onClick={() => setCheckerFilter('verified_only')}
-                    style={{
-                      fontSize: '0.75rem', fontWeight: '700', padding: '0.3rem 0.65rem', borderRadius: '6px',
-                      background: checkerFilter === 'verified_only' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.03)',
-                      color: checkerFilter === 'verified_only' ? 'var(--success)' : 'var(--text-subtle)',
-                      border: `1px solid ${checkerFilter === 'verified_only' ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Verified ({auditMetrics.verifiedCount})
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>Type:</span>
-                  <select
-                    value={checkerTypeFilter}
-                    onChange={(e) => setCheckerTypeFilter(e.target.value)}
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}
-                  >
-                    <option value="all">All Types</option>
-                    <option value="country">Countries</option>
-                    <option value="city">Cities</option>
-                    <option value="object">Tour POIs</option>
-                    <option value="route">Tour Routes</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
             {/* Audit Results List & Visual Diffs */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {auditResults.length === 0 && !isAuditing ? (
@@ -1561,7 +1523,6 @@ const KnowledgeBase = () => {
                         borderLeft: `4px solid ${statusColor}`
                       }}
                     >
-                      {/* Item Top Header */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.65rem' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
@@ -1617,12 +1578,10 @@ const KnowledgeBase = () => {
                         )}
                       </div>
 
-                      {/* Summary text */}
                       <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--text-subtle)', lineHeight: '1.4' }}>
                         {item.summary}
                       </p>
 
-                      {/* Field Diff Breakdown */}
                       {hasUpdates && (
                         <div style={{
                           background: 'rgba(0, 0, 0, 0.25)',
@@ -1656,10 +1615,6 @@ const KnowledgeBase = () => {
                           </div>
                         </div>
                       )}
-
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span>💡 Source Note: {item.verificationNotes || 'Verified against global tourism & embassy registries'}</span>
-                      </div>
                     </div>
                   );
                 })
@@ -1805,33 +1760,6 @@ const KnowledgeBase = () => {
                   </span>
                 </div>
 
-                {/* Captured Route Sequence Flow */}
-                {extractResult.tourRoute?.citiesSequence && (
-                  <div style={{
-                    background: 'rgba(0, 0, 0, 0.2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    padding: '0.75rem',
-                    marginBottom: '1rem'
-                  }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--primary)', textTransform: 'uppercase' }}>
-                      Captured Route Sequence:
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.35rem' }}>
-                      {extractResult.tourRoute.citiesSequence.map((city, idx) => (
-                        <React.Fragment key={idx}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: '700', background: 'rgba(255, 255, 255, 0.05)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                            {city}
-                          </span>
-                          {idx < extractResult.tourRoute.citiesSequence.length - 1 && (
-                            <ArrowRight size={13} color="var(--primary)" />
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Extracted Tour Objects Preview */}
                 <div style={{ marginBottom: '1.25rem' }}>
                   <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>
@@ -1845,7 +1773,7 @@ const KnowledgeBase = () => {
                           <th>City / Country</th>
                           <th>Category</th>
                           <th>Duration</th>
-                          <th>Dress Code / Rule</th>
+                          <th>General Info Overview</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1855,8 +1783,8 @@ const KnowledgeBase = () => {
                             <td>{obj.cityName || obj.city_id}, {obj.countryName || obj.country_id}</td>
                             <td><span style={{ color: getCategoryColor(obj.category), fontWeight: '600' }}>{obj.category}</span></td>
                             <td>{obj.estDurationMinutes || 90} mins</td>
-                            <td style={{ color: obj.dressCode ? '#f87171' : 'var(--text-subtle)' }}>
-                              {obj.dressCode || 'Standard'}
+                            <td style={{ color: 'var(--text-subtle)', fontSize: '0.75rem' }}>
+                              {obj.generalInfo || obj.general_info || 'Overview extracted'}
                             </td>
                           </tr>
                         ))}
@@ -1974,15 +1902,17 @@ const KnowledgeBase = () => {
                 <h4 style={{ margin: '0 0 0.4rem', color: 'var(--primary)' }}>
                   ✓ Generated: {aiGeneratedData.title || aiGeneratedData.name}
                 </h4>
+                {aiGeneratedData.generalInfo && (
+                  <p style={{ margin: '0 0 0.5rem', color: 'var(--text-main)', fontStyle: 'italic', background: 'rgba(255, 255, 255, 0.03)', padding: '0.4rem', borderRadius: '4px' }}>
+                    "{aiGeneratedData.generalInfo}"
+                  </p>
+                )}
                 {aiType === 'route' && (
                   <p style={{ margin: '0 0 0.4rem', color: 'var(--text-subtle)' }}>
                     <strong>Stops:</strong> {aiGeneratedData.citiesSequence?.join(' → ')}<br />
                     <strong>Theme:</strong> {aiGeneratedData.themeCategory} • <strong>Duration:</strong> {aiGeneratedData.durationDays}D{aiGeneratedData.durationNights}N
                   </p>
                 )}
-                {aiType === 'country' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Currency: {aiGeneratedData.currency?.code} • Plugs: {aiGeneratedData.powerPlugs?.types?.join('/')}</p>}
-                {aiType === 'city' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Airports: {aiGeneratedData.airports?.join(', ')} • Apps: {aiGeneratedData.transportApps?.join(', ')}</p>}
-                {aiType === 'object' && <p style={{ margin: 0, color: 'var(--text-subtle)' }}>Category: {aiGeneratedData.category} • Duration: {aiGeneratedData.estDurationMinutes}m • Dress: {aiGeneratedData.dressCode || 'None'}</p>}
               </div>
             )}
 
@@ -2034,6 +1964,7 @@ const KnowledgeBase = () => {
                   const highlightsArr = form.routeHighlights.value.split(',').map(s => s.trim()).filter(Boolean);
                   const res = await addTourRoute({
                     title: form.routeTitle.value,
+                    general_info: form.generalInfo.value,
                     country_id: form.routeCountryId.value,
                     duration_days: parseInt(form.routeDays.value) || 7,
                     duration_nights: parseInt(form.routeNights.value) || 6,
@@ -2046,6 +1977,7 @@ const KnowledgeBase = () => {
                   await addCountry({
                     id: form.countryId.value,
                     name: form.countryName.value,
+                    general_info: form.generalInfo.value,
                     region: form.countryRegion.value,
                     water_safety: form.waterSafety.value
                   });
@@ -2053,12 +1985,14 @@ const KnowledgeBase = () => {
                 } else if (manualType === 'city') {
                   await addCity({
                     country_id: form.cityCountryId.value,
-                    name: form.cityName.value
+                    name: form.cityName.value,
+                    general_info: form.generalInfo.value
                   });
                   alert('City added successfully!');
                 } else {
                   await addObject({
                     name: form.objName.value,
+                    general_info: form.generalInfo.value,
                     country_id: form.objCountryId.value,
                     category: form.objCategory.value,
                     est_duration_minutes: parseInt(form.objDuration.value) || 90,
@@ -2083,6 +2017,16 @@ const KnowledgeBase = () => {
                   <option value="city">🏙️ City Hub</option>
                   <option value="country">🌍 Country</option>
                 </select>
+              </div>
+
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Short General Information / Overview:</label>
+                <textarea
+                  name="generalInfo"
+                  rows={2}
+                  placeholder="Concise 1-2 sentence executive overview..."
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: '0.8rem' }}
+                />
               </div>
 
               {manualType === 'route' && (
@@ -2111,42 +2055,20 @@ const KnowledgeBase = () => {
                     <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Cities in Sequence (comma separated):</label>
                     <input name="routeCities" placeholder="e.g. Tokyo, Hakone, Kyoto, Osaka" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Theme Category:</label>
-                      <select name="routeTheme" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: '#fff' }}>
-                        {themes.filter(t => t !== 'All').map(th => <option key={th} value={th}>{th}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Key Highlights (comma separated):</label>
-                      <input name="routeHighlights" placeholder="e.g. Mt Fuji, Bullet Train, Kiyomizudera" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
-                  </div>
                 </>
               )}
 
               {manualType === 'country' && (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>ISO Code:</label>
-                      <input name="countryId" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Country Name:</label>
-                      <input name="countryName" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>ISO Code:</label>
+                    <input name="countryId" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Region:</label>
-                    <input name="countryRegion" defaultValue="East Asia" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Country Name:</label>
+                    <input name="countryName" required style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                   </div>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Water Safety:</label>
-                    <input name="waterSafety" defaultValue="Tap water is safe to drink" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                  </div>
-                </>
+                </div>
               )}
 
               {manualType === 'city' && (
@@ -2188,10 +2110,6 @@ const KnowledgeBase = () => {
                       <input name="objDuration" type="number" defaultValue={90} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
                     </div>
                   </div>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Dress Code / Restrictions:</label>
-                    <input name="objDressCode" placeholder="e.g. Covered shoulders and knees required" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
-                  </div>
                 </>
               )}
 
@@ -2205,7 +2123,7 @@ const KnowledgeBase = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: DETAIL INSPECTOR (WITH SINGLE-ITEM AUDIT BUTTON)                    */}
+      {/* MODAL: DETAIL INSPECTOR                                                   */}
       {/* ========================================================================= */}
       {selectedItem && (
         <div className="modal-overlay">
@@ -2223,6 +2141,30 @@ const KnowledgeBase = () => {
                 <X size={20} />
               </button>
             </div>
+
+            {/* General Info / Overview Highlight Box */}
+            {selectedItem.general_info && (
+              <div style={{
+                background: 'rgba(6, 182, 212, 0.08)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem'
+              }}>
+                <BookOpen size={18} color="var(--primary)" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                <div>
+                  <span style={{ fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--primary)', letterSpacing: '0.04em' }}>
+                    General Information & Character Overview:
+                  </span>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.825rem', color: 'var(--text-main)', lineHeight: '1.45' }}>
+                    {selectedItem.general_info}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Quick Single-Item Live Audit Bar */}
             <div style={{
@@ -2402,6 +2344,117 @@ const KnowledgeBase = () => {
                     <ul style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--text-main)', lineHeight: '1.5' }}>
                       {selectedItem.guide_briefing_notes.map((note, i) => (
                         <li key={i} style={{ marginBottom: '0.35rem' }}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* City Details */}
+            {selectedItem.entityType === 'city' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '0.75rem',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)'
+                }}>
+                  <div>
+                    <span style={{ color: 'var(--text-subtle)', fontSize: '0.75rem' }}>Destination Country:</span>
+                    <div style={{ fontWeight: '700', color: 'var(--accent-indigo)' }}>
+                      {countries.find(c => c.id === selectedItem.country_id)?.name || selectedItem.country_id}
+                    </div>
+                  </div>
+                  {selectedItem.airports && selectedItem.airports.length > 0 && (
+                    <div>
+                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.75rem' }}>Gateway Airports:</span>
+                      <div style={{ fontWeight: '700' }}>
+                        ✈️ {selectedItem.airports.join(', ')}
+                      </div>
+                    </div>
+                  )}
+                  {selectedItem.best_months && selectedItem.best_months.length > 0 && (
+                    <div>
+                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.75rem' }}>Best Travel Months:</span>
+                      <div style={{ fontWeight: '700', color: 'var(--success)' }}>
+                        🗓️ {selectedItem.best_months.join(', ')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Local Transit & Transport Apps */}
+                {selectedItem.transport_apps && selectedItem.transport_apps.length > 0 && (
+                  <div>
+                    <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', color: 'var(--primary)' }}>
+                      📱 Recommended Transit & City Apps:
+                    </h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      {selectedItem.transport_apps.map((app, i) => (
+                        <span key={i} style={{ fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.04)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          📲 {app}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Food Highlights & Halal Intelligence */}
+                {selectedItem.food_highlights && (
+                  <div style={{ background: 'rgba(249, 115, 22, 0.06)', border: '1px solid rgba(249, 115, 22, 0.25)', borderRadius: '8px', padding: '0.85rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: '#f97316', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Coffee size={15} /> Gastronomy & Halal / Dietary Intelligence
+                    </h4>
+                    
+                    {selectedItem.food_highlights.signature && selectedItem.food_highlights.signature.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Must-Try Signature Dishes:</span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.25rem' }}>
+                          {selectedItem.food_highlights.signature.map((d, i) => (
+                            <span key={i} style={{ fontSize: '0.72rem', background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                              🍽️ {d}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedItem.food_highlights.halalFriendly && (
+                      <div style={{ marginBottom: '0.5rem', fontSize: '0.78rem', color: 'var(--text-main)' }}>
+                        <strong style={{ color: 'var(--success)' }}>Halal & Muslim-Friendly Dining:</strong> {selectedItem.food_highlights.halalFriendly}
+                      </div>
+                    )}
+
+                    {selectedItem.food_highlights.mosques && selectedItem.food_highlights.mosques.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
+                        <strong>🕌 Prayer Facilities / Mosques:</strong>
+                        <ul style={{ margin: '0.2rem 0 0', paddingLeft: '1.2rem', color: 'var(--text-subtle)' }}>
+                          {selectedItem.food_highlights.mosques.map((m, i) => <li key={i}>{m}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {selectedItem.food_highlights.ingredientCautions && (
+                      <div style={{ fontSize: '0.75rem', color: '#f87171', background: 'rgba(239, 68, 68, 0.08)', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
+                        ⚠️ <strong>Ingredient Caution:</strong> {selectedItem.food_highlights.ingredientCautions}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Emergency Hospital Contacts */}
+                {selectedItem.hospital_contacts && selectedItem.hospital_contacts.length > 0 && (
+                  <div style={{ background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', padding: '0.85rem' }}>
+                    <h4 style={{ margin: '0 0 0.4rem', fontSize: '0.85rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <ShieldAlert size={15} /> Tourist-Friendly Medical Centers & 24/7 ER
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                      {selectedItem.hospital_contacts.map((hosp, i) => (
+                        <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.78rem' }}>{hosp}</li>
                       ))}
                     </ul>
                   </div>

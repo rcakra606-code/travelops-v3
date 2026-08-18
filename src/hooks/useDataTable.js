@@ -53,7 +53,7 @@ export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' },
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
         
-        // Handle nested values (e.g., in Cashout/Tour financials) if specifically passed as raw data mapping
+        // Handle nested values (e.g., in Tour financials) if specifically passed as raw data mapping
         // It's recommended to map nested data to flat data before passing to this hook if sorting by it
 
         if (aVal === null || aVal === undefined) aVal = '';

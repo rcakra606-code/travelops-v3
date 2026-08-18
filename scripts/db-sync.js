@@ -52,7 +52,7 @@ export async function syncDatabase() {
         
         // Enable RLS
         await client.query(`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY;`);
-        await client.query(`CREATE POLICY "Allow authenticated full access to ${tableName}" ON public."${tableName}" FOR ALL TO authenticated USING (true) WITH CHECK (true);`);
+        await client.query(`CREATE POLICY "Allow all access to ${tableName}" ON public."${tableName}" FOR ALL TO public USING (true) WITH CHECK (true);`);
         
         console.log(`✅ Auto-Schema Sync: Table ${tableName} created successfully!`);
       } else {

@@ -15,7 +15,6 @@ import { useDocuments } from '../context/DocumentContext';
 import { useTelecoms } from '../context/TelecomContext';
 import { useHotels } from '../context/HotelContext';
 import { useAuth } from '../context/AuthContext';
-import { useCashouts } from '../context/CashoutContext';
 
 const DEFAULT_WIDGETS = [
   { id: 'welcome', name: 'Executive Overview Banner', visible: true, size: '12' },
@@ -125,7 +124,6 @@ const Dashboard = () => {
   const { documents } = useDocuments();
   const { telecoms } = useTelecoms();
   const { hotels } = useHotels();
-  const { cashoutRequests } = useCashouts();
 
   const tourStats = getStats();
   
@@ -304,20 +302,6 @@ const Dashboard = () => {
     }
   });
 
-  if (cashoutRequests) {
-    cashoutRequests.forEach(c => {
-      if (c.status === 'Pending') {
-        alerts.push({
-          id: c.id,
-          title: `Pending Cashout Request: Rp ${new Intl.NumberFormat('id-ID').format(c.totalAmount || 0)}`,
-          type: 'danger',
-          date: c.requestDate,
-          actionPath: '/cashout'
-        });
-      }
-    });
-  }
-
   (documents || []).forEach(d => {
     if (!d.sendDate) {
       const estDone = new Date(d.estimatedDone || d.receiveDate || 0);
@@ -396,7 +380,7 @@ const Dashboard = () => {
               Welcome back, <span className="gradient-text">{user?.name || user?.email?.split('@')[0] || 'Operator'}</span>
             </h1>
             <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-              Real-time monitoring for your active tours, hotel blocks, cruises, documents, and cashouts.
+              Real-time monitoring for your active tours, hotel blocks, cruises, and documents.
             </p>
           </div>
 

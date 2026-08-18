@@ -10,7 +10,6 @@ import { useDocuments } from '../context/DocumentContext';
 import { useSales } from '../context/SalesContext';
 import { useProductivity } from '../context/ProductivityContext';
 import { useOvertimes } from '../context/OvertimeContext';
-import { useCashouts } from '../context/CashoutContext';
 import { formatCurrency } from '../utils/currency';
 import { UserCheck, TrendingUp, DollarSign, Target, Briefcase, Clock, CreditCard, Activity, Calendar, Database, BarChart as BarChartIcon, Users, MapPin, CheckCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -27,7 +26,6 @@ const StaffPerformance = () => {
   const { sales } = useSales();
   const { productivityData } = useProductivity();
   const { overtimes } = useOvertimes();
-  const { cashoutRequests } = useCashouts();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);

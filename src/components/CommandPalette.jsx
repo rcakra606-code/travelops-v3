@@ -19,7 +19,6 @@ const staticCommands = [
   { id: 'overtime', name: 'Overtime Logs', icon: <Clock size={18} />, path: '/overtime' },
   { id: 'productivity', name: 'Productivity', icon: <Target size={18} />, path: '/productivity' },
   { id: 'corporate', name: 'Corporate Clients', icon: <Building size={18} />, path: '/corporate' },
-  { id: 'cashout', name: 'Cashout System', icon: <CreditCard size={18} />, path: '/cashout' },
   { id: 'staff', name: 'Staff Performance', icon: <Activity size={18} />, path: '/staff-performance' },
   { id: 'settings', name: 'Settings', icon: <Settings size={18} />, path: '/settings' },
 ];

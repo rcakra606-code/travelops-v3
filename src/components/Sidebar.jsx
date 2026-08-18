@@ -54,7 +54,6 @@ const Sidebar = ({ isOpen, closeMobile }) => {
   const isAdmin = user?.role === 'Admin' || user?.email === 'admin@travelops.com';
 
   const bottomItems = [
-    { name: 'Cashout System', path: '/cashout', icon: <Wallet size={18} /> },
     { name: 'User Management', path: '/users', icon: <Users size={18} />, locked: !isAdmin },
     { name: 'System Settings', path: '/settings', icon: <Settings size={18} />, locked: !isAdmin },
   ];
@@ -232,37 +231,52 @@ const Sidebar = ({ isOpen, closeMobile }) => {
 
       {/* User Status Card at Bottom */}
       <div style={{
-        padding: '0.85rem 1.15rem',
+        padding: '0.75rem 0.85rem',
         margin: '0.5rem',
         borderRadius: '10px',
         background: 'rgba(255, 255, 255, 0.03)',
         border: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        gap: '0.5rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div style={{ position: 'relative' }}>
-            <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div className="avatar" style={{ width: '34px', height: '34px', fontSize: '0.8125rem', fontWeight: '700' }}>
               {user?.name ? user.name.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || 'U')}
             </div>
             <span 
               className="pulse-dot pulse-dot-green" 
-              style={{ position: 'absolute', bottom: '0', right: '0', border: '1.5px solid var(--bg-surface)' }}
+              style={{ position: 'absolute', bottom: '-1px', right: '-1px', border: '1.5px solid var(--bg-surface)' }}
               title="Online"
             />
           </div>
-          <div style={{ overflow: 'hidden' }}>
-            <p style={{ margin: 0, fontSize: '0.8125rem', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+            <p 
+              title={user?.name || user?.email || 'Staff Member'}
+              style={{ 
+                margin: 0, 
+                fontSize: '0.8125rem', 
+                fontWeight: '700', 
+                color: 'var(--text-main)', 
+                whiteSpace: 'nowrap', 
+                textOverflow: 'ellipsis', 
+                overflow: 'hidden',
+                lineHeight: '1.3'
+              }}
+            >
               {user?.name || user?.email?.split('@')[0] || 'Staff Member'}
             </p>
-            <span style={{ fontSize: '0.675rem', color: 'var(--text-subtle)', fontWeight: '500' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: '500', lineHeight: '1.2' }}>
               {user?.role || 'Operator'}
             </span>
           </div>
         </div>
         {isAdmin && (
-          <Shield size={14} color="var(--primary)" title="Administrator" />
+          <div style={{ flexShrink: 0 }}>
+            <Shield size={15} color="var(--primary)" title="Administrator" />
+          </div>
         )}
       </div>
     </aside>

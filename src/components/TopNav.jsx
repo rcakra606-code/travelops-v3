@@ -318,11 +318,21 @@ const TopNav = ({ toggleSidebar }) => {
           onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
           onMouseOut={e => e.currentTarget.style.background = 'transparent'}
         >
-          <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.8125rem' }}>
+          <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.8125rem', flexShrink: 0 }}>
             {user?.name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'A'}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--text-main)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: '180px' }}>
+            <span 
+              title={user?.name || user?.email || 'Admin'}
+              style={{ 
+                fontSize: '0.8125rem', 
+                fontWeight: '600', 
+                color: 'var(--text-main)', 
+                whiteSpace: 'nowrap', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis' 
+              }}
+            >
               {user?.name || user?.email?.split('@')[0] || 'Admin'}
             </span>
             <span style={{ fontSize: '0.6875rem', color: 'var(--text-subtle)' }}>

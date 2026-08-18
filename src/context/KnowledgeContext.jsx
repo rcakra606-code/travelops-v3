@@ -55,6 +55,7 @@ export const KnowledgeProvider = ({ children }) => {
         id,
         name: data.name,
         region: data.region || 'International',
+        general_info: data.general_info || data.generalInfo || data.overview || '',
         currency: data.currency || {},
         emergency: data.emergency || {},
         power_plugs: data.power_plugs || data.powerPlugs || {},
@@ -84,6 +85,9 @@ export const KnowledgeProvider = ({ children }) => {
       };
       if (updatedData.name !== undefined) payload.name = updatedData.name;
       if (updatedData.region !== undefined) payload.region = updatedData.region;
+      if (updatedData.general_info !== undefined || updatedData.generalInfo !== undefined) {
+        payload.general_info = updatedData.general_info || updatedData.generalInfo;
+      }
       if (updatedData.currency !== undefined) payload.currency = updatedData.currency;
       if (updatedData.emergency !== undefined) payload.emergency = updatedData.emergency;
       if (updatedData.power_plugs !== undefined || updatedData.powerPlugs !== undefined) {
@@ -131,6 +135,7 @@ export const KnowledgeProvider = ({ children }) => {
         id,
         country_id: data.country_id || data.countryId,
         name: data.name,
+        general_info: data.general_info || data.generalInfo || data.overview || '',
         airports: data.airports || [],
         best_months: data.best_months || data.bestMonths || [],
         transport_apps: data.transport_apps || data.transportApps || [],
@@ -161,6 +166,9 @@ export const KnowledgeProvider = ({ children }) => {
         payload.country_id = updatedData.country_id || updatedData.countryId;
       }
       if (updatedData.name !== undefined) payload.name = updatedData.name;
+      if (updatedData.general_info !== undefined || updatedData.generalInfo !== undefined) {
+        payload.general_info = updatedData.general_info || updatedData.generalInfo;
+      }
       if (updatedData.airports !== undefined) payload.airports = updatedData.airports;
       if (updatedData.best_months !== undefined || updatedData.bestMonths !== undefined) {
         payload.best_months = updatedData.best_months || updatedData.bestMonths;
@@ -208,6 +216,7 @@ export const KnowledgeProvider = ({ children }) => {
         city_id: data.city_id || data.cityId || '',
         country_id: data.country_id || data.countryId || '',
         name: data.name,
+        general_info: data.general_info || data.generalInfo || data.overview || '',
         category: data.category || 'Historical',
         est_duration_minutes: parseInt(data.est_duration_minutes || data.estDurationMinutes) || 90,
         opening_hours: data.opening_hours || data.openingHours || {},
@@ -245,6 +254,9 @@ export const KnowledgeProvider = ({ children }) => {
         payload.country_id = updatedData.country_id || updatedData.countryId;
       }
       if (updatedData.name !== undefined) payload.name = updatedData.name;
+      if (updatedData.general_info !== undefined || updatedData.generalInfo !== undefined) {
+        payload.general_info = updatedData.general_info || updatedData.generalInfo;
+      }
       if (updatedData.category !== undefined) payload.category = updatedData.category;
       if (updatedData.est_duration_minutes !== undefined || updatedData.estDurationMinutes !== undefined) {
         payload.est_duration_minutes = parseInt(updatedData.est_duration_minutes || updatedData.estDurationMinutes) || 90;
@@ -309,6 +321,7 @@ export const KnowledgeProvider = ({ children }) => {
     try {
       const signature = computeRouteSignature(data);
       const title = data.title?.trim() || 'Custom Tour Route';
+      const generalInfo = data.general_info || data.generalInfo || data.summary || data.overview || '';
       const countryId = (data.country_id || data.countryId || '').toUpperCase().trim();
       const countryName = data.country_name || data.countryName || '';
       const durationDays = parseInt(data.duration_days || data.durationDays) || 7;
@@ -355,6 +368,7 @@ export const KnowledgeProvider = ({ children }) => {
       const payload = {
         id: newId,
         title,
+        general_info: generalInfo,
         route_signature: signature,
         country_id: countryId,
         country_name: countryName,
@@ -398,6 +412,9 @@ export const KnowledgeProvider = ({ children }) => {
         audit_status: updatedData.audit_status || 'verified'
       };
       if (updatedData.title !== undefined) payload.title = updatedData.title;
+      if (updatedData.general_info !== undefined || updatedData.generalInfo !== undefined) {
+        payload.general_info = updatedData.general_info || updatedData.generalInfo;
+      }
       if (updatedData.country_id !== undefined || updatedData.countryId !== undefined) {
         payload.country_id = updatedData.country_id || updatedData.countryId;
       }
@@ -527,7 +544,7 @@ export const KnowledgeProvider = ({ children }) => {
 
     const extractionPrompt = `
 You are an expert travel operations intelligence assistant for an international tour operator.
-Analyze the attached tour itinerary PDF thoroughly. Extract and organize all travel knowledge AND the complete tour route into a structured JSON hierarchy:
+Analyze the attached tour itinerary PDF thoroughly. Extract and organize all travel knowledge AND the complete tour route into a structured JSON hierarchy with concise general information overviews:
 
 1. "tourMeta":
    - "title": Title or official name of the tour (e.g. "7D6N Classic Japan Golden Route")
@@ -538,6 +555,7 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
 
 2. "tourRoute": Full captured itinerary route data:
    - "title": Tour Route Title (e.g. "7D6N Golden Route Tokyo Fuji Kyoto Osaka")
+   - "generalInfo": Crisp 1-2 sentence executive summary of the journey flow and unique value proposition.
    - "countryId": 3-letter ISO code (e.g. "JPN")
    - "countryName": Country Name (e.g. "Japan")
    - "durationDays": integer (e.g. 7)
@@ -545,7 +563,7 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "citiesSequence": Sequence of cities visited in order, e.g. ["Tokyo", "Hakone", "Kyoto", "Osaka"]
    - "themeCategory": One of ["Leisure", "Cultural", "Nature & Scenic", "Winter & Ski", "Luxury", "Adventure", "Family", "Shopping & Culinary"]
    - "transportModes": e.g. ["Private Coach", "Bullet Train (Shinkansen)"]
-   - "routeHighlights": Top 4-5 journey highlights e.g. ["Sensoji Temple", "Mt. Fuji 5th Station", "Bullet Train ride", "Kiyomizudera Temple", "Dotonbori Glico Sign"]
+   - "routeHighlights": Top 4-5 journey highlights
    - "dayItinerary": Array of daily schedules:
      [
        {
@@ -563,6 +581,7 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "id": 3-letter ISO code (e.g. "JPN", "FRA", "THA", "CHE", "ITA")
    - "name": Full country name (e.g. "Japan")
    - "region": Geographical region (e.g. "East Asia", "Western Europe")
+   - "generalInfo": Concise 1-2 sentence general country overview (climate, vibe, and travel character).
    - "currency": { "code": "JPY", "symbol": "¥", "name": "Japanese Yen", "cardUsage": "High / Moderate / Cash Preferred" }
    - "emergency": { "police": "110", "ambulance": "119", "embassyNote": "Emergency contact guidance" }
    - "powerPlugs": { "types": ["A", "B"], "voltage": "100V", "notes": "Requires 2-pin flat adapter" }
@@ -575,8 +594,9 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "countryId": matching country id (e.g. "JPN")
    - "countryName": country name (e.g. "Japan")
    - "name": City name (e.g. "Kyoto")
+   - "generalInfo": Concise 1-2 sentence city overview highlighting its vibe and role in the tour.
    - "airports": Array of airport codes if relevant (e.g. ["HND", "NRT"])
-   - "bestMonths": Array of best months to visit (e.g. ["Mar", "Apr", "Oct", "Nov"])
+   - "bestMonths": Array of best months to visit
    - "transportApps": Recommended local apps (e.g. ["Suica", "Go Taxi"])
    - "foodHighlights": { "signature": ["Signature dishes"], "halalFriendly": "Halal notes" }
    - "hospitalContacts": Array of tourist-friendly hospitals
@@ -587,6 +607,7 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
    - "countryName": country name (e.g. "Japan")
    - "cityName": city name (e.g. "Kyoto")
    - "name": Official attraction name (e.g. "Fushimi Inari Taisha Shrine")
+   - "generalInfo": Concise 1-2 sentence overview of the attraction's significance and visitor appeal.
    - "category": One of ["Historical", "Cultural", "Religious", "Nature", "Theme Park", "Shopping", "Museum", "Landmark", "Culinary"]
    - "estDurationMinutes": Estimated visit time in minutes (integer, e.g. 90)
    - "openingHours": { "open": "09:00", "close": "17:00", "notes": "Hours notes" }
@@ -618,6 +639,7 @@ ${type === 'country' ? `
   "id": "3-letter ISO code (e.g. JPN, CHE, FRA, THA)",
   "name": "Country Name",
   "region": "Continent/Region",
+  "generalInfo": "Crisp 1-2 sentence executive overview of the country for tour operators.",
   "currency": { "code": "USD/EUR/JPY", "symbol": "$/€/¥", "name": "Currency Name", "cardUsage": "High / Moderate / Cash Preferred" },
   "emergency": { "police": "112/911/110", "ambulance": "112/911/119", "embassyNote": "Embassy details" },
   "powerPlugs": { "types": ["C", "F"], "voltage": "230V", "notes": "Plug type notes" },
@@ -631,6 +653,7 @@ ${type === 'country' ? `
   "countryId": "ISO Country code",
   "countryName": "Country Name",
   "name": "City Name",
+  "generalInfo": "Crisp 1-2 sentence overview of the city's character and tourist highlights.",
   "airports": ["Airport Codes"],
   "bestMonths": ["Best Months"],
   "transportApps": ["Metro apps, Taxi apps"],
@@ -640,6 +663,7 @@ ${type === 'country' ? `
 ` : type === 'route' ? `
 {
   "title": "Tour Route Title (e.g. 7D6N Classic Japan Golden Route)",
+  "generalInfo": "Crisp 1-2 sentence summary of the itinerary journey flow.",
   "countryId": "JPN",
   "countryName": "Japan",
   "durationDays": 7,
@@ -667,6 +691,7 @@ ${type === 'country' ? `
   "countryName": "Country Name",
   "cityName": "City Name",
   "name": "Attraction Name",
+  "generalInfo": "Crisp 1-2 sentence overview of the attraction's historic/cultural significance.",
   "category": "Historical / Cultural / Religious / Nature / Theme Park / Shopping / Museum / Landmark",
   "estDurationMinutes": 90,
   "openingHours": { "open": "09:00", "close": "17:00", "notes": "Operating schedule notes" },
@@ -709,11 +734,12 @@ ${JSON.stringify(entity, null, 2)}
 
 TASK:
 1. Verify if the information is still accurate and up-to-date according to official travel guidelines, embassy regulations, and tourism boards.
+   - Also ensure there is a crisp, professional 1-2 sentence "generalInfo" overview.
    - For Countries: Check visa requirements, arrival registration apps (e.g., Visit Japan Web, SG Arrival Card, ETIAS), power plugs, currency/tipping norms, emergency numbers, and tap water safety.
    - For Cities: Check airport transit, local metro/taxi apps, and tourist emergency clinics.
-   - For Tour Objects/POIs: Check operating hours, closure days, advance ticket booking rules (e.g. mandatory online reservation), dress codes, photography restrictions, and group coach logistics.
+   - For Tour Objects/POIs: Check operating hours, closure days, advance ticket booking rules, dress codes, photography restrictions, and group coach logistics.
    - For Tour Routes: Check if route sequence and key highlights reflect realistic operational travel times.
-2. If changes are detected, provide the field-level diff and the complete updated entity with fresh data merged.
+2. If changes are detected or if generalInfo was missing, provide the field-level diff and the complete updated entity with fresh data merged.
 3. If everything is up-to-date and accurate, set status to "verified" and leave changes empty.
 
 Respond ONLY with valid JSON matching this schema:
@@ -722,15 +748,15 @@ Respond ONLY with valid JSON matching this schema:
   "summary": "1-2 sentence audit summary of findings",
   "changes": [
     {
-      "field": "Field name (e.g., visa_info, opening_hours, dress_code, ticket_policy)",
+      "field": "Field name (e.g., general_info, visa_info, opening_hours, dress_code, ticket_policy)",
       "label": "Human readable field title",
       "oldValue": "Readable representation of old value",
       "newValue": "Readable representation of updated value",
-      "reason": "Why this needs to be updated (e.g., New online reservation mandate / Updated visa waiver rules)"
+      "reason": "Why this needs to be updated"
     }
   ],
   "updatedEntity": { ...complete updated object with fresh data merged... },
-  "verificationNotes": "Brief intelligence source note (e.g., Verified against official tourism board guidelines)"
+  "verificationNotes": "Brief intelligence source note"
 }
 `;
 
@@ -831,7 +857,6 @@ Respond ONLY with valid JSON matching this schema:
         await updateTourRoute(entityId, updatedPayload);
       }
 
-      // Update local auditResults state
       setAuditResults(prev => prev.map(r => r.id === entityId && r.type === type ? { ...r, status: 'verified', changes: [], summary: '✓ Applied and verified!' } : r));
       return { success: true };
     } catch (err) {
@@ -875,6 +900,7 @@ Respond ONLY with valid JSON matching this schema:
           id: (c.id || c.name.substring(0, 3)).toUpperCase().trim(),
           name: c.name,
           region: c.region || 'International',
+          general_info: c.general_info || c.generalInfo || c.overview || '',
           currency: c.currency || {},
           emergency: c.emergency || {},
           power_plugs: c.power_plugs || c.powerPlugs || {},
@@ -897,6 +923,7 @@ Respond ONLY with valid JSON matching this schema:
             id: cityId,
             country_id: (countryId || '').toUpperCase(),
             name: ct.name,
+            general_info: ct.general_info || ct.generalInfo || ct.overview || '',
             airports: ct.airports || [],
             best_months: ct.best_months || ct.bestMonths || [],
             transport_apps: ct.transport_apps || ct.transportApps || [],
@@ -920,6 +947,7 @@ Respond ONLY with valid JSON matching this schema:
             city_id: obj.city_id || obj.cityId || '',
             country_id: (countryId || '').toUpperCase(),
             name: obj.name,
+            general_info: obj.general_info || obj.generalInfo || obj.overview || '',
             category: obj.category || 'Historical',
             est_duration_minutes: parseInt(obj.est_duration_minutes || obj.estDurationMinutes) || 90,
             opening_hours: obj.opening_hours || obj.openingHours || {},

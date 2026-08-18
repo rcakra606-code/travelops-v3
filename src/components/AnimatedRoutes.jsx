@@ -19,7 +19,6 @@ const Hotel = lazy(() => import('../pages/Hotel'));
 const Overtime = lazy(() => import('../pages/Overtime'));
 const Productivity = lazy(() => import('../pages/Productivity'));
 const Corporate = lazy(() => import('../pages/Corporate'));
-const Cashout = lazy(() => import('../pages/Cashout'));
 const StaffPerformance = lazy(() => import('../pages/StaffPerformance'));
 const KnowledgeBase = lazy(() => import('../pages/KnowledgeBase'));
 
@@ -50,7 +49,6 @@ const AnimatedRoutes = () => {
           <Route path="/overtime" element={<ProtectedRoute><PageWrapper><Overtime /></PageWrapper></ProtectedRoute>} />
           <Route path="/productivity" element={<ProtectedRoute><PageWrapper><Productivity /></PageWrapper></ProtectedRoute>} />
           <Route path="/corporate" element={<ProtectedRoute><PageWrapper><Corporate /></PageWrapper></ProtectedRoute>} />
-          <Route path="/cashout" element={<ProtectedRoute><PageWrapper><Cashout /></PageWrapper></ProtectedRoute>} />
           <Route path="/staff-performance" element={<ProtectedRoute><PageWrapper><StaffPerformance /></PageWrapper></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><PageWrapper><Settings /></PageWrapper></ProtectedRoute>} />
