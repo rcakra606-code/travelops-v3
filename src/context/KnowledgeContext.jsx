@@ -704,18 +704,34 @@ ${type === 'country' ? `
 `}
 `;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { response_mime_type: 'application/json' }
-      })
-    });
-    const resJson = await res.json();
-    const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return cleanJsonOutput(rawText);
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    let lastError = null;
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { response_mime_type: 'application/json' }
+          })
+        });
+        if (!res.ok) {
+          throw new Error(`Model ${model} status ${res.status}`);
+        }
+        const resJson = await res.json();
+        const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) {
+          return cleanJsonOutput(rawText);
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(`generateWithAi attempt on ${model} failed:`, err.message);
+      }
+    }
+    throw lastError || new Error('Failed to generate destination intelligence with Gemini');
   };
 
   // --- 4. LIVE DATA FRESHNESS CHECKER & AUTO-UPDATER ENGINE ---

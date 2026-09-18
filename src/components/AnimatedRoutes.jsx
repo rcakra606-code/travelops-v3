@@ -21,6 +21,8 @@ const Productivity = lazy(() => import('../pages/Productivity'));
 const Corporate = lazy(() => import('../pages/Corporate'));
 const StaffPerformance = lazy(() => import('../pages/StaffPerformance'));
 const KnowledgeBase = lazy(() => import('../pages/KnowledgeBase'));
+const OperationsCalendar = lazy(() => import('../pages/OperationsCalendar'));
+const PublicTracker = lazy(() => import('../pages/PublicTracker'));
 
 const LoadingFallback = () => (
   <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-dark)', color: 'var(--primary)' }}>
@@ -36,8 +38,11 @@ const AnimatedRoutes = () => {
       <AnimatePresence mode="wait">
         <Routes key={location.pathname} location={location}>
           <Route path="/login" element={<Login />} />
+          <Route path="/track" element={<PublicTracker />} />
+          <Route path="/track/:code" element={<PublicTracker />} />
           
           <Route path="/" element={<ProtectedRoute><PageWrapper><Dashboard /></PageWrapper></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><PageWrapper><OperationsCalendar /></PageWrapper></ProtectedRoute>} />
           <Route path="/tours" element={<ProtectedRoute><PageWrapper><ToursManager /></PageWrapper></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><PageWrapper><KnowledgeBase /></PageWrapper></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><PageWrapper><UserManager /></PageWrapper></ProtectedRoute>} />

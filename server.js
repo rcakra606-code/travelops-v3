@@ -180,6 +180,137 @@ app.delete('/api/admin/users/:id', requireSupabaseAdmin, async (req, res) => {
     console.error('Error deleting user:', error);
     res.status(400).json({ success: false, error: error.message });
   }
+
+// --- PUBLIC CLIENT TRACKING ENDPOINT ---
+app.get('/api/public/track/:code', async (req, res) => {
+  const { code } = req.params;
+  if (!code || !code.trim()) {
+    return res.status(400).json({ success: false, error: 'Tracking code is required' });
+  }
+
+  const cleanCode = code.trim();
+
+  try {
+    const client = supabaseAdmin || createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY);
+
+    // 1. Search in Documents (Visas / Passports)
+    const { data: docs } = await client
+      .from('travelops_documents')
+      .select('*')
+      .or(`booking_code.eq.${cleanCode},invoice_number.eq.${cleanCode},shipping_resi.eq.${cleanCode},id.eq.${cleanCode}`)
+      .limit(1);
+
+    if (docs && docs.length > 0) {
+      const d = docs[0];
+      return res.status(200).json({
+        success: true,
+        data: {
+          type: 'document',
+          id: d.id,
+          docType: d.doc_type || 'Visa / Passport',
+          guestName: d.guest_name,
+          country: d.country,
+          processType: d.process_type || 'Normal',
+          receiveDate: d.receive_date,
+          estimatedDone: d.estimated_done,
+          sendDate: d.send_date,
+          bookingCode: d.booking_code,
+          invoiceNumber: d.invoice_number,
+          shippingStatus: d.shipping_status || 'Processing',
+          shippingMethod: d.shipping_method,
+          shippingCourier: d.shipping_courier,
+          shippingResi: d.shipping_resi,
+          shippingNotes: d.shipping_notes,
+          receivedStatus: d.received_status
+        }
+      });
+    }
+
+    // 2. Search in Tours
+    const { data: tours } = await client
+      .from('travelops_tours')
+      .select('*')
+      .or(`id.eq.${cleanCode}`)
+      .limit(1);
+
+    if (tours && tours.length > 0) {
+      const t = tours[0];
+      return res.status(200).json({
+        success: true,
+        data: {
+          type: 'tour',
+          id: t.id,
+          tourCode: t.internals?.tourCode || t.id,
+          bookingCode: t.internals?.bookingCode || t.id,
+          country: t.country,
+          category: t.category,
+          departureDate: t.departure_date,
+          returnDate: t.return_date,
+          paxCount: t.internals?.paxCount || 1,
+          status: t.status,
+          paxList: (t.pax_info || []).map(p => ({ name: p.name, title: p.title }))
+        }
+      });
+    }
+
+    // 3. Search in Hotels
+    const { data: hotels } = await client
+      .from('travelops_hotels')
+      .select('*')
+      .or(`confirmation_number.eq.${cleanCode},id.eq.${cleanCode}`)
+      .limit(1);
+
+    if (hotels && hotels.length > 0) {
+      const h = hotels[0];
+      return res.status(200).json({
+        success: true,
+        data: {
+          type: 'hotel',
+          id: h.id,
+          hotelName: h.hotel_name,
+          region: h.region,
+          checkIn: h.check_in,
+          checkOut: h.check_out,
+          roomType: h.room_type,
+          confirmationNumber: h.confirmation_number,
+          status: h.status
+        }
+      });
+    }
+
+    // 4. Search in Cruises
+    const { data: cruises } = await client
+      .from('travelops_cruises')
+      .select('*')
+      .or(`booking_ref.eq.${cleanCode},id.eq.${cleanCode}`)
+      .limit(1);
+
+    if (cruises && cruises.length > 0) {
+      const c = cruises[0];
+      return res.status(200).json({
+        success: true,
+        data: {
+          type: 'cruise',
+          id: c.id,
+          shipName: c.ship_name,
+          cruiseBrand: c.cruise_brand,
+          bookingRef: c.booking_ref,
+          sailingStart: c.sailing_start,
+          sailingEnd: c.sailing_end,
+          route: c.route,
+          status: c.status
+        }
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: `No records found for tracking reference "${cleanCode}"`
+    });
+  } catch (error) {
+    console.error('Error in public tracking endpoint:', error);
+    res.status(500).json({ success: false, error: 'Internal server error while searching records' });
+  }
 });
 
 

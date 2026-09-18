@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, User, Globe, Clipboard, 
   Receipt, Phone, Ticket, BarChart2, FileText, AlertCircle, Clock, CheckCircle, AlertTriangle,
-  Truck, Inbox, MapPin, Box, ArrowUpDown, Eye
+  Truck, Inbox, MapPin, Box, ArrowUpDown, Eye, Share2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -530,6 +530,19 @@ const Documents = () => {
                                 title="Preview Data"
                               >
                                 <Eye size={16} />
+                              </button>
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.5rem', background: 'rgba(6, 182, 212, 0.12)', color: '#06b6d4' }}
+                                onClick={() => {
+                                  const code = doc.bookingCode || doc.invoiceNumber || doc.shippingResi || doc.id;
+                                  const url = `${window.location.origin}/track/${encodeURIComponent(code)}`;
+                                  navigator.clipboard.writeText(url);
+                                  alert(`Link tracking untuk tamu disalin:\n${url}`);
+                                }}
+                                title="Copy Client Tracking Link"
+                              >
+                                <Share2 size={16} />
                               </button>
                               {canEditRecord(doc.staff) && (
                                 <>

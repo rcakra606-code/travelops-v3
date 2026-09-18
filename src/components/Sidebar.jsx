@@ -18,7 +18,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
   // Automatically open group if a child is active
   useEffect(() => {
     const currentPath = location.pathname;
-    if (['/tours', '/knowledge', '/hotel', '/cruise', '/documents', '/telecom'].includes(currentPath)) {
+    if (['/calendar', '/tours', '/knowledge', '/hotel', '/cruise', '/documents', '/telecom'].includes(currentPath)) {
       setOpenGroups(prev => ({ ...prev, operations: true }));
     }
     if (['/sales', '/productivity', '/corporate', '/overtime', '/staff-performance'].includes(currentPath)) {
@@ -35,6 +35,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
   ];
 
   const operationsItems = [
+    { name: 'Master Calendar', path: '/calendar', icon: <Calendar size={18} /> },
     { name: 'Tours', path: '/tours', icon: <Map size={18} /> },
     { name: 'Destination Intel', path: '/knowledge', icon: <Compass size={18} /> },
     { name: 'Hotels', path: '/hotel', icon: <Building size={18} /> },

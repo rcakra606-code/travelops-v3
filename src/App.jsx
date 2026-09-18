@@ -21,6 +21,7 @@ import ForcePasswordChange from './components/ForcePasswordChange';
 
 import AnimatedRoutes from './components/AnimatedRoutes';
 import CommandPalette from './components/CommandPalette';
+import AiCopilot from './components/AiCopilot';
 
 // Utility helper to compose multiple React context providers cleanly into a thoroughly stacked pipeline
 const composeProviders = (...providers) => {
@@ -57,6 +58,7 @@ function App() {
         <Router>
           <ReminderEngine />
           <CommandPalette />
+          <AiCopilot />
           <AnimatedRoutes />
         </Router>
       </AutoLogout>

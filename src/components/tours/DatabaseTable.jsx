@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
-import { Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers, Shield, Calendar, User, DollarSign, Tag, Plane } from 'lucide-react';
+import { Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers, Shield, Calendar, User, DollarSign, Tag, Plane, Share2 } from 'lucide-react';
 import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import { useAuth } from '../../context/AuthContext';
@@ -308,6 +308,29 @@ const DatabaseTable = ({ onEdit, customData }) => {
                       title="Inspect Details"
                     >
                       <Eye size={15} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const code = tour.bookingCode || tour.tourCode || tour.id;
+                        const url = `${window.location.origin}/track/${encodeURIComponent(code)}`;
+                        navigator.clipboard.writeText(url);
+                        alert(`Link tracking itinerary tamu disalin:\n${url}`);
+                      }} 
+                      style={{ 
+                        background: 'rgba(59, 130, 246, 0.1)', 
+                        color: '#60a5fa', 
+                        border: '1px solid rgba(59, 130, 246, 0.2)', 
+                        padding: '0.4rem', 
+                        borderRadius: '6px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s'
+                      }} 
+                      title="Copy Public Tracking Link"
+                    >
+                      <Share2 size={15} />
                     </button>
                     {canEditRecord(tour.staffName) && (
                       <button 
