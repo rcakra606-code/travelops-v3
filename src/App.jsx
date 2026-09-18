@@ -22,6 +22,8 @@ import ForcePasswordChange from './components/ForcePasswordChange';
 import AnimatedRoutes from './components/AnimatedRoutes';
 import CommandPalette from './components/CommandPalette';
 import AiCopilot from './components/AiCopilot';
+import { ToastProvider } from './context/ToastContext';
+import ToastNotification from './components/ToastNotification';
 
 // Utility helper to compose multiple React context providers cleanly into a thoroughly stacked pipeline
 const composeProviders = (...providers) => {
@@ -47,7 +49,8 @@ const AppProviders = composeProviders(
   HotelProvider,
   OvertimeProvider,
   ProductivityProvider,
-  CorporateProvider
+  CorporateProvider,
+  ToastProvider
 );
 
 function App() {
@@ -59,6 +62,7 @@ function App() {
           <ReminderEngine />
           <CommandPalette />
           <AiCopilot />
+          <ToastNotification />
           <AnimatedRoutes />
         </Router>
       </AutoLogout>

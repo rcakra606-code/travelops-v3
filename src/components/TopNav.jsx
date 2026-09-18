@@ -2,23 +2,58 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTours } from '../context/TourContext';
-import { LogOut, Menu, Moon, Sun, Bell, AlertCircle, Info, Search, Shield, ChevronDown, CheckCircle2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { 
+  LogOut, Menu, Moon, Sun, Bell, AlertCircle, Info, Search, 
+  Shield, ChevronDown, CheckCircle2, Plus, Clock, ChevronRight,
+  Plane, Building, FileText, UserCheck, Sparkles, MapPin
+} from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 
 const TopNav = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { tours } = useTours();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
   const notifRef = useRef(null);
+  const quickCreateRef = useRef(null);
 
-  // Close notifications if clicked outside
+  // International Clocks State
+  const [clocks, setClocks] = useState({
+    jkt: '--:--',
+    tyo: '--:--',
+    lon: '--:--'
+  });
+
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const now = new Date();
+        setClocks({
+          jkt: now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }),
+          tyo: now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }),
+          lon: now.toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' })
+        });
+      } catch (err) {
+        // Fallback if timezone not supported
+      }
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Close dropdowns if clicked outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setShowNotifications(false);
+      }
+      if (quickCreateRef.current && !quickCreateRef.current.contains(event.target)) {
+        setShowQuickCreate(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -34,9 +69,32 @@ const TopNav = ({ toggleSidebar }) => {
     window.dispatchEvent(new CustomEvent('open-command-palette'));
   };
 
+  // Breadcrumb Resolver
+  const getBreadcrumbs = () => {
+    const p = location.pathname;
+    if (p === '/') return [{ section: 'Dashboard', page: 'Overview' }];
+    if (p === '/calendar') return [{ section: 'Operations', page: 'Master Calendar' }];
+    if (p === '/tours') return [{ section: 'Operations', page: 'Tours Manager' }];
+    if (p === '/knowledge') return [{ section: 'Operations', page: 'Destination Intel' }];
+    if (p === '/hotel') return [{ section: 'Operations', page: 'Hotels' }];
+    if (p === '/cruise') return [{ section: 'Operations', page: 'Cruises' }];
+    if (p === '/documents') return [{ section: 'Operations', page: 'Documents & Visas' }];
+    if (p === '/telecom') return [{ section: 'Operations', page: 'Telecom & SIM' }];
+    if (p === '/sales') return [{ section: 'Analytics', page: 'Sales & Targets' }];
+    if (p === '/productivity') return [{ section: 'Analytics', page: 'Productivity' }];
+    if (p === '/corporate') return [{ section: 'Analytics', page: 'Corporate Accounts' }];
+    if (p === '/overtime') return [{ section: 'Operations', page: 'Staff Overtime' }];
+    if (p === '/staff-performance') return [{ section: 'Analytics', page: 'Staff Performance' }];
+    if (p === '/users') return [{ section: 'Administration', page: 'User Management' }];
+    if (p === '/settings') return [{ section: 'Administration', page: 'System Settings' }];
+    if (p === '/profile') return [{ section: 'Account', page: 'User Profile' }];
+    return [{ section: 'TravelOps', page: p.replace('/', '') }];
+  };
+
+  const breadcrumbs = getBreadcrumbs();
+
   // Generate Intelligent Notifications
   const notifications = [];
-  
   if (tours) {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -61,19 +119,29 @@ const TopNav = ({ toggleSidebar }) => {
       }
     });
   }
-
-  // Sort by urgency
   notifications.sort((a, b) => a.type === 'urgent' ? -1 : 1);
 
   return (
-    <header className="top-nav">
-      {/* Left: Hamburger & Quick Search Pill */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, maxWidth: '520px' }}>
+    <header className="top-nav" style={{ height: '70px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 'var(--z-header)' }}>
+      
+      {/* Left: Hamburger + Breadcrumbs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: 0 }}>
         <button className="hamburger-btn" onClick={toggleSidebar} aria-label="Toggle Sidebar">
           <Menu size={20} />
         </button>
 
-        {/* Linear-style Quick Search Pill */}
+        {/* Dynamic Breadcrumbs */}
+        <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8125rem' }}>
+          {breadcrumbs.map((b, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span style={{ color: 'var(--text-subtle)', fontWeight: '500' }}>{b.section}</span>
+              <ChevronRight size={13} color="var(--text-subtle)" />
+              <span style={{ color: 'var(--text-main)', fontWeight: '700' }}>{b.page}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick Search Pill (Ctrl+K) */}
         <button 
           onClick={openCommandPalette}
           className="desktop-only"
@@ -82,60 +150,149 @@ const TopNav = ({ toggleSidebar }) => {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '0.75rem',
-            width: '100%',
-            maxWidth: '380px',
-            padding: '0.45rem 0.85rem',
+            maxWidth: '300px',
+            padding: '0.4rem 0.75rem',
             background: 'rgba(255, 255, 255, 0.04)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
             color: 'var(--text-muted)',
-            fontSize: '0.8125rem',
+            fontSize: '0.775rem',
             cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            textAlign: 'left'
+            marginLeft: '0.75rem'
           }}
-          onMouseOver={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.07)';
-            e.currentTarget.style.borderColor = 'var(--border-hover)';
-          }}
-          onMouseOut={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-            e.currentTarget.style.borderColor = 'var(--border)';
-          }}
+          title="Search anything (Ctrl+K)"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <Search size={15} color="var(--primary)" />
-            <span>Search tours, bookings, pages...</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Search size={14} color="var(--primary)" />
+            <span>Search...</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-            <kbd className="kbd-badge">Ctrl</kbd>
-            <kbd className="kbd-badge">K</kbd>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <kbd className="kbd-badge" style={{ fontSize: '0.65rem' }}>Ctrl</kbd>
+            <kbd className="kbd-badge" style={{ fontSize: '0.65rem' }}>K</kbd>
           </div>
         </button>
       </div>
+
+      {/* Center: Live Travel Clocks (Desktop only) */}
+      <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 1rem' }}>
+        <div className="tz-clock-badge" title="Jakarta Time (WIB)">
+          <span>🇮🇩 JKT</span>
+          <strong>{clocks.jkt}</strong>
+        </div>
+        <div className="tz-clock-badge" title="Tokyo Time (JST)">
+          <span>🇯🇵 TYO</span>
+          <strong>{clocks.tyo}</strong>
+        </div>
+        <div className="tz-clock-badge" title="London Time (BST/GMT)">
+          <span>🇬🇧 LON</span>
+          <strong>{clocks.lon}</strong>
+        </div>
+      </div>
       
-      {/* Right Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+      {/* Right: Quick Create Hub + Notifications + Theme + Profile */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
         
-        {/* System Status Pill (Desktop only) */}
-        <div 
-          className="desktop-only"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.3rem 0.65rem',
-            borderRadius: '9999px',
-            background: 'rgba(16, 185, 129, 0.08)',
-            border: '1px solid rgba(16, 185, 129, 0.2)',
-            fontSize: '0.725rem',
-            fontWeight: '600',
-            color: '#34d399'
-          }}
-          title="All systems live and synchronized"
-        >
-          <span className="pulse-dot pulse-dot-green" />
-          <span>Operational</span>
+        {/* Global "+ Quick Create" Hub */}
+        <div style={{ position: 'relative' }} ref={quickCreateRef}>
+          <button
+            onClick={() => setShowQuickCreate(!showQuickCreate)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.42rem 0.8rem',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+              border: '1px solid rgba(6, 182, 212, 0.35)',
+              color: 'var(--primary)',
+              fontSize: '0.8rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }}
+            title="Create new booking or request"
+          >
+            <Plus size={15} />
+            <span className="desktop-only">Quick Create</span>
+            <ChevronDown size={13} />
+          </button>
+
+          {showQuickCreate && (
+            <div 
+              className="card glass fade-in"
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '0.5rem',
+                width: '230px',
+                padding: '0.4rem',
+                borderRadius: '12px',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+                zIndex: 60
+              }}
+            >
+              <div 
+                onClick={() => { setShowQuickCreate(false); navigate('/tours'); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.65rem',
+                  padding: '0.6rem 0.75rem', borderRadius: '8px',
+                  cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--text-main)',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <Plane size={16} color="#3b82f6" />
+                <span>New Tour Booking</span>
+              </div>
+
+              <div 
+                onClick={() => { setShowQuickCreate(false); navigate('/hotel'); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.65rem',
+                  padding: '0.6rem 0.75rem', borderRadius: '8px',
+                  cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--text-main)',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <Building size={16} color="#f59e0b" />
+                <span>New Hotel Reservation</span>
+              </div>
+
+              <div 
+                onClick={() => { setShowQuickCreate(false); navigate('/documents'); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.65rem',
+                  padding: '0.6rem 0.75rem', borderRadius: '8px',
+                  cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--text-main)',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <FileText size={16} color="#a855f7" />
+                <span>New Visa / Document</span>
+              </div>
+
+              <div 
+                onClick={() => { setShowQuickCreate(false); navigate('/overtime'); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.65rem',
+                  padding: '0.6rem 0.75rem', borderRadius: '8px',
+                  cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--text-main)',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <Clock size={16} color="#f43f5e" />
+                <span>Log Staff Overtime</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Notification Bell */}
@@ -157,8 +314,6 @@ const TopNav = ({ toggleSidebar }) => {
               transition: 'all 0.2s',
               position: 'relative'
             }}
-            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-            onMouseOut={e => e.currentTarget.style.background = showNotifications ? 'rgba(255, 255, 255, 0.08)' : 'transparent'}
             title="System Alerts & Notifications"
           >
             <Bell size={18} />
@@ -193,9 +348,9 @@ const TopNav = ({ toggleSidebar }) => {
               marginTop: '0.65rem',
               width: '340px',
               padding: '0',
-              zIndex: 50,
+              zIndex: 60,
               borderRadius: '12px',
-              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7)',
               border: '1px solid var(--border)'
             }}>
               <div style={{
@@ -287,20 +442,12 @@ const TopNav = ({ toggleSidebar }) => {
             borderRadius: '8px',
             transition: 'all 0.2s'
           }}
-          onMouseOver={e => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-            e.currentTarget.style.color = 'var(--text-main)';
-          }}
-          onMouseOut={e => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--text-muted)';
-          }}
           title={theme === 'dark' ? 'Switch to Light Studio Mode' : 'Switch to Obsidian Dark Mode'}
         >
           {theme === 'dark' ? <Sun size={18} color="#fbbf24" /> : <Moon size={18} color="#6366f1" />}
         </button>
 
-        <div style={{ width: '1px', height: '20px', background: 'var(--border)', margin: '0 0.25rem' }} />
+        <div style={{ width: '1px', height: '20px', background: 'var(--border)', margin: '0 0.2rem' }} />
 
         {/* Profile Pill Trigger */}
         <div 
@@ -308,7 +455,7 @@ const TopNav = ({ toggleSidebar }) => {
           onClick={() => navigate('/profile')} 
           style={{ 
             cursor: 'pointer',
-            padding: '0.35rem 0.5rem',
+            padding: '0.35rem 0.55rem',
             borderRadius: '8px',
             transition: 'background 0.2s',
             display: 'flex',
@@ -318,15 +465,20 @@ const TopNav = ({ toggleSidebar }) => {
           onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
           onMouseOut={e => e.currentTarget.style.background = 'transparent'}
         >
-          <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.8125rem', flexShrink: 0 }}>
+          <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '0.8125rem', flexShrink: 0, position: 'relative' }}>
             {user?.name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'A'}
+            <span style={{
+              position: 'absolute', bottom: '-1px', right: '-1px',
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: '#10b981', border: '2px solid var(--bg-dark)'
+            }} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: '180px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: '160px' }}>
             <span 
               title={user?.name || user?.email || 'Admin'}
               style={{ 
                 fontSize: '0.8125rem', 
-                fontWeight: '600', 
+                fontWeight: '700', 
                 color: 'var(--text-main)', 
                 whiteSpace: 'nowrap', 
                 overflow: 'hidden', 
@@ -335,7 +487,7 @@ const TopNav = ({ toggleSidebar }) => {
             >
               {user?.name || user?.email?.split('@')[0] || 'Admin'}
             </span>
-            <span style={{ fontSize: '0.6875rem', color: 'var(--text-subtle)' }}>
+            <span style={{ fontSize: '0.675rem', color: 'var(--text-subtle)' }}>
               {user?.role || 'Administrator'}
             </span>
           </div>

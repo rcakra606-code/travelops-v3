@@ -40,6 +40,19 @@
   --shadow-card: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
   --shadow-card-hover: 0 20px 40px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
   --shadow-glow: 0 0 20px rgba(6, 182, 212, 0.25);
+  
+  /* Layer & Z-Index Architecture (Anti-Clutter Governance) */
+  --z-base: 1;
+  --z-sticky: 10;
+  --z-header: 20;
+  --z-sidebar: 30;
+  --z-drawer-backdrop: 40;
+  --z-drawer: 50;
+  --z-modal-backdrop: 60;
+  --z-modal: 70;
+  --z-copilot: 80;
+  --z-toast: 90;
+  --z-tooltip: 100;
 }
 
 [data-theme='light'] {
@@ -1056,3 +1069,146 @@ select option {
   body { background: white !important; color: black !important; } 
   * { color: black !important; background: transparent !important; } 
 }
+
+/* ===================================================
+   DESIGN SYSTEM 2.0 - BENTO & ANTI-CLUTTER UTILITIES
+   =================================================== */
+
+/* Bento Grid 2.0 Glass Card */
+.bento-card-glass {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.bento-card-glass:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.bento-neon-glow {
+  position: relative;
+}
+
+.bento-neon-glow::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  opacity: 0.85;
+}
+
+/* Linear-style Breadcrumb Pill */
+.breadcrumb-trail {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.breadcrumb-trail .crumb-active {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+/* Timezone Travel Clock Badge */
+.tz-clock-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tz-clock-badge strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* Slide-Over Drawer Styles */
+.slide-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: var(--z-drawer-backdrop);
+}
+
+.slide-drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
+  z-index: var(--z-drawer);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Toast Container (Sonner style) */
+.toast-floating-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  pointer-events: none;
+  max-width: 420px;
+  width: calc(100vw - 48px);
+}
+
+.toast-item-card {
+  pointer-events: auto;
+  padding: 0.85rem 1.15rem;
+  border-radius: 12px;
+  background: rgba(13, 19, 34, 0.95);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  color: #ffffff;
+  font-size: 0.85rem;
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme='light'] .toast-item-card {
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
