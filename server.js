@@ -180,6 +180,7 @@ app.delete('/api/admin/users/:id', requireSupabaseAdmin, async (req, res) => {
     console.error('Error deleting user:', error);
     res.status(400).json({ success: false, error: error.message });
   }
+});
 
 // --- PUBLIC CLIENT TRACKING ENDPOINT ---
 app.get('/api/public/track/:code', async (req, res) => {
