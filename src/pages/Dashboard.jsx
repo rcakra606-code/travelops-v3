@@ -359,52 +359,33 @@ const Dashboard = () => {
     if (widget.id === 'welcome') {
       return (
         <div key="welcome" className="card bento-card-glass bento-col-12" style={{
-          background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.09) 0%, rgba(99, 102, 241, 0.08) 45%, rgba(13, 19, 34, 0.95) 100%)',
-          border: '1px solid rgba(6, 182, 212, 0.28)',
-          padding: '1.75rem 2rem',
-          boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.12)',
+          padding: '1.15rem 1.5rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '1.5rem',
-          position: 'relative',
-          overflow: 'hidden'
+          gap: '1rem',
+          borderRadius: '12px'
         }}>
-          {/* Subtle ambient decorative glow */}
-          <div style={{
-            position: 'absolute',
-            top: '-50px',
-            right: '10%',
-            width: '240px',
-            height: '240px',
-            background: 'radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 70%)',
-            pointerEvents: 'none',
-            zIndex: 0
-          }} />
-
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.25rem 0.65rem', borderRadius: '9999px', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.75rem' }}>
-              <Sparkles size={13} color="var(--primary)" />
-              <span style={{ fontSize: '0.725rem', fontWeight: '700', color: 'var(--primary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                Operational Command Center
-              </span>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
+                Welcome back, {user?.name || user?.email?.split('@')[0] || 'Operator'}
+              </h2>
+              <span className="badge badge-primary font-mono" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>PRO</span>
             </div>
-            <h1 style={{ margin: '0 0 0.4rem 0', fontSize: '1.85rem', fontWeight: '800', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
-              Welcome back, <span className="gradient-text">{user?.name || user?.email?.split('@')[0] || 'Operator'}</span>
-            </h1>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-              Real-time monitoring for your active tours, hotel blocks, cruises, visa processing, and cellular SIMs.
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Operations pulse: {tourStats.activeBookings + activeCruises + activeHotels} active bookings, {activeDocs} pending documents, and {tourStats.confirmedPax} confirmed travelers.
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
             <button 
               onClick={() => setIsCustomizing(true)}
               className="btn btn-secondary"
-              style={{ fontSize: '0.8125rem', padding: '0.55rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              style={{ fontSize: '0.775rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderRadius: '8px' }}
             >
-              <Settings2 size={15} /> Customize Studio
+              <Settings2 size={14} /> Customize Layout
             </button>
           </div>
         </div>

@@ -21,7 +21,8 @@ const DEFAULT_SETTINGS = {
   smtpPort: 587,
   smtpUser: '',
   smtpPass: '',
-  smtpSenderName: 'TravelOps System'
+  smtpSenderName: 'TravelOps System',
+  notificationEmail: ''
 };
 
 export const SettingsProvider = ({ children }) => {

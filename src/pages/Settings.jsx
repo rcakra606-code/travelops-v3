@@ -45,7 +45,8 @@ const Settings = () => {
     smtpPort: settings.smtpPort || 587,
     smtpUser: settings.smtpUser || '',
     smtpPass: settings.smtpPass || '',
-    smtpSenderName: settings.smtpSenderName || 'TravelOps System'
+    smtpSenderName: settings.smtpSenderName || 'TravelOps System',
+    notificationEmail: settings.notificationEmail || ''
   });
 
   useEffect(() => {
@@ -67,7 +68,8 @@ const Settings = () => {
         smtpPort: settings.smtpPort || 587,
         smtpUser: settings.smtpUser || '',
         smtpPass: settings.smtpPass || '',
-        smtpSenderName: settings.smtpSenderName || 'TravelOps System'
+        smtpSenderName: settings.smtpSenderName || 'TravelOps System',
+        notificationEmail: settings.notificationEmail || ''
       }));
     }
   }, [settings]);
@@ -294,13 +296,13 @@ const Settings = () => {
     const userEmail = formData.smtpUser || settings.smtpUser;
     const userPass = formData.smtpPass || settings.smtpPass;
     const senderName = formData.smtpSenderName || settings.smtpSenderName || 'TravelOps System';
-    const targetRecipient = manualTargetEmail || user?.email || userEmail;
+    const targetRecipient = manualTargetEmail || formData.notificationEmail || settings.notificationEmail || user?.email || userEmail;
 
     let sentCount = 0;
     let failedCount = 0;
     const results = [];
 
-    if (detectedReminders.length > 0 && userEmail && userPass && userEmail !== 'your_email@gmail.com' && targetRecipient) {
+    if (detectedReminders.length > 0 && targetRecipient) {
       for (const rem of detectedReminders) {
         try {
           const res = await fetch('/api/send-email', {
@@ -812,6 +814,22 @@ const Settings = () => {
                         placeholder="TravelOps Operations" 
                         style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
                       />
+                    </div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        Auto-Reminder Recipient Email
+                      </label>
+                      <input 
+                        type="email" 
+                        value={formData.notificationEmail} 
+                        onChange={e => setFormData({...formData, notificationEmail: e.target.value})} 
+                        placeholder={user?.email || "user@dwidayatravel.com"} 
+                        style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+                      />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
+                        Leave blank to automatically deliver reminders to the active logged-in user email ({user?.email || 'current operator'}).
+                      </span>
                     </div>
                   </div>
 

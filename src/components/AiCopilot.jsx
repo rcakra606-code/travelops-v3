@@ -170,38 +170,32 @@ const AiCopilot = () => {
           onClick={() => setIsOpen(true)}
           style={{
             position: 'fixed',
-            bottom: '24px',
-            right: '24px',
+            bottom: '20px',
+            right: '20px',
             zIndex: 9990,
             display: 'flex',
             alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.75rem 1.25rem',
+            gap: '0.5rem',
+            padding: '0.45rem 0.85rem',
             borderRadius: '9999px',
-            background: 'linear-gradient(135deg, #06b6d4 0%, #6366f1 100%)',
+            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.95) 0%, rgba(99, 102, 241, 0.95) 100%)',
             color: '#ffffff',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            boxShadow: '0 8px 30px rgba(6, 182, 212, 0.45)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.45)',
             cursor: 'pointer',
-            fontWeight: '700',
-            fontSize: '0.875rem',
-            transition: 'transform 0.2s, box-shadow 0.2s'
+            fontWeight: '600',
+            fontSize: '0.785rem',
+            transition: 'transform 0.15s, box-shadow 0.15s'
           }}
-          onMouseOver={e => e.currentTarget.style.transform = 'scale(1.04)'}
-          onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
+          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           title="Open TravelOps AI Copilot"
         >
-          <div style={{
-            width: '26px', height: '26px', borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Sparkles size={16} />
-          </div>
+          <Sparkles size={14} />
           <span>AI Copilot</span>
           <span style={{
-            width: '8px', height: '8px', borderRadius: '50%',
-            background: '#4ade80', boxShadow: '0 0 8px #4ade80'
+            width: '6px', height: '6px', borderRadius: '50%',
+            background: '#4ade80'
           }} />
         </button>
       )}
