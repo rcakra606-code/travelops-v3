@@ -18,12 +18,19 @@ const initialTourState = {
   status: 'Pending',
   paxInfo: [],
   financials: {
+    basicTourPrice: 0,
     totalSales: 0,
+    discountSupplier: 0,
+    discountBranch: 0,
     discount: 0,
     profit: 0,
+    totalSellingPrice: 0,
     totalOmset: 0,
+    totalNettPrice: 0,
     cost: 0,
     depositNumber: '',
+    depositAmount: 0,
+    sisaPelunasan: 0,
     invoiceNumber: '',
     discountLink: ''
   }
@@ -44,15 +51,77 @@ const TourWizard = ({ initialData, onComplete, onCancel }) => {
 
   useEffect(() => {
     if (initialData) {
-      setTourData(initialData);
+      const fin = initialData.financials || {};
+      const basicTourPrice = Number(fin.basicTourPrice !== undefined ? fin.basicTourPrice : (fin.totalSales || 0));
+      const discountSupplier = Number(fin.discountSupplier !== undefined ? fin.discountSupplier : (fin.discount || 0));
+      const discountBranch = Number(fin.discountBranch !== undefined ? fin.discountBranch : 0);
+      const profit = Number(fin.profit || 0);
+      const totalSellingPrice = Number(fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : (fin.totalOmset || (basicTourPrice - discountSupplier - discountBranch)));
+      const totalNettPrice = Number(fin.totalNettPrice !== undefined ? fin.totalNettPrice : (fin.cost || (basicTourPrice - discountSupplier - profit)));
+      const depositAmount = Number(fin.depositAmount || 0);
+      const sisaPelunasan = totalSellingPrice - depositAmount;
+
+      // Map paxInfo backwards-compatibility
+      const mappedPaxInfo = Array.isArray(initialData.paxInfo)
+        ? initialData.paxInfo.map(p => ({
+            ...p,
+            basicPrice: p.basicPrice !== undefined ? p.basicPrice : (p.sellingPrice || ''),
+            sellingPrice: p.sellingPrice !== undefined ? p.sellingPrice : (p.basicPrice || ''),
+            discountSupplier: p.discountSupplier !== undefined ? p.discountSupplier : (p.discount || ''),
+            discountBranch: p.discountBranch !== undefined ? p.discountBranch : ''
+          }))
+        : [];
+
+      setTourData({
+        ...initialData,
+        paxInfo: mappedPaxInfo,
+        financials: {
+          ...fin,
+          basicTourPrice,
+          totalSales: basicTourPrice,
+          discountSupplier,
+          discountBranch,
+          discount: discountSupplier + discountBranch,
+          profit,
+          totalSellingPrice,
+          totalOmset: totalSellingPrice,
+          totalNettPrice,
+          cost: totalNettPrice,
+          depositNumber: fin.depositNumber || '',
+          depositAmount,
+          sisaPelunasan
+        }
+      });
     }
   }, [initialData]);
 
+  const [errors, setErrors] = useState({});
+
   const updateTourData = (newData) => {
     setTourData(prev => ({ ...prev, ...newData }));
+    // If financials or depositNumber is updated, clear errors if present
+    if (newData.financials?.depositNumber?.trim()) {
+      setErrors(prev => ({ ...prev, depositNumber: null }));
+    }
+  };
+
+  const validateStep3 = () => {
+    const depositNumber = tourData.financials?.depositNumber ? String(tourData.financials.depositNumber).trim() : '';
+    if (!depositNumber) {
+      setErrors(prev => ({ ...prev, depositNumber: 'Nomor DP (Deposit Number) wajib diisi untuk disimpan ke database.' }));
+      return false;
+    }
+    setErrors(prev => ({ ...prev, depositNumber: null }));
+    return true;
   };
 
   const handleNext = () => {
+    if (currentStep === 3) {
+      if (!validateStep3()) {
+        alert('⚠️ Perhatian: Nomor DP wajib diisi sebelum melanjutkan ke tahap konfirmasi!');
+        return;
+      }
+    }
     if (currentStep < 4) {
       setCurrentStep(prev => prev + 1);
     }
@@ -66,14 +135,24 @@ const TourWizard = ({ initialData, onComplete, onCancel }) => {
     }
   };
 
-  const handleSubmit = () => {
-    const dataToSave = { ...tourData, updatedBy: user?.name || 'System' };
-    if (initialData && initialData.id) {
-      updateTour(initialData.id, dataToSave);
-    } else {
-      addTour(dataToSave);
+  const handleSubmit = async () => {
+    if (!validateStep3()) {
+      setCurrentStep(3);
+      alert('⚠️ Perhatian: Nomor DP wajib terinput pada database! Silakan lengkapi Nomor DP di Step Financials.');
+      return;
     }
-    onComplete();
+
+    try {
+      const dataToSave = { ...tourData, updatedBy: user?.name || 'System' };
+      if (initialData && initialData.id) {
+        await updateTour(initialData.id, dataToSave);
+      } else {
+        await addTour(dataToSave);
+      }
+      onComplete();
+    } catch (err) {
+      alert('Gagal menyimpan booking: ' + err.message);
+    }
   };
 
   const renderStep = () => {
@@ -83,9 +162,9 @@ const TourWizard = ({ initialData, onComplete, onCancel }) => {
       case 2:
         return <Step2PaxInfo data={tourData} updateData={updateTourData} />;
       case 3:
-        return <Step3Financials data={tourData} updateData={updateTourData} />;
+        return <Step3Financials data={tourData} updateData={updateTourData} errors={errors} setErrors={setErrors} />;
       case 4:
-        return <Step4Confirmation data={tourData} />;
+        return <Step4Confirmation data={tourData} onBackToFinancials={() => setCurrentStep(3)} errors={errors} />;
       default:
         return <Step1TourInfo data={tourData} updateData={updateTourData} />;
     }

@@ -476,7 +476,27 @@ export const KnowledgeProvider = ({ children }) => {
     if (cleaned.startsWith('```json')) cleaned = cleaned.substring(7);
     else if (cleaned.startsWith('```')) cleaned = cleaned.substring(3);
     if (cleaned.endsWith('```')) cleaned = cleaned.substring(0, cleaned.length - 3);
-    return JSON.parse(cleaned.trim());
+    cleaned = cleaned.trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (err) {
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        try {
+          return JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
+        } catch (e) {}
+      }
+      const firstBracket = cleaned.indexOf('[');
+      const lastBracket = cleaned.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        try {
+          return JSON.parse(cleaned.substring(firstBracket, lastBracket + 1));
+        } catch (e) {}
+      }
+      throw err;
+    }
   };
 
   const callGeminiDirect = async (pdfBase64Clean, prompt) => {
@@ -484,7 +504,7 @@ export const KnowledgeProvider = ({ children }) => {
     if (!apiKey) {
       throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
     }
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
     
     let lastError = null;
     for (const model of models) {
@@ -495,8 +515,8 @@ export const KnowledgeProvider = ({ children }) => {
             {
               parts: [
                 {
-                  inline_data: {
-                    mime_type: 'application/pdf',
+                  inlineData: {
+                    mimeType: 'application/pdf',
                     data: pdfBase64Clean
                   }
                 },
@@ -507,7 +527,7 @@ export const KnowledgeProvider = ({ children }) => {
             }
           ],
           generationConfig: {
-            response_mime_type: 'application/json'
+            responseMimeType: 'application/json'
           }
         };
 
@@ -541,6 +561,7 @@ export const KnowledgeProvider = ({ children }) => {
     if (cleanBase64.includes('base64,')) {
       cleanBase64 = cleanBase64.split('base64,')[1];
     }
+    cleanBase64 = cleanBase64.replace(/\s+/g, '');
 
     const extractionPrompt = `
 You are an expert travel operations intelligence assistant for an international tour operator.
@@ -620,15 +641,29 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
 IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without any introductory or commentary text.
 `;
 
+    // 1. First attempt: Server-side API endpoint (seamless for live production deployments)
+    try {
+      const serverRes = await fetch('/api/knowledge/parse-itinerary-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64: cleanBase64, fileName, prompt: extractionPrompt })
+      });
+      if (serverRes.ok) {
+        const json = await serverRes.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+    } catch (serverErr) {
+      console.warn('[PDF PARSER] Server endpoint unavailable, falling back to direct client call:', serverErr.message);
+    }
+
+    // 2. Second attempt: Client-side direct call to Gemini
     return await callGeminiDirect(cleanBase64, extractionPrompt);
   };
 
   // 2. Generate with AI on demand
   const generateWithAi = async (query, type, context = '') => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
-    }
     const prompt = `
 You are a senior travel operations manager. Provide a comprehensive, accurate intelligence dossier for the following ${type}: "${query}".
 ${context ? `Additional Context: ${context}` : ''}
@@ -704,7 +739,29 @@ ${type === 'country' ? `
 `}
 `;
 
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // 1. Try server-side API proxy first
+    try {
+      const serverRes = await fetch('/api/knowledge/generate-destination-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, type, context })
+      });
+      if (serverRes.ok) {
+        const json = await serverRes.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+    } catch (serverErr) {
+      console.warn('[AI GENERATOR] Server proxy unavailable, trying client direct call:', serverErr.message);
+    }
+
+    // 2. Client-side fallback
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('VITE_GEMINI_API_KEY is not configured in .env and backend server is unreachable.');
+    }
+    const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
     let lastError = null;
 
     for (const model of models) {
@@ -715,7 +772,7 @@ ${type === 'country' ? `
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { response_mime_type: 'application/json' }
+            generationConfig: { responseMimeType: 'application/json' }
           })
         });
         if (!res.ok) {
@@ -738,9 +795,6 @@ ${type === 'country' ? `
 
   // Audits a single entity against current travel rules
   const checkEntityFreshness = async (entity, type) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
-
     const auditPrompt = `
 You are an expert international travel operations intelligence auditor.
 Carefully audit the current stored travel data for this ${type}: "${entity.name || entity.title}".
@@ -776,18 +830,50 @@ Respond ONLY with valid JSON matching this schema:
 }
 `;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: auditPrompt }] }],
-        generationConfig: { response_mime_type: 'application/json' }
-      })
-    });
-    const resJson = await res.json();
-    const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return cleanJsonOutput(rawText);
+    // 1. Try server-side audit proxy first
+    try {
+      const serverRes = await fetch('/api/knowledge/audit-entity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity, type, prompt: auditPrompt })
+      });
+      if (serverRes.ok) {
+        const json = await serverRes.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+    } catch (serverErr) {
+      console.warn('[AUDIT] Server audit endpoint unavailable, trying direct client call:', serverErr.message);
+    }
+
+    // 2. Client-side fallback
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is not configured in .env and backend is unreachable');
+    const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
+    let lastError = null;
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: auditPrompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+        });
+        if (!res.ok) throw new Error(`Model ${model} status ${res.status}`);
+        const resJson = await res.json();
+        const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) return cleanJsonOutput(rawText);
+      } catch (err) {
+        lastError = err;
+        console.warn(`checkEntityFreshness on ${model} failed:`, err.message);
+      }
+    }
+    throw lastError || new Error('Failed to audit entity with Gemini');
   };
 
   // Run batch audit on all knowledge base records

@@ -243,7 +243,70 @@ const Settings = () => {
     };
 
     const targetIntervals = [30, 15, 7, 5, 3, 2, 1, 0];
+    const uninvoicedIntervals = [30, 20, 15, 10];
     const detectedReminders = [];
+    const detectedUninvoicedTours = [];
+
+    // Helper to extract customer/guest name details
+    const getCustomerName = (item, type) => {
+      if (type === 'Tour') {
+        if (Array.isArray(item.paxInfo) && item.paxInfo.length > 0) {
+          const names = item.paxInfo
+            .map(p => {
+              if (p.name && typeof p.name === 'string') return p.name.trim();
+              const full = [p.title, p.firstName, p.lastName].filter(Boolean).join(' ').trim();
+              return full || null;
+            })
+            .filter(Boolean);
+
+          if (names.length === 1) return names[0];
+          if (names.length > 1) return `${names[0]} (+${names.length - 1} pax)`;
+        }
+        return item.clientName || item.customerName || item.picName || item.internals?.clientName || '-';
+      } else {
+        // Cruise
+        if (item.picName && item.picName.trim()) {
+          const extraPax = (item.paxCount > 1) ? ` (+${item.paxCount - 1} pax)` : '';
+          return `${item.picName.trim()}${extraPax}`;
+        }
+        if (Array.isArray(item.participants) && item.participants.length > 0) {
+          const first = item.participants[0];
+          const name = typeof first === 'string' ? first : (first.name || first.picName);
+          if (name) {
+            return `${name}${item.participants.length > 1 ? ` (+${item.participants.length - 1} pax)` : ''}`;
+          }
+        }
+        return item.email || '-';
+      }
+    };
+
+    // Helper to extract product details
+    const getProductDetails = (item, type) => {
+      if (type === 'Tour') {
+        const dest = item.country || item.destination || '-';
+        const cat = item.category ? `[${item.category}]` : '';
+        const name = item.packageName || item.tourName || '';
+        if (name && name !== dest) {
+          return `${dest} • ${name} ${cat}`.trim();
+        }
+        return `${dest} ${cat}`.trim();
+      } else {
+        // Cruise
+        const brand = item.cruiseBrand || 'Cruise';
+        const ship = item.shipName || '';
+        const route = item.route ? `(${item.route})` : '';
+        return `${brand} - ${ship} ${route}`.trim();
+      }
+    };
+
+    // Helper to extract handling staff name
+    const getHandlingStaff = (item, type) => {
+      if (type === 'Tour') {
+        return item.staffName || item.internals?.staffName || item.tourLeader || item.internals?.tourLeader || 'Unassigned';
+      } else {
+        return item.staff || item.picName || 'Unassigned';
+      }
+    };
 
     const checkItem = (item, type) => {
       const departureDate = type === 'Tour' ? item.departureDate : item.sailingStart;
@@ -262,25 +325,61 @@ const Settings = () => {
         ? (item.packageName || item.tourName || item.destination || code)
         : (item.shipName || item.cruiseBrand || code);
 
+      const status = item.status || 'Active';
+      if (['Cancel', 'Cancelled', 'Past Date'].includes(status)) return;
+
+      const customerName = getCustomerName(item, type);
+      const productDetails = getProductDetails(item, type);
+      const handlingStaff = getHandlingStaff(item, type);
+
+      // 1. Check for tours pending invoicing in tempo 30, 20, 15, and 10 days before departure
+      if (type === 'Tour' && diffDep !== null && uninvoicedIntervals.includes(diffDep)) {
+        const hasInvoice = Boolean(item.financials?.invoiceNumber && item.financials.invoiceNumber.trim() !== '');
+        if (!hasInvoice) {
+          detectedUninvoicedTours.push({
+            code,
+            title,
+            productDetails,
+            customerName,
+            handlingStaff,
+            destination: item.country || item.destination || '-',
+            targetDate: departureDate,
+            milestone: diffDep === 10 ? '🚨 H-10 URGENT: Belum Di-Invoice' : diffDep === 15 ? '⚡ H-15 WARNING: Belum Di-Invoice' : diffDep === 20 ? '⚠️ H-20 PERHATIAN: Belum Di-Invoice' : '📋 H-30 NOTICE: Belum Di-Invoice',
+            daysRemaining: diffDep,
+            pax: item.paxCount || (item.paxInfo ? item.paxInfo.length : 1)
+          });
+        }
+      }
+
+      // 2. Regular departure milestone
       if (diffDep !== null && targetIntervals.includes(diffDep)) {
         detectedReminders.push({
           type,
           code,
           title,
+          productDetails,
+          customerName,
+          handlingStaff,
           targetDate: departureDate,
           milestone: diffDep === 0 ? 'Departure Today (Day 0)' : `${diffDep} Day${diffDep > 1 ? 's' : ''} to Departure`,
-          daysRemaining: diffDep
+          daysRemaining: diffDep,
+          pax: item.paxCount || (item.paxInfo ? item.paxInfo.length : 1)
         });
       }
 
+      // 3. Return day milestone
       if (diffRet === 0) {
         detectedReminders.push({
           type,
           code,
           title,
+          productDetails,
+          customerName,
+          handlingStaff,
           targetDate: returnDate,
           milestone: 'Return Day (Day 0)',
-          daysRemaining: 0
+          daysRemaining: 0,
+          pax: item.paxCount || 1
         });
       }
     };
@@ -302,44 +401,171 @@ const Settings = () => {
     let failedCount = 0;
     const results = [];
 
-    if (detectedReminders.length > 0 && targetRecipient) {
-      for (const rem of detectedReminders) {
-        try {
-          const res = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: targetRecipient,
-              subject: `[MANUAL REMINDER] ${rem.type} ${rem.code} - ${rem.milestone}`,
-              text: `TravelOps Manual Reminder Dispatch\n\nType: ${rem.type}\nItem: ${rem.title} (${rem.code})\nMilestone: ${rem.milestone}\nTarget Date: ${rem.targetDate}\n\nProcessed at: ${new Date().toLocaleString()}`,
-              html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                  <h3 style="color: #0284c7; margin-top: 0;">⚡ TravelOps Manual Reminder Notice</h3>
-                  <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
-                    <p style="margin: 4px 0;"><strong>Category:</strong> ${rem.type}</p>
-                    <p style="margin: 4px 0;"><strong>Booking/Tour Code:</strong> ${rem.code}</p>
-                    <p style="margin: 4px 0;"><strong>Name / Title:</strong> ${rem.title}</p>
-                    <p style="margin: 4px 0;"><strong>Milestone:</strong> <span style="color: #0284c7; font-weight: 600;">${rem.milestone}</span></p>
-                    <p style="margin: 4px 0;"><strong>Date:</strong> ${rem.targetDate}</p>
-                  </div>
-                  <p style="font-size: 0.8rem; color: #64748b;">Manual Trigger executed by ${user?.name || user?.email || 'Admin'} at ${new Date().toLocaleString()}</p>
-                </div>
-              `,
-              smtpConfig: { host, port, user: userEmail, pass: userPass, senderName }
-            })
+    const totalDetected = detectedReminders.length + detectedUninvoicedTours.length;
+
+    if (totalDetected > 0 && targetRecipient) {
+      // Build 1 consolidated email containing all detected milestones and uninvoiced alerts
+      const emailHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
+          <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 24px;">⚡</span>
+              <div>
+                <h2 style="margin: 0; color: #0f172a; font-size: 20px; font-weight: 800;">TravelOps Operations</h2>
+                <p style="margin: 0; font-size: 12px; color: #64748b;">Manual Reminders Scan Dispatch</p>
+              </div>
+            </div>
+            <div style="text-align: right; display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
+              ${detectedUninvoicedTours.length > 0 ? `
+                <span style="background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 6px; border: 1px solid #f87171;">
+                  ⚠️ ${detectedUninvoicedTours.length} Uninvoiced Tour${detectedUninvoicedTours.length > 1 ? 's' : ''}
+                </span>
+              ` : ''}
+              <span style="background: #e0f2fe; color: #0284c7; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px;">
+                ${detectedReminders.length} Milestone${detectedReminders.length > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          <p style="font-size: 14px; color: #334155; margin-bottom: 16px;">
+            Manual operations scan executed by <strong>${user?.name || user?.email || 'Admin'}</strong> on ${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString()}:
+          </p>
+
+          ${detectedUninvoicedTours.length > 0 ? `
+            <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 10px; padding: 14px; margin-bottom: 20px;">
+              <h3 style="margin: 0 0 8px 0; color: #9f1239; font-size: 14px; font-weight: 800;">
+                🚨 Peringatan: ${detectedUninvoicedTours.length} Tour Belum Di-Invoicing (Tempo H-30, H-20, H-15, H-10)
+              </h3>
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 6px; border: 1px solid #fecdd3;">
+                <thead>
+                  <tr style="background: #ffe4e6; color: #881337; text-align: left;">
+                    <th style="padding: 10px 8px; font-weight: 700;">Kode</th>
+                    <th style="padding: 10px 8px; font-weight: 700;">Detail Produk</th>
+                    <th style="padding: 10px 8px; font-weight: 700;">Pelanggan</th>
+                    <th style="padding: 10px 8px; font-weight: 700;">Staff Handling</th>
+                    <th style="padding: 10px 8px; font-weight: 700;">Tgl Berangkat &amp; Tempo</th>
+                    <th style="padding: 10px 8px; font-weight: 700;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${detectedUninvoicedTours.map(t => `
+                    <tr style="border-bottom: 1px solid #ffe4e6;">
+                      <td style="padding: 10px 8px; font-weight: bold; font-family: monospace;">
+                        ${t.code}
+                        <div style="font-size: 11px; color: #64748b; font-family: sans-serif; font-weight: normal;">${t.pax} Pax</div>
+                      </td>
+                      <td style="padding: 10px 8px; color: #334155;">
+                        <strong>${t.productDetails}</strong>
+                      </td>
+                      <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
+                        👤 ${t.customerName}
+                      </td>
+                      <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
+                        💼 ${t.handlingStaff}
+                      </td>
+                      <td style="padding: 10px 8px;">
+                        <div style="font-family: monospace; color: #0284c7; font-weight: 700; margin-bottom: 3px;">${t.targetDate}</div>
+                        <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10.5px; background: #fee2e2; color: #b91c1c;">
+                          ${t.milestone}
+                        </span>
+                      </td>
+                      <td style="padding: 10px 8px; color: #b91c1c; font-size: 11px; font-weight: 600;">
+                        Segera proses invoice di menu Tours
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+
+          ${detectedReminders.length > 0 ? `
+            <h3 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px; font-weight: 700;">
+              📅 Jadwal Keberangkatan &amp; Kepulangan Operasional
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+              <thead>
+                <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left;">
+                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Type &amp; Code</th>
+                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Detail Produk</th>
+                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Pelanggan</th>
+                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Staff Handling</th>
+                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Target Date</th>
+                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Milestone</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detectedReminders.map(rem => `
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 10px 8px; font-weight: 600; color: #0f172a;">
+                      <span style="font-size: 11px; color: #64748b; display: block;">${rem.type}</span>
+                      ${rem.code}
+                    </td>
+                    <td style="padding: 10px 8px; color: #334155;">
+                      <strong>${rem.productDetails}</strong>
+                      <div style="font-size: 11px; color: #64748b;">Pax: ${rem.pax || 1}</div>
+                    </td>
+                    <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
+                      👤 ${rem.customerName}
+                    </td>
+                    <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
+                      💼 ${rem.handlingStaff}
+                    </td>
+                    <td style="padding: 10px 8px; font-family: monospace; color: #0284c7; font-weight: 700;">${rem.targetDate}</td>
+                    <td style="padding: 10px 8px;">
+                      <span style="background: ${rem.daysRemaining === 0 ? '#fee2e2' : rem.daysRemaining <= 3 ? '#fef3c7' : '#ecfdf5'}; color: ${rem.daysRemaining === 0 ? '#b91c1c' : rem.daysRemaining <= 3 ? '#b45309' : '#047857'}; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
+                        ${rem.milestone}
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #64748b;">
+              Recipient: <strong>${targetRecipient}</strong> • Dispatched manually via ${host}:${port}
+            </p>
+          </div>
+        </div>
+      `;
+
+      const manualSubject = detectedUninvoicedTours.length > 0
+        ? `[MANUAL REMINDER - ACTION REQUIRED] TravelOps: ${detectedUninvoicedTours.length} Tour Belum Di-Invoice & Milestones`
+        : `[MANUAL REMINDER] TravelOps Operations Milestones (${detectedReminders.length} Due)`;
+
+      try {
+        const res = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: targetRecipient,
+            subject: manualSubject,
+            text: `TravelOps Manual Reminders Notice\n\nRecipient: ${targetRecipient}`,
+            html: emailHtml,
+            category: 'manual_reminder',
+            smtpConfig: (userEmail && userPass) ? { host, port, user: userEmail, pass: userPass, senderName } : undefined
+          })
+        });
+
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && d.success) {
+          sentCount = detectedReminders.length;
+          detectedReminders.forEach(rem => {
+            results.push({ ...rem, status: 'sent', detail: `Delivered in consolidated email digest to ${targetRecipient}` });
           });
-          const d = await res.json().catch(() => ({}));
-          if (res.ok && d.success) {
-            sentCount++;
-            results.push({ ...rem, status: 'sent', detail: d.message || 'Delivered successfully' });
-          } else {
-            failedCount++;
+        } else {
+          failedCount = detectedReminders.length;
+          detectedReminders.forEach(rem => {
             results.push({ ...rem, status: 'failed', detail: d.error || 'Failed delivery' });
-          }
-        } catch (e) {
-          failedCount++;
-          results.push({ ...rem, status: 'failed', detail: e.message || 'Network error' });
+          });
         }
+      } catch (e) {
+        failedCount = detectedReminders.length;
+        detectedReminders.forEach(rem => {
+          results.push({ ...rem, status: 'failed', detail: e.message || 'Network error' });
+        });
       }
     } else {
       detectedReminders.forEach(rem => {
@@ -356,6 +582,7 @@ const Settings = () => {
       checkedTours: tourList.length,
       checkedCruises: cruiseList.length,
       matchedReminders: results,
+      uninvoicedTours: detectedUninvoicedTours,
       sentCount,
       failedCount,
       recipient: targetRecipient || 'None specified'
@@ -364,13 +591,11 @@ const Settings = () => {
     setManualTriggerReport(report);
     setManualTriggerStatus('completed');
     
-    // Broadcast event to sync ReminderEngine toast & logs
-    window.dispatchEvent(new CustomEvent('trigger-reminders-check'));
-
+    // Log action (no duplicate window.dispatchEvent to prevent second email dispatch)
     logSystemAction(
       user, 
       'Manual Reminders Triggered', 
-      `Scanned ${tourList.length} tours & ${cruiseList.length} cruises. Found ${results.length} reminder milestones (${sentCount} sent, ${failedCount} failed).`
+      `Scanned ${tourList.length} tours & ${cruiseList.length} cruises. Found ${results.length} milestones & ${detectedUninvoicedTours.length} uninvoiced tours (${sentCount > 0 ? 'Consolidated email dispatched' : 'No email dispatched'}).`
     );
   };
 
@@ -833,7 +1058,7 @@ const Settings = () => {
                     </div>
                   </div>
 
-                  {/* Automated Reminders Checkbox */}
+                  {/* Automated Reminders Checkbox & Schedule Description */}
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
                     <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule</h3>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
@@ -845,9 +1070,20 @@ const Settings = () => {
                       />
                       Enable automated email reminders for Tours & Cruises
                     </label>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem', marginLeft: '1.9rem' }}>
-                      Reminders are automatically sent at 30, 15, 7, 5, 3, 2, 1 days before departure, on departure day, and on return day.
-                    </p>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.65rem', marginLeft: '1.9rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b', fontWeight: '600' }}>
+                        <span>⚠️</span> Reminder Tour Belum Di-Invoicing:
+                      </div>
+                      <p style={{ margin: 0, paddingLeft: '1.4rem', color: 'var(--text-main)' }}>
+                        Otomatis mengirimkan email peringatan untuk tour yang <strong>belum memiliki Invoice</strong> pada tempo <strong>30, 20, 15, dan 10 hari</strong> sebelum tanggal keberangkatan.
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '600', marginTop: '0.25rem' }}>
+                        <span>📅</span> Milestone Operasional Umum:
+                      </div>
+                      <p style={{ margin: 0, paddingLeft: '1.4rem' }}>
+                        Reminder otomatis pada H-30, H-15, H-7, H-5, H-3, H-2, H-1, hari keberangkatan, dan hari kepulangan.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Live Test Email Console */}
@@ -1007,17 +1243,61 @@ const Settings = () => {
                           <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Calendar size={16} color="var(--primary)" /> Scan Results (Executed at {manualTriggerReport.timestamp})
                           </span>
-                          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem' }}>
+                          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
                             <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.2rem 0.6rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
                               Checked: <strong>{manualTriggerReport.checkedTours}</strong> Tours • <strong>{manualTriggerReport.checkedCruises}</strong> Cruises
                             </span>
+                            {manualTriggerReport.uninvoicedTours && manualTriggerReport.uninvoicedTours.length > 0 && (
+                              <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: '700', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                ⚠️ Belum Invoicing: {manualTriggerReport.uninvoicedTours.length} Tour
+                              </span>
+                            )}
                             <span style={{ background: manualTriggerReport.matchedReminders.length > 0 ? 'rgba(2, 132, 199, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: manualTriggerReport.matchedReminders.length > 0 ? 'var(--primary)' : 'var(--success)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: '600' }}>
-                              Due Reminders: {manualTriggerReport.matchedReminders.length}
+                              Due Milestones: {manualTriggerReport.matchedReminders.length}
                             </span>
                           </div>
                         </div>
 
-                        {manualTriggerReport.matchedReminders.length === 0 ? (
+                        {/* Uninvoiced Tours Alert Box if detected */}
+                        {manualTriggerReport.uninvoicedTours && manualTriggerReport.uninvoicedTours.length > 0 && (
+                          <div style={{ marginBottom: '1.25rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', padding: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                              <strong style={{ color: '#ef4444', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                🚨 Tour Belum Di-Invoicing (H-30, H-20, H-15, H-10)
+                              </strong>
+                              <span style={{ fontSize: '0.75rem', color: '#f87171' }}>Segera Terbitkan Invoice</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {manualTriggerReport.uninvoicedTours.map((u, uIdx) => (
+                                <div key={uIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.2)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                  <div style={{ flex: '1 1 300px' }}>
+                                    <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                                      {u.code} — {u.productDetails || u.title}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                      👤 Pelanggan: <strong style={{ color: 'var(--text-main)' }}>{u.customerName || '-'}</strong> • 💼 Staff PIC: <strong style={{ color: 'var(--primary)' }}>{u.handlingStaff || '-'}</strong>
+                                    </div>
+                                    <div style={{ fontSize: '0.725rem', color: 'var(--text-subtle)', marginTop: '0.1rem' }}>
+                                      Tgl Berangkat: <strong>{u.targetDate}</strong> • Pax: {u.pax}
+                                    </div>
+                                  </div>
+                                  <span style={{ 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: '700', 
+                                    padding: '0.25rem 0.6rem', 
+                                    borderRadius: '4px',
+                                    background: u.daysRemaining === 10 ? 'rgba(239, 68, 68, 0.2)' : u.daysRemaining === 15 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+                                    color: u.daysRemaining === 10 ? '#ef4444' : u.daysRemaining === 15 ? '#f97316' : '#eab308'
+                                  }}>
+                                    {u.milestone}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {manualTriggerReport.matchedReminders.length === 0 && (!manualTriggerReport.uninvoicedTours || manualTriggerReport.uninvoicedTours.length === 0) ? (
                           <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--success)', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                             <CheckCircle2 size={24} style={{ display: 'block', margin: '0 auto 0.5rem auto' }} />
                             <strong style={{ display: 'block', fontSize: '0.95rem' }}>All Tours & Cruises Up to Date</strong>
@@ -1035,10 +1315,10 @@ const Settings = () => {
                               <span>Target: <code>{manualTriggerReport.recipient}</code></span>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '250px', overflowY: 'auto' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '280px', overflowY: 'auto' }}>
                               {manualTriggerReport.matchedReminders.map((rem, idx) => (
                                 <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.65rem 0.9rem', gap: '1rem', flexWrap: 'wrap' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 320px' }}>
                                     <span style={{ 
                                       fontSize: '0.7rem', 
                                       fontWeight: '700', 
@@ -1051,10 +1331,13 @@ const Settings = () => {
                                     </span>
                                     <div>
                                       <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                                        {rem.code} — {rem.title}
+                                        {rem.code} — {rem.productDetails || rem.title}
                                       </div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-                                        Target Date: {rem.targetDate}
+                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                        👤 Pelanggan: <strong style={{ color: 'var(--text-main)' }}>{rem.customerName || '-'}</strong> • 💼 Staff: <strong style={{ color: 'var(--primary)' }}>{rem.handlingStaff || '-'}</strong>
+                                      </div>
+                                      <div style={{ fontSize: '0.725rem', color: 'var(--text-subtle)' }}>
+                                        Target Date: <strong>{rem.targetDate}</strong>
                                       </div>
                                     </div>
                                   </div>

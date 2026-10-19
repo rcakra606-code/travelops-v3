@@ -5,6 +5,8 @@ import {
   HelpCircle, Globe, Plane, ShieldCheck, ChevronDown
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 
 const QUICK_PROMPTS = [
   { icon: '💬', label: 'Draft WA Reminder Pelunasan', prompt: 'Tolong buatkan template pesan WhatsApp yang ramah dan profesional kepada tamu untuk reminder pelunasan tour group yang jatuh tempo H-7 keberangkatan.' },
@@ -23,6 +25,7 @@ Your job is to assist travel consultants, tour operators, and reservation staff 
 `;
 
 const AiCopilot = () => {
+  const { user, loading: authLoading } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -41,6 +44,22 @@ const AiCopilot = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Personalize welcome message once user profile is loaded
+  useEffect(() => {
+    if (user?.name) {
+      setMessages(prev => {
+        if (prev.length === 1 && prev[0].role === 'assistant') {
+          return [{
+            role: 'assistant',
+            content: `Halo ${user.name}! Saya **TravelOps AI Copilot** yang terhubung langsung dengan Google Gemini. Ada yang bisa saya bantu terkait destinasi, syarat visa, rute tour, atau operasional hari ini?`,
+            timestamp: prev[0].timestamp
+          }];
+        }
+        return prev;
+      });
+    }
+  }, [user?.name]);
+
   // Auto scroll to bottom
   useEffect(() => {
     if (isOpen) {
@@ -55,20 +74,26 @@ const AiCopilot = () => {
     }
   }, [isOpen]);
 
-  // Hide on public tracker if desired (or keep accessible)
-  if (location.pathname.startsWith('/track')) {
+  // Support global trigger event to open AI copilot
+  useEffect(() => {
+    const handleOpenAi = () => setIsOpen(true);
+    window.addEventListener('open-ai-copilot', handleOpenAi);
+    return () => window.removeEventListener('open-ai-copilot', handleOpenAi);
+  }, []);
+
+  // AI Feature is strictly available ONLY to authenticated/signed-in users
+  if (authLoading || !user || location.pathname.startsWith('/track') || location.pathname === '/login') {
     return null;
   }
 
   const handleSendMessage = async (textToSend) => {
-    const text = textToSend || inputMessage;
-    if (!text.trim() || loading) return;
-
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      alert('VITE_GEMINI_API_KEY is not configured in .env');
+    if (!user) {
+      alert('Sesi Anda tidak valid. Silakan login untuk menggunakan AI Copilot.');
       return;
     }
+
+    const text = textToSend || inputMessage;
+    if (!text.trim() || loading) return;
 
     const userMsg = {
       role: 'user',
@@ -82,45 +107,81 @@ const AiCopilot = () => {
     setLoading(true);
 
     try {
-      // Build conversation payload for Gemini
-      const conversationContents = [
-        {
-          role: 'user',
-          parts: [{ text: `${SYSTEM_PROMPT}\n\nUser Question: ${text}` }]
-        }
-      ];
-
-      // Try gemini-2.5-flash then fallback to gemini-2.0-flash
-      const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
       let responseText = null;
 
-      for (const model of models) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: conversationContents,
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 2048
-              }
-            })
-          });
+      // 1. Primary Strategy: Call secure backend proxy endpoint
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = { 'Content-Type': 'application/json' };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
 
-          if (res.ok) {
-            const data = await res.json();
-            responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (responseText) break;
+        const backendRes = await fetch('/api/ai/copilot-chat', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            message: text,
+            history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+            userContext: {
+              name: user?.name,
+              email: user?.email,
+              role: user?.role
+            }
+          })
+        });
+
+        if (backendRes.ok) {
+          const backendData = await backendRes.json();
+          if (backendData.success && backendData.text) {
+            responseText = backendData.text;
           }
-        } catch (mErr) {
-          console.warn(`Copilot model ${model} attempt failed:`, mErr.message);
+        }
+      } catch (backendErr) {
+        console.warn('Backend AI proxy unavailable, attempting client fallback...', backendErr);
+      }
+
+      // 2. Fallback Strategy: Direct client Gemini API call if key is available in Vite environment
+      if (!responseText) {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (apiKey) {
+          const conversationContents = [
+            {
+              role: 'user',
+              parts: [{ text: `${SYSTEM_PROMPT}\n\n[Active Operator: ${user.name || user.email} | Role: ${user.role || 'Staff'}]\nUser Question: ${text}` }]
+            }
+          ];
+
+          const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+          for (const model of models) {
+            try {
+              const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: conversationContents,
+                  generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 2048
+                  }
+                })
+              });
+
+              if (res.ok) {
+                const data = await res.json();
+                responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (responseText) break;
+              }
+            } catch (mErr) {
+              console.warn(`Copilot model ${model} attempt failed:`, mErr.message);
+            }
+          }
         }
       }
 
       if (!responseText) {
-        throw new Error('Tidak menerima balasan dari AI. Silakan coba beberapa saat lagi.');
+        throw new Error('Tidak menerima balasan dari AI. Pastikan server backend aktif atau API key Gemini terkonfigurasi.');
       }
 
       setMessages(prev => [

@@ -44,11 +44,21 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = { 'Content-Type': 'application/json' };
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+    return headers;
+  };
+
   const addUser = async (userObj) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch('/api/admin/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: userObj.name,
           email: userObj.email,
@@ -79,9 +89,10 @@ export const UserProvider = ({ children }) => {
     try {
       // If updating password, use the secure backend API
       if (updates.password) {
+        const headers = await getAuthHeaders();
         const response = await fetch(`/api/admin/users/${id}/password`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ newPassword: updates.password })
         });
         const data = await response.json();
@@ -118,8 +129,10 @@ export const UserProvider = ({ children }) => {
 
   const deleteUser = async (id) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`/api/admin/users/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       });
       const data = await response.json();
       

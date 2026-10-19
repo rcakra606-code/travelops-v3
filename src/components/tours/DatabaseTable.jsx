@@ -2,29 +2,66 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTours } from '../../context/TourContext';
 import { formatCurrency } from '../../utils/currency';
-import { Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers, Shield, Calendar, User, DollarSign, Tag, Plane, Share2 } from 'lucide-react';
+import { 
+  Eye, Edit2, Trash2, ArrowUpDown, X, CheckSquare, Layers, 
+  Shield, Calendar, User, DollarSign, Tag, Plane, Share2,
+  CheckCircle2, AlertCircle, FileText, Edit3, FileSpreadsheet
+} from 'lucide-react';
 import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import { useAuth } from '../../context/AuthContext';
 import ExportMenu from '../ExportMenu';
+import TourSettlementModal from './TourSettlementModal';
 
 const DatabaseTable = ({ onEdit, customData }) => {
   const { tours, deleteTour, updateTour } = useTours();
   const { user } = useAuth();
   const [viewingTour, setViewingTour] = useState(null);
+  const [settlementTour, setSettlementTour] = useState(null);
   
+  // Quick invoice update state
+  const [editingInvoiceTour, setEditingInvoiceTour] = useState(null);
+  const [quickInvoiceValue, setQuickInvoiceValue] = useState('');
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const dataToUse = customData || tours.filter(t => t.status !== 'Past Date');
 
-  // Flatten nested properties (like totalOmset) so useDataTable can sort it
+  // Flatten nested properties (financials, depositNumber, omset, invoice details) so useDataTable can sort/filter it
   const flatTours = useMemo(() => {
-    return dataToUse.map(t => ({
-      ...t,
-      totalOmset: t.financials?.totalOmset || 0,
-      invoiceNumber: t.financials?.invoiceNumber || ''
-    }));
+    return dataToUse.map(t => {
+      const fin = t.financials || {};
+      const basicTourPrice = Number(fin.basicTourPrice !== undefined ? fin.basicTourPrice : (fin.totalSales || 0));
+      const discountSupplier = Number(fin.discountSupplier !== undefined ? fin.discountSupplier : (fin.discount || 0));
+      const discountBranch = Number(fin.discountBranch || 0);
+      const profit = Number(fin.profit || 0);
+      const totalSellingPrice = Number(fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : (fin.totalOmset !== undefined ? fin.totalOmset : (basicTourPrice - discountSupplier - discountBranch)));
+      const totalNettPrice = Number(fin.totalNettPrice !== undefined ? fin.totalNettPrice : (fin.cost !== undefined ? fin.cost : (basicTourPrice - discountSupplier - profit)));
+      const depositNumber = fin.depositNumber ? String(fin.depositNumber).trim() : (t.depositNumber || '');
+      const depositAmount = Number(fin.depositAmount || 0);
+      const sisaPelunasan = Math.max(0, totalSellingPrice - depositAmount);
+      const invNum = fin.invoiceNumber ? String(fin.invoiceNumber).trim() : (t.invoiceNumber || '');
+      const hasInvoice = invNum !== '';
+
+      return {
+        ...t,
+        basicTourPrice,
+        discountSupplier,
+        discountBranch,
+        profit,
+        totalSellingPrice,
+        totalNettPrice,
+        totalOmset: totalSellingPrice,
+        depositNumber,
+        depositAmount,
+        sisaPelunasan,
+        invoiceNumber: invNum,
+        invoiceStatus: hasInvoice ? 'Sudah Di-Invoice' : 'Belum Di-Invoice',
+        invoiceStatusShort: hasInvoice ? 'Sudah' : 'Belum'
+      };
+    });
   }, [dataToUse]);
 
   const {
@@ -43,6 +80,45 @@ const DatabaseTable = ({ onEdit, customData }) => {
   React.useEffect(() => {
     setSelectedIds(new Set());
   }, [currentPage]);
+
+  const handleOpenQuickInvoice = (tour) => {
+    setEditingInvoiceTour(tour);
+    setQuickInvoiceValue(tour.financials?.invoiceNumber || tour.invoiceNumber || '');
+  };
+
+  const handleSaveQuickInvoice = async () => {
+    if (!editingInvoiceTour) return;
+    setIsSavingInvoice(true);
+    try {
+      const currentFinancials = editingInvoiceTour.financials || {};
+      const newInvoiceNumber = quickInvoiceValue.trim();
+
+      await updateTour(editingInvoiceTour.id, {
+        financials: {
+          ...currentFinancials,
+          invoiceNumber: newInvoiceNumber
+        },
+        updatedBy: user?.name || 'System'
+      });
+
+      // Synchronize inspector modal if viewing the same tour
+      if (viewingTour && viewingTour.id === editingInvoiceTour.id) {
+        setViewingTour(prev => ({
+          ...prev,
+          financials: {
+            ...(prev.financials || {}),
+            invoiceNumber: newInvoiceNumber
+          }
+        }));
+      }
+
+      setEditingInvoiceTour(null);
+    } catch (err) {
+      alert('Gagal memperbarui nomor invoice: ' + err.message);
+    } finally {
+      setIsSavingInvoice(false);
+    }
+  };
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -81,6 +157,119 @@ const DatabaseTable = ({ onEdit, customData }) => {
     }
   };
 
+  const getInvoiceStatusBadge = (tour) => {
+    const invNum = tour.financials?.invoiceNumber || tour.invoiceNumber;
+    const hasInvoice = Boolean(invNum && String(invNum).trim() !== '');
+
+    if (hasInvoice) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+          <span 
+            className="badge badge-success"
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '0.35rem', 
+              fontSize: '0.75rem',
+              padding: '0.2rem 0.55rem',
+              borderRadius: '6px'
+            }}
+          >
+            <CheckCircle2 size={12} /> Sudah Di-Invoice
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span 
+              className="font-mono" 
+              style={{ 
+                fontSize: '0.75rem', 
+                color: 'var(--primary, #06b6d4)', 
+                fontWeight: '600',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}
+              title={`Nomor Invoice: ${invNum}`}
+            >
+              <FileText size={11} style={{ opacity: 0.8 }} /> {invNum}
+            </span>
+            {canEditRecord(tour.staffName) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenQuickInvoice(tour);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  opacity: 0.7
+                }}
+                title="Edit Nomor Invoice"
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+              >
+                <Edit3 size={11} />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+        <span 
+          className="badge badge-danger"
+          style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.35rem', 
+            fontSize: '0.75rem',
+            padding: '0.2rem 0.55rem',
+            borderRadius: '6px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            color: '#f87171',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }}
+        >
+          <AlertCircle size={12} /> Belum Di-Invoice
+        </span>
+        {canEditRecord(tour.staffName) ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenQuickInvoice(tour);
+            }}
+            style={{
+              background: 'rgba(6, 182, 212, 0.1)',
+              border: '1px dashed rgba(6, 182, 212, 0.4)',
+              borderRadius: '4px',
+              color: 'var(--primary, #06b6d4)',
+              fontSize: '0.675rem',
+              padding: '0.15rem 0.45rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              fontWeight: '500'
+            }}
+            title="Klik untuk input nomor invoice"
+          >
+            <FileText size={10} /> + Input Invoice
+          </button>
+        ) : (
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontStyle: 'italic' }}>
+            Belum Terinput
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const isAdmin = user?.role === 'Admin';
   const isManager = user?.role === 'Manager';
   const isStaff = user?.role === 'Staff';
@@ -92,11 +281,20 @@ const DatabaseTable = ({ onEdit, customData }) => {
   const exportColumns = [
     { header: 'Tour Code', key: 'tourCode', format: null },
     { header: 'Booking Code', key: 'bookingCode', format: null },
+    { header: 'Nomor DP', key: 'depositNumber', format: null },
+    { header: 'Nominal DP', key: 'depositAmount', format: 'currency' },
     { header: 'Destination', key: 'country', format: null },
     { header: 'Departure Date', key: 'departureDate', format: null },
-    { header: 'PIC Staff', key: 'pic', format: null },
-    { header: 'Status', key: 'status', format: null },
-    { header: 'Total Omset', key: 'totalOmset', format: 'currency' },
+    { header: 'PIC Staff', key: 'staffName', format: null },
+    { header: 'Status Booking', key: 'status', format: null },
+    { header: 'Harga Dasar Tour', key: 'basicTourPrice', format: 'currency' },
+    { header: 'Discount Supplier', key: 'discountSupplier', format: 'currency' },
+    { header: 'Discount Branch', key: 'discountBranch', format: 'currency' },
+    { header: 'Nominal Profit', key: 'profit', format: 'currency' },
+    { header: 'Total Selling Price (Omset)', key: 'totalSellingPrice', format: 'currency' },
+    { header: 'Sisa Pelunasan Tamu', key: 'sisaPelunasan', format: 'currency' },
+    { header: 'Total Nett Price (Cost)', key: 'totalNettPrice', format: 'currency' },
+    { header: 'Status Invoice', key: 'invoiceStatus', format: null },
     { header: 'Invoice Number', key: 'invoiceNumber', format: null },
   ];
 
@@ -182,7 +380,7 @@ const DatabaseTable = ({ onEdit, customData }) => {
 
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table className="data-table" style={{ minWidth: '1050px' }}>
+          <table className="data-table" style={{ minWidth: '1180px' }}>
           <thead>
             <tr>
               <th style={{ width: '44px', textAlign: 'center' }}>
@@ -243,6 +441,31 @@ const DatabaseTable = ({ onEdit, customData }) => {
               </th>
               <th>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('invoiceStatus')}>
+                    Status Invoice <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
+                  </div>
+                  <select 
+                    value={filters.invoiceStatus || ''} 
+                    onChange={(e) => handleFilterChange('invoiceStatus', e.target.value)} 
+                    style={{ 
+                      padding: '0.25rem 0.4rem', 
+                      fontSize: '0.75rem', 
+                      background: 'var(--bg-surface, #1e293b)', 
+                      color: 'var(--text-main, #f8fafc)', 
+                      border: '1px solid var(--border, #334155)', 
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      height: '24px'
+                    }}
+                  >
+                    <option value="">Semua</option>
+                    <option value="Sudah">Sudah Di-Invoice</option>
+                    <option value="Belum">Belum Di-Invoice</option>
+                  </select>
+                </div>
+              </th>
+              <th>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('staffName')}>
                     PIC Staff <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
@@ -272,7 +495,16 @@ const DatabaseTable = ({ onEdit, customData }) => {
                   {tour.tourCode || '-'}
                 </td>
                 <td className="font-mono" style={{ color: 'var(--text-main)', fontWeight: '600' }}>
-                  {tour.bookingCode || '-'}
+                  <div>{tour.bookingCode || '-'}</div>
+                  {tour.depositNumber ? (
+                    <div style={{ fontSize: '0.675rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                      <span style={{ fontWeight: '700' }}>DP:</span> {tour.depositNumber}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.675rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                      <span style={{ fontWeight: '700' }}>DP:</span> -
+                    </div>
+                  )}
                 </td>
                 <td>
                   <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{tour.country}</span>
@@ -285,6 +517,9 @@ const DatabaseTable = ({ onEdit, customData }) => {
                 </td>
                 <td>
                   {getStatusBadge(tour.status)}
+                </td>
+                <td>
+                  {getInvoiceStatusBadge(tour)}
                 </td>
                 <td>
                   <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{tour.staffName || '-'}</span>
@@ -308,6 +543,24 @@ const DatabaseTable = ({ onEdit, customData }) => {
                       title="Inspect Details"
                     >
                       <Eye size={15} />
+                    </button>
+                    <button 
+                      onClick={() => setSettlementTour(tour)} 
+                      style={{ 
+                        background: 'rgba(16, 185, 129, 0.12)', 
+                        color: '#34d399', 
+                        border: '1px solid rgba(16, 185, 129, 0.28)', 
+                        padding: '0.4rem', 
+                        borderRadius: '6px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s'
+                      }} 
+                      title="Auto Export Bukti Pelunasan Tour (Excel / Print)"
+                    >
+                      <FileSpreadsheet size={15} />
                     </button>
                     <button 
                       onClick={() => {
@@ -377,7 +630,7 @@ const DatabaseTable = ({ onEdit, customData }) => {
               </tr>
             )) : (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+                <td colSpan="10" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
                   <div style={{ display: 'inline-flex', padding: '0.75rem', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.05)', marginBottom: '0.75rem' }}>
                     <Plane size={24} style={{ opacity: 0.5 }} />
                   </div>
@@ -464,49 +717,253 @@ const DatabaseTable = ({ onEdit, customData }) => {
 
             {/* Financials Breakdown */}
             <h3 style={{ margin: '0 0 0.85rem 0', fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <DollarSign size={18} color="#10b981" /> Financial Breakdown
+              <DollarSign size={18} color="#10b981" /> Rincian Perhitungan Biaya Tour
             </h3>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', background: 'var(--bg-dark)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div>
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Gross Sales</span>
-                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '700', color: 'var(--text-main)' }}>Rp {formatCurrency(viewingTour.financials?.totalSales)}</p>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Harga Dasar Tour (Basic)</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '700', color: 'var(--text-main)' }}>
+                  Rp {formatCurrency(viewingTour.financials?.basicTourPrice !== undefined ? viewingTour.financials.basicTourPrice : viewingTour.financials?.totalSales)}
+                </p>
               </div>
               <div>
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Discount</span>
-                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: '#fbbf24' }}>- Rp {formatCurrency(viewingTour.financials?.discount)}</p>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Discount Supplier</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: '#fbbf24' }}>
+                  - Rp {formatCurrency(viewingTour.financials?.discountSupplier || 0)}
+                </p>
               </div>
               <div>
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Net Omset</span>
-                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '800', color: '#34d399', fontSize: '1.1rem' }}>Rp {formatCurrency(viewingTour.financials?.totalOmset)}</p>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Discount Branch</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: '#fbbf24' }}>
+                  - Rp {formatCurrency(viewingTour.financials?.discountBranch || 0)}
+                </p>
               </div>
               <div>
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Invoice ID</span>
-                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '600', color: 'var(--text-main)' }}>{viewingTour.financials?.invoiceNumber || '<Unassigned>'}</p>
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Nominal Profit</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '700', color: 'var(--success)' }}>
+                  Rp {formatCurrency(viewingTour.financials?.profit || 0)}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: 'var(--primary)', fontWeight: '600' }}>Total Selling Price (Omset)</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '800', color: 'var(--primary)', fontSize: '1.05rem' }}>
+                  Rp {formatCurrency(viewingTour.financials?.totalSellingPrice !== undefined ? viewingTour.financials.totalSellingPrice : viewingTour.financials?.totalOmset)}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.725rem', color: '#34d399', fontWeight: '600' }}>Total Nett Price (Cost)</span>
+                <p className="font-mono" style={{ margin: '0.2rem 0 0 0', fontWeight: '800', color: '#34d399', fontSize: '1.05rem' }}>
+                  Rp {formatCurrency(viewingTour.financials?.totalNettPrice !== undefined ? viewingTour.financials.totalNettPrice : viewingTour.financials?.cost)}
+                </p>
+              </div>
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.85rem', marginTop: '0.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Nomor &amp; Nominal DP</span>
+                  <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {viewingTour.financials?.depositNumber && viewingTour.financials.depositNumber.trim() !== '' ? (
+                      <>
+                        <span className="badge badge-success" style={{ fontSize: '0.725rem', padding: '0.2rem 0.5rem' }}>
+                          ✓ {viewingTour.financials.depositNumber}
+                        </span>
+                        <span className="font-mono" style={{ fontWeight: '700', color: '#10b981', fontSize: '0.9rem' }}>
+                          Rp {formatCurrency(viewingTour.financials?.depositAmount || 0)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="badge badge-danger" style={{ fontSize: '0.725rem', padding: '0.2rem 0.5rem', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                        ⚠️ Belum Terinput (Wajib)
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Sisa Pelunasan: <strong style={{ color: '#38bdf8' }}>Rp {formatCurrency(Math.max(0, (viewingTour.financials?.totalSellingPrice !== undefined ? viewingTour.financials.totalSellingPrice : (viewingTour.financials?.totalOmset || 0)) - (viewingTour.financials?.depositAmount || 0)))}</strong>
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Status &amp; No. Invoice</span>
+                  <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {viewingTour.financials?.invoiceNumber && viewingTour.financials.invoiceNumber.trim() !== '' ? (
+                      <>
+                        <span className="badge badge-success" style={{ fontSize: '0.725rem', padding: '0.2rem 0.5rem' }}>
+                          ✓ Sudah Di-Invoice
+                        </span>
+                        <span className="font-mono" style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '0.9rem' }}>
+                          {viewingTour.financials.invoiceNumber}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="badge badge-danger" style={{ fontSize: '0.725rem', padding: '0.2rem 0.5rem', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                        ⚠️ Belum Di-Invoice
+                      </span>
+                    )}
+                    {canEditRecord(viewingTour.staffName) && (
+                      <button
+                        onClick={() => handleOpenQuickInvoice(viewingTour)}
+                        style={{
+                          background: 'rgba(6, 182, 212, 0.15)',
+                          border: '1px solid rgba(6, 182, 212, 0.3)',
+                          borderRadius: '4px',
+                          color: 'var(--primary)',
+                          fontSize: '0.72rem',
+                          padding: '0.2rem 0.5rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}
+                      >
+                        <Edit3 size={11} /> Update No. Invoice
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div style={{ marginTop: '1.75rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              {canEditRecord(viewingTour.staffName) && (
+            <div style={{ marginTop: '1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <button
+                onClick={() => setSettlementTour(viewingTour)}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  fontSize: '0.85rem',
+                  padding: '0.5rem 1.25rem',
+                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  borderColor: '#0284c7'
+                }}
+              >
+                <FileSpreadsheet size={16} /> Auto Export Bukti Pelunasan
+              </button>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                {canEditRecord(viewingTour.staffName) && (
+                  <button 
+                    onClick={() => { const t = viewingTour; setViewingTour(null); onEdit(t); }} 
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}
+                  >
+                    <Edit2 size={15} /> Edit Record
+                  </button>
+                )}
                 <button 
-                  onClick={() => { const t = viewingTour; setViewingTour(null); onEdit(t); }} 
-                  className="btn btn-primary"
+                  onClick={() => setViewingTour(null)} 
+                  className="btn btn-secondary"
                   style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}
                 >
-                  <Edit2 size={15} /> Edit Record
+                  Close
                 </button>
-              )}
-              <button 
-                onClick={() => setViewingTour(null)} 
-                className="btn btn-secondary"
-                style={{ fontSize: '0.85rem', padding: '0.5rem 1.25rem' }}
-              >
-                Close
-              </button>
+              </div>
             </div>
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Quick Edit Invoice Modal */}
+      {editingInvoiceTour && createPortal(
+        <div style={{ 
+          position: 'fixed', 
+          inset: 0, 
+          background: 'rgba(0,0,0,0.75)', 
+          backdropFilter: 'blur(5px)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          zIndex: 10000, 
+          padding: '1rem' 
+        }}>
+          <div className="card fade-in" style={{ 
+            width: '100%', 
+            maxWidth: '430px', 
+            background: 'var(--bg-surface, #1e293b)', 
+            border: '1px solid var(--border)', 
+            borderRadius: '12px', 
+            padding: '1.5rem', 
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)' 
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FileText size={18} color="var(--primary)" /> Input / Edit Nomor Invoice
+              </h3>
+              <button 
+                onClick={() => setEditingInvoiceTour(null)} 
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--bg-dark)', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Tour Terkait:</div>
+              <div style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="font-mono" style={{ color: 'var(--primary)' }}>{editingInvoiceTour.tourCode || editingInvoiceTour.bookingCode}</span>
+                <span>•</span>
+                <span>{editingInvoiceTour.country}</span>
+              </div>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveQuickInvoice(); }}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Nomor Invoice
+                </label>
+                <input 
+                  type="text" 
+                  value={quickInvoiceValue} 
+                  onChange={(e) => setQuickInvoiceValue(e.target.value)} 
+                  placeholder="Contoh: INV-2026-001"
+                  autoFocus
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.65rem 0.85rem', 
+                    fontSize: '0.9rem', 
+                    background: 'var(--bg-dark)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: '6px', 
+                    color: 'var(--text-main)',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <span style={{ fontSize: '0.725rem', color: 'var(--text-subtle)', marginTop: '0.4rem', display: 'block' }}>
+                  * Kosongkan input dan simpan jika ingin mengubah status kembali menjadi <strong>Belum Di-Invoice</strong>.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button 
+                  type="button"
+                  onClick={() => setEditingInvoiceTour(null)} 
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8125rem', padding: '0.45rem 1rem' }}
+                  disabled={isSavingInvoice}
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ fontSize: '0.8125rem', padding: '0.45rem 1.25rem' }}
+                  disabled={isSavingInvoice}
+                >
+                  {isSavingInvoice ? 'Menyimpan...' : 'Simpan Invoice'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Tour Settlement Modal for Auto Export */}
+      {settlementTour && (
+        <TourSettlementModal 
+          tour={settlementTour} 
+          onClose={() => setSettlementTour(null)} 
+        />
       )}
 
     </div>

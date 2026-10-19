@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Plane, Lock, Mail, AlertCircle, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
+import loginBg from '../assets/login-bg.jpg';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -10,22 +11,6 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-
-  const bgImages = [
-    'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1503899036067-e13917fb6eb7?q=80&w=2070&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=2020&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=2070&auto=format&fit=crop'
-  ];
-
-  const [currentBg, setCurrentBg] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentBg(prev => (prev + 1) % bgImages.length);
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [bgImages.length]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,24 +33,18 @@ const Login = () => {
 
   return (
     <div className="login-page" style={{ position: 'relative', overflow: 'hidden' }}>
-      {bgImages.map((img, index) => (
-        <div 
-          key={img}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `url('${img}')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            opacity: currentBg === index ? 0.35 : 0,
-            transition: 'opacity 2.5s ease-in-out',
-            zIndex: 0,
-            filter: 'brightness(0.6) saturate(1.2)'
-          }}
-        />
-      ))}
-
-      <div className="login-overlay" style={{ zIndex: 1 }}></div>
+      {/* Static Full Background without filters */}
+      <div 
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url(${loginBg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 0
+        }}
+      />
 
       <div className="login-box glass" style={{ zIndex: 10 }}>
         {/* Brand Icon */}

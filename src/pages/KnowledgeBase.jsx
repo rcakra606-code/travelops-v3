@@ -42,6 +42,7 @@ const KnowledgeBase = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractStage, setExtractStage] = useState(0);
   const [extractResult, setExtractResult] = useState(null);
+  const [extractError, setExtractError] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitSuccess, setCommitSuccess] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
@@ -148,6 +149,7 @@ const KnowledgeBase = () => {
     }
     setPdfFile(file);
     setExtractResult(null);
+    setExtractError('');
     setCommitSuccess(false);
 
     const reader = new FileReader();
@@ -166,6 +168,7 @@ const KnowledgeBase = () => {
 
     try {
       setIsExtracting(true);
+      setExtractError('');
       setExtractStage(1);
 
       setTimeout(() => setExtractStage(2), 1200);
@@ -175,7 +178,8 @@ const KnowledgeBase = () => {
       setExtractStage(4);
       setExtractResult(data);
     } catch (err) {
-      alert('Extraction Error: ' + err.message);
+      console.error('PDF extraction failed:', err);
+      setExtractError(err.message || 'Gagal memproses PDF dengan AI. Pastikan file PDF valid dan dapat dibaca.');
       setExtractStage(0);
     } finally {
       setIsExtracting(false);
@@ -1716,6 +1720,27 @@ const KnowledgeBase = () => {
                       <div style={{ color: extractStage >= 3 ? 'var(--success)' : 'var(--text-subtle)', fontWeight: '600' }}>
                         ✓ 3. Deduplicate & Verify
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {extractError && (
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1.25rem',
+                    color: '#f87171',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem'
+                  }}>
+                    <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <strong style={{ display: 'block', marginBottom: '2px' }}>AI Parsing Error:</strong>
+                      <span>{extractError}</span>
                     </div>
                   </div>
                 )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor, Briefcase, Clock, Target, Building, CreditCard, Activity, ArrowRight, Compass, Calendar } from 'lucide-react';
+import { Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor, Briefcase, Clock, Target, Building, CreditCard, Activity, ArrowRight, Compass, Calendar, Sparkles } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { useTours } from '../context/TourContext';
 import { useCorporate } from '../context/CorporateContext';
 import { useCruises } from '../context/CruiseContext';
@@ -9,6 +10,7 @@ import { useHotels } from '../context/HotelContext';
 const staticCommands = [
   { id: 'dashboard', name: 'Dashboard', icon: <Home size={18} />, path: '/' },
   { id: 'calendar', name: 'Master Operations Calendar', icon: <Calendar size={18} />, path: '/calendar' },
+  { id: 'ai-copilot', name: 'TravelOps AI Copilot (Gemini Live Assistant)', icon: <Sparkles size={18} />, isAi: true },
   { id: 'tours', name: 'Tours Manager', icon: <Map size={18} />, path: '/tours' },
   { id: 'knowledge', name: 'Destination Intelligence & Knowledge Base', icon: <Compass size={18} />, path: '/knowledge' },
   { id: 'users', name: 'User Manager', icon: <Users size={18} />, path: '/users' },
@@ -25,6 +27,7 @@ const staticCommands = [
 ];
 
 const CommandPalette = () => {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -39,6 +42,7 @@ const CommandPalette = () => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (!user) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setIsOpen((prev) => !prev);
@@ -51,6 +55,7 @@ const CommandPalette = () => {
     };
 
     const handleOpenCustom = () => {
+      if (!user) return;
       setIsOpen(true);
       setQuery('');
       setSelectedIndex(0);
@@ -62,7 +67,7 @@ const CommandPalette = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('open-command-palette', handleOpenCustom);
     };
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -126,6 +131,15 @@ const CommandPalette = () => {
     setSelectedIndex(0);
   }, [query]);
 
+  const executeCommand = (cmd) => {
+    if (cmd.isAi) {
+      window.dispatchEvent(new CustomEvent('open-ai-copilot'));
+    } else if (cmd.path) {
+      navigate(cmd.path);
+    }
+    setIsOpen(false);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -135,12 +149,11 @@ const CommandPalette = () => {
       setSelectedIndex((prev) => (prev - 1 + results.length) % results.length);
     } else if (e.key === 'Enter' && results[selectedIndex]) {
       e.preventDefault();
-      navigate(results[selectedIndex].path);
-      setIsOpen(false);
+      executeCommand(results[selectedIndex]);
     }
   };
 
-  if (!isOpen) return null;
+  if (!user || !isOpen) return null;
 
   return (
     <div style={{
@@ -194,10 +207,7 @@ const CommandPalette = () => {
               <div
                 key={cmd.id}
                 onMouseEnter={() => setSelectedIndex(index)}
-                onClick={() => {
-                  navigate(cmd.path);
-                  setIsOpen(false);
-                }}
+                onClick={() => executeCommand(cmd)}
                 style={{
                   display: 'flex', alignItems: 'center', padding: '0.75rem 1rem',
                   cursor: 'pointer', borderRadius: '8px',

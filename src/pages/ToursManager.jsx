@@ -34,18 +34,43 @@ const ToursManager = () => {
 
   const handleImportData = async (data) => {
     try {
-      // Map flat CSV data to Tour format
-      const mappedData = data.map(row => ({
-        tourCode: row['Tour Code'] || '',
-        bookingCode: row['Booking Code'] || '',
-        country: row['Country'] || 'Unknown',
-        category: row['Category'] || 'Leisure',
-        departureDate: row['Departure Date'] || '',
-        returnDate: row['Return Date'] || '',
-        paxCount: parseInt(row['Pax Count']) || 1,
-        status: row['Status'] || 'Pending',
-        staffName: row['Staff Name'] || ''
-      }));
+      // Map flat CSV data to Tour format including new financial schema
+      const mappedData = data.map(row => {
+        const basicTourPrice = parseFloat(row['Harga Dasar Tour'] || row['Basic Tour Price'] || row['Harga Dasar'] || 0) || 0;
+        const discountSupplier = parseFloat(row['Discount Supplier'] || row['Disc Supplier'] || 0) || 0;
+        const discountBranch = parseFloat(row['Discount Branch'] || row['Disc Branch'] || 0) || 0;
+        const profit = parseFloat(row['Nominal Profit'] || row['Profit'] || 0) || 0;
+        const totalSellingPrice = parseFloat(row['Total Selling Price (Omset)'] || row['Total Selling Price'] || row['Total Omset'] || 0) || (basicTourPrice - discountSupplier - discountBranch);
+        const totalNettPrice = parseFloat(row['Total Nett Price (Cost)'] || row['Total Nett Price'] || row['Cost'] || 0) || (basicTourPrice - discountSupplier - profit);
+        const depositNumber = (row['Nomor DP'] || row['Deposit Number'] || row['Deposit'] || '').toString().trim();
+        const invoiceNumber = (row['Nomor Invoice'] || row['Invoice Number'] || row['Invoice'] || '').toString().trim();
+
+        return {
+          tourCode: row['Tour Code'] || '',
+          bookingCode: row['Booking Code'] || '',
+          country: row['Destination'] || row['Country'] || 'Unknown',
+          category: row['Category'] || 'Leisure',
+          departureDate: row['Departure Date'] || '',
+          returnDate: row['Return Date'] || '',
+          paxCount: parseInt(row['Pax Count']) || 1,
+          status: row['Status Booking'] || row['Status'] || 'Pending',
+          staffName: row['PIC Staff'] || row['Staff Name'] || '',
+          financials: {
+            basicTourPrice,
+            totalSales: basicTourPrice,
+            discountSupplier,
+            discountBranch,
+            discount: discountSupplier + discountBranch,
+            profit,
+            totalSellingPrice,
+            totalOmset: totalSellingPrice,
+            totalNettPrice,
+            cost: totalNettPrice,
+            depositNumber,
+            invoiceNumber
+          }
+        };
+      });
       
       await bulkImportTours(mappedData);
       alert(`Successfully imported ${mappedData.length} records!`);

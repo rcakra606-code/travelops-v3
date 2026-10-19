@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUsers } from '../../../context/UserContext';
+import { isTourPast } from '../../../context/TourContext';
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -23,16 +24,19 @@ const Step1TourInfo = ({ data, updateData }) => {
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
 
   useEffect(() => {
-    // Determine Past Date status
-    if (data.returnDate && data.status !== 'Past Date' && data.status !== 'Cancel') {
-      const retDate = new Date(data.returnDate);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      if (retDate < today) {
-        updateData({ status: 'Past Date' });
+    // Determine Past Date status accurately based on full tour end date
+    if (data.departureDate || data.returnDate) {
+      const isPast = isTourPast(data.departureDate, data.returnDate);
+      if (isPast && data.status !== 'Cancel') {
+        if (data.status !== 'Past Date') {
+          updateData({ status: 'Past Date' });
+        }
+      } else if (!isPast && data.status === 'Past Date') {
+        // If user changed the date back to an ongoing or future date, recover to Confirm
+        updateData({ status: 'Confirm' });
       }
     }
-  }, [data.returnDate]);
+  }, [data.departureDate, data.returnDate]);
 
   useEffect(() => {
     setCountrySearch(data.country || '');
@@ -164,7 +168,7 @@ const Step1TourInfo = ({ data, updateData }) => {
             <option value="Pending">Pending</option>
             <option value="Confirm">Confirm</option>
             <option value="Cancel">Cancel</option>
-            <option value="Past Date" disabled>Past Date (Auto)</option>
+            <option value="Past Date">Past Date</option>
           </select>
         </div>
       </div>

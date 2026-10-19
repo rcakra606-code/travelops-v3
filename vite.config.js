@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const devDailyRemindersDispatched = new Map();
+
 const emailDevPlugin = () => ({
   name: 'email-dev-plugin',
   configureServer(server) {
@@ -15,7 +17,7 @@ const emailDevPlugin = () => ({
         req.on('end', async () => {
           try {
             const data = JSON.parse(body || '{}');
-            const { to, subject, text, html, smtpConfig } = data;
+            const { to, subject, text, html, smtpConfig, category } = data;
 
             const host = smtpConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com';
             const port = Number(smtpConfig?.port || process.env.SMTP_PORT || 587);
@@ -27,6 +29,21 @@ const emailDevPlugin = () => ({
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ success: false, error: 'Recipient email is required.' }));
+            }
+
+            // Guard against duplicate daily reminder emails on the dev server
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const dispatchKey = `${to.toLowerCase().trim()}_${todayStr}`;
+            if (category === 'daily_reminder' && devDailyRemindersDispatched.has(dispatchKey)) {
+              console.log(`[EMAIL DISPATCH] Daily reminder already sent to ${to} today (${todayStr}). Skipping duplicate.`);
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ 
+                success: true, 
+                skipped: true, 
+                message: `Daily reminder already sent to ${to} today (${todayStr}). Skipped duplicate to prevent spam.` 
+              }));
             }
 
             if (!user || !pass || user === 'your_email@gmail.com' || pass === 'your_app_password') {
@@ -57,6 +74,10 @@ const emailDevPlugin = () => ({
               text: text || 'This is a test email from TravelOps.',
               html: html || '<b>This is a test email from TravelOps.</b>'
             });
+
+            if (category === 'daily_reminder') {
+              devDailyRemindersDispatched.set(dispatchKey, Date.now());
+            }
 
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
