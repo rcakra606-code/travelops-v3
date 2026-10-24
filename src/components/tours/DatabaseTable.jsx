@@ -297,8 +297,36 @@ const DatabaseTable = ({ onEdit, customData }) => {
     }
   };
 
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = user?.role === 'Staff';
+  
+  const canDelete = isAdmin;
+  const canEditAny = isAdmin || isManager;
+  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
+
+  // Role staff & manager can check when unchecked, but CANNOT uncheck once checked (Admin only)
+  const canToggleClaimMdr = (tour) => {
+    if (!tour) return false;
+    if (!canEditRecord(tour.staffName)) return false;
+    if (tour.claimMdr && !isAdmin) return false;
+    return true;
+  };
+
   const handleToggleClaimMdr = async (tour, e) => {
     if (e) e.stopPropagation();
+
+    // Guard: Role Staff & Manager cannot uncheck MDR checklist!
+    if (tour.claimMdr && !isAdmin) {
+      alert('⛔ Akses Ditolak: Role Staff & Manager tidak diizinkan untuk membatalkan (un-check) Form Claim MDR yang telah divalidasi. Hubungi Admin jika terdapat kekeliruan.');
+      return;
+    }
+
+    if (!canEditRecord(tour.staffName)) {
+      alert('Akses Ditolak: Anda tidak memiliki wewenang untuk mengubah data tour ini.');
+      return;
+    }
+
     const nextClaimMdr = !tour.claimMdr;
     const nowIso = new Date().toISOString();
     setTogglingMdrId(tour.id);
@@ -308,7 +336,8 @@ const DatabaseTable = ({ onEdit, customData }) => {
         claimMdr: nextClaimMdr,
         claimMdrAt: nextClaimMdr ? nowIso : null,
         claimMdrBy: nextClaimMdr ? (user?.name || 'Staff') : null,
-        updatedBy: user?.name || 'Staff'
+        updatedBy: user?.name || 'Staff',
+        userRole: user?.role
       });
 
       if (viewingTour && viewingTour.id === tour.id) {
@@ -325,14 +354,6 @@ const DatabaseTable = ({ onEdit, customData }) => {
       setTogglingMdrId(null);
     }
   };
-
-  const isAdmin = user?.role === 'Admin';
-  const isManager = user?.role === 'Manager';
-  const isStaff = user?.role === 'Staff';
-  
-  const canDelete = isAdmin;
-  const canEditAny = isAdmin || isManager;
-  const canEditRecord = (recordStaff) => canEditAny || (isStaff && recordStaff === user?.name);
 
   const exportColumns = [
     { header: 'Tour Code', key: 'tourCode', format: null },
@@ -608,35 +629,58 @@ const DatabaseTable = ({ onEdit, customData }) => {
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                     <label 
-                      onClick={(e) => e.stopPropagation()} 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (tour.claimMdr && !isAdmin) {
+                          alert('⛔ Akses Ditolak: Role Staff & Manager tidak diizinkan untuk membatalkan (un-check) Form Claim MDR yang telah divalidasi. Hubungi Admin jika terdapat kekeliruan.');
+                        }
+                      }} 
                       style={{ 
                         display: 'inline-flex', 
                         alignItems: 'center', 
                         gap: '0.45rem', 
-                        cursor: canEditRecord(tour.staffName) ? 'pointer' : 'default',
+                        cursor: canToggleClaimMdr(tour) ? 'pointer' : 'not-allowed',
                         margin: 0,
                         userSelect: 'none'
                       }}
-                      title={tour.claimMdr ? `Claim MDR divalidasi pada ${formatClaimMdrDateTime(tour.claimMdrAt)}${tour.claimMdrBy ? ' oleh ' + tour.claimMdrBy : ''}. Klik untuk un-check.` : 'Klik untuk checklist Form Claim MDR (auto generate tanggal & jam)'}
+                      title={
+                        tour.claimMdr 
+                          ? (isAdmin 
+                              ? `Claim MDR divalidasi pada ${formatClaimMdrDateTime(tour.claimMdrAt)}${tour.claimMdrBy ? ' oleh ' + tour.claimMdrBy : ''}. Klik untuk un-check (Admin only).` 
+                              : `Claim MDR divalidasi pada ${formatClaimMdrDateTime(tour.claimMdrAt)}${tour.claimMdrBy ? ' oleh ' + tour.claimMdrBy : ''}. Terkunci (Role Staff & Manager tidak dapat un-check).`)
+                          : (canEditRecord(tour.staffName) ? 'Klik untuk checklist Form Claim MDR (auto generate tanggal & jam)' : 'Hanya PIC Staff / Manager / Admin yang dapat checklist')
+                      }
                     >
                       <input 
                         type="checkbox" 
                         checked={Boolean(tour.claimMdr)}
-                        disabled={!canEditRecord(tour.staffName) || togglingMdrId === tour.id}
+                        disabled={!canToggleClaimMdr(tour) || togglingMdrId === tour.id}
                         onChange={(e) => handleToggleClaimMdr(tour, e)}
                         style={{
                           width: '16px',
                           height: '16px',
-                          cursor: canEditRecord(tour.staffName) ? 'pointer' : 'default',
+                          cursor: canToggleClaimMdr(tour) ? 'pointer' : 'not-allowed',
                           accentColor: '#10b981'
                         }}
                       />
                       <span style={{
                         fontSize: '0.75rem',
                         fontWeight: '700',
-                        color: tour.claimMdr ? '#34d399' : 'var(--text-subtle)'
+                        color: tour.claimMdr ? '#34d399' : 'var(--text-subtle)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
                       }}>
-                        {tour.claimMdr ? 'Claimed' : 'Belum'}
+                        {tour.claimMdr ? (
+                          <>
+                            Claimed
+                            {!isAdmin && (
+                              <span title="Terkunci: Role Staff & Manager tidak dapat membatalkan (un-check)" style={{ fontSize: '0.72rem', cursor: 'help' }}>
+                                🔒
+                              </span>
+                            )}
+                          </>
+                        ) : 'Belum'}
                       </span>
                     </label>
                     {tour.claimMdr && tour.claimMdrAt && (
@@ -861,20 +905,42 @@ const DatabaseTable = ({ onEdit, customData }) => {
               gap: '0.75rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: canEditRecord(viewingTour.staffName) ? 'pointer' : 'default', margin: 0 }}>
+                <label 
+                  onClick={(e) => {
+                    if (viewingTour.claimMdr && !isAdmin) {
+                      e.preventDefault();
+                      alert('⛔ Akses Ditolak: Role Staff & Manager tidak diizinkan untuk membatalkan (un-check) Form Claim MDR yang telah divalidasi. Hubungi Admin jika terdapat kekeliruan.');
+                    }
+                  }}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.6rem', 
+                    cursor: canToggleClaimMdr(viewingTour) ? 'pointer' : 'not-allowed', 
+                    margin: 0 
+                  }}
+                  title={viewingTour.claimMdr && !isAdmin ? 'Terkunci: Role Staff & Manager tidak dapat membatalkan (un-check)' : ''}
+                >
                   <input 
                     type="checkbox"
                     checked={Boolean(viewingTour.claimMdr)}
-                    disabled={!canEditRecord(viewingTour.staffName) || togglingMdrId === viewingTour.id}
+                    disabled={!canToggleClaimMdr(viewingTour) || togglingMdrId === viewingTour.id}
                     onChange={(e) => handleToggleClaimMdr(viewingTour, e)}
-                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }}
+                    style={{ 
+                      width: '18px', 
+                      height: '18px', 
+                      cursor: canToggleClaimMdr(viewingTour) ? 'pointer' : 'not-allowed', 
+                      accentColor: '#10b981' 
+                    }}
                   />
                   <span style={{ fontWeight: '700', fontSize: '0.925rem', color: viewingTour.claimMdr ? '#34d399' : 'var(--text-main)' }}>
                     Form Claim MDR
                   </span>
                 </label>
                 {viewingTour.claimMdr ? (
-                  <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>✓ Sudah Terchecklist</span>
+                  <span className="badge badge-success" style={{ fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    ✓ Sudah Terchecklist {!isAdmin && <span title="Terkunci: Role Staff & Manager tidak dapat membatalkan">🔒</span>}
+                  </span>
                 ) : (
                   <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Belum Dichecklist</span>
                 )}
@@ -885,6 +951,11 @@ const DatabaseTable = ({ onEdit, customData }) => {
                   <div>Waktu Checklist: <strong className="font-mono">{formatClaimMdrDateTime(viewingTour.claimMdrAt)}</strong></div>
                   {viewingTour.claimMdrBy && (
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>PIC: {viewingTour.claimMdrBy}</div>
+                  )}
+                  {!isAdmin && (
+                    <div style={{ color: '#fbbf24', fontSize: '0.68rem', marginTop: '2px', fontWeight: '600' }}>
+                      🔒 Terkunci: Hanya Admin yang dapat membatalkan checklist ini
+                    </div>
                   )}
                 </div>
               )}

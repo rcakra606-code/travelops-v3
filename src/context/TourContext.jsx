@@ -243,6 +243,16 @@ export const TourProvider = ({ children }) => {
       
       if (updatedData.claimMdr !== undefined) {
         const isChecked = Boolean(updatedData.claimMdr);
+        const wasChecked = Boolean(currentTour?.claimMdr);
+
+        // Guard: Role Staff & Manager cannot uncheck MDR checklist!
+        if (!isChecked && wasChecked) {
+          const userRole = updatedData.userRole || updatedData.role;
+          if (userRole && userRole !== 'Admin') {
+            throw new Error('Akses Ditolak: Role Staff & Manager tidak diizinkan untuk membatalkan (un-check) Form Claim MDR yang telah divalidasi. Hubungi Admin jika terdapat kekeliruan.');
+          }
+        }
+
         const nowIso = new Date().toISOString();
         dbUpdates.claim_mdr = isChecked;
         dbUpdates.claim_mdr_at = isChecked ? (updatedData.claimMdrAt || nowIso) : null;

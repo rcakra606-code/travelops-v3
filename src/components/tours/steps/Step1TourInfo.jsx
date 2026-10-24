@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUsers } from '../../../context/UserContext';
+import { useAuth } from '../../../context/AuthContext';
 import { isTourPast } from '../../../context/TourContext';
 
 const COUNTRIES = [
@@ -17,9 +18,14 @@ const COUNTRIES = [
 
 const Step1TourInfo = ({ data, updateData }) => {
   const { users } = useUsers();
+  const { user } = useAuth();
   const [countrySearch, setCountrySearch] = useState(data.country || '');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
+
+  const isAdmin = user?.role === 'Admin';
+  // Staff & Manager CAN check when unchecked, but CANNOT uncheck once checked
+  const isMdrLocked = Boolean(data.claimMdr && !isAdmin);
 
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
 
@@ -184,17 +190,27 @@ const Step1TourInfo = ({ data, updateData }) => {
             gap: '0.5rem',
             transition: 'all 0.2s'
           }}>
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              cursor: 'pointer',
-              userSelect: 'none',
-              margin: 0
-            }}>
+            <label 
+              onClick={(e) => {
+                if (isMdrLocked) {
+                  e.preventDefault();
+                  alert('⛔ Akses Ditolak: Role Staff & Manager tidak diizinkan untuk membatalkan (un-check) Form Claim MDR yang telah divalidasi. Hubungi Admin jika terdapat kekeliruan.');
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                cursor: isMdrLocked ? 'not-allowed' : 'pointer',
+                userSelect: 'none',
+                margin: 0
+              }}
+              title={isMdrLocked ? 'Terkunci: Role Staff & Manager tidak dapat membatalkan (un-check)' : ''}
+            >
               <input 
                 type="checkbox" 
                 checked={Boolean(data.claimMdr)}
+                disabled={isMdrLocked}
                 onChange={(e) => {
                   const isChecked = e.target.checked;
                   if (isChecked) {
@@ -202,9 +218,13 @@ const Step1TourInfo = ({ data, updateData }) => {
                     updateData({
                       claimMdr: true,
                       claimMdrAt: nowIso,
-                      claimMdrBy: data.staffName || 'Staff'
+                      claimMdrBy: data.staffName || user?.name || 'Staff'
                     });
                   } else {
+                    if (!isAdmin) {
+                      alert('⛔ Akses Ditolak: Role Staff & Manager tidak diizinkan untuk membatalkan (un-check) Form Claim MDR yang telah divalidasi. Hubungi Admin jika terdapat kekeliruan.');
+                      return;
+                    }
                     updateData({
                       claimMdr: false,
                       claimMdrAt: null,
@@ -215,7 +235,7 @@ const Step1TourInfo = ({ data, updateData }) => {
                 style={{
                   width: '18px',
                   height: '18px',
-                  cursor: 'pointer',
+                  cursor: isMdrLocked ? 'not-allowed' : 'pointer',
                   accentColor: '#10b981'
                 }}
               />
@@ -238,6 +258,22 @@ const Step1TourInfo = ({ data, updateData }) => {
                   Terverifikasi / Checked
                 </span>
               )}
+              {isMdrLocked && (
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: '700',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  🔒 Terkunci (Role Staff/Manager tidak dapat un-check)
+                </span>
+              )}
             </label>
 
             <div style={{ marginLeft: '2.1rem', fontSize: '0.78rem' }}>
@@ -256,6 +292,11 @@ const Step1TourInfo = ({ data, updateData }) => {
                   </span>
                   {data.claimMdrBy && (
                     <span style={{ color: 'var(--text-muted)' }}>• PIC: {data.claimMdrBy}</span>
+                  )}
+                  {isMdrLocked && (
+                    <div style={{ width: '100%', color: '#fbbf24', fontSize: '0.72rem', marginTop: '0.2rem', fontWeight: '500' }}>
+                      🔒 Perhatian: Hanya role Admin yang memiliki wewenang untuk membatalkan (un-check) status checklist Form Claim MDR.
+                    </div>
                   )}
                 </div>
               ) : (

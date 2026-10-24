@@ -153,7 +153,11 @@ const TourWizard = ({ initialData, onComplete, onCancel }) => {
     }
 
     try {
-      const dataToSave = { ...tourData, updatedBy: user?.name || 'System' };
+      const dataToSave = { 
+        ...tourData, 
+        updatedBy: user?.name || 'System',
+        userRole: user?.role
+      };
       if (initialData && initialData.id) {
         await updateTour(initialData.id, dataToSave);
       } else {
