@@ -114,6 +114,10 @@ export const TourProvider = ({ children }) => {
           fin.depositNumber = String(t.internals.depositNumber).trim();
         }
 
+        const claimMdr = Boolean(t.claim_mdr !== undefined ? t.claim_mdr : t.internals?.claimMdr);
+        const claimMdrAt = t.claim_mdr_at || t.internals?.claimMdrAt || null;
+        const claimMdrBy = t.claim_mdr_by || t.internals?.claimMdrBy || '';
+
         return {
           id: t.id,
           country: t.country,
@@ -136,6 +140,9 @@ export const TourProvider = ({ children }) => {
           bookingCode: t.internals?.bookingCode || '',
           paxCount: t.internals?.paxCount || 1,
           staffName: t.internals?.staffName || '',
+          claimMdr,
+          claimMdrAt,
+          claimMdrBy,
           history: t.internals?.history || []
         };
       });
@@ -162,6 +169,10 @@ export const TourProvider = ({ children }) => {
         }
       }
 
+      const isClaimMdr = Boolean(tourData.claimMdr);
+      const claimMdrAt = isClaimMdr ? (tourData.claimMdrAt || new Date().toISOString()) : null;
+      const claimMdrBy = isClaimMdr ? (tourData.claimMdrBy || tourData.updatedBy || tourData.staffName || 'Staff') : null;
+
       const newId = tourData.id || `T-${Date.now()}`;
       const { error } = await supabase.from('travelops_tours').insert([{
         id: newId,
@@ -173,6 +184,9 @@ export const TourProvider = ({ children }) => {
         status: initialStatus,
         financials: fin,
         pax_info: tourData.paxInfo,
+        claim_mdr: isClaimMdr,
+        claim_mdr_at: claimMdrAt,
+        claim_mdr_by: claimMdrBy,
         internals: {
           ...(tourData.internals || {}),
           depositNumber: fin.depositNumber,
@@ -180,11 +194,14 @@ export const TourProvider = ({ children }) => {
           bookingCode: tourData.bookingCode,
           paxCount: tourData.paxCount,
           staffName: tourData.staffName,
+          claimMdr: isClaimMdr,
+          claimMdrAt: claimMdrAt,
+          claimMdrBy: claimMdrBy,
           history: [{
             timestamp: new Date().toISOString(),
             user: tourData.updatedBy || tourData.staffName || 'System',
             action: 'Created Record',
-            details: `Initial tour record created with DP: ${fin.depositNumber}`
+            details: `Initial tour record created with DP: ${fin.depositNumber}${isClaimMdr ? ' (Form Claim MDR dicentang)' : ''}`
           }]
         }
       }]);
@@ -224,15 +241,29 @@ export const TourProvider = ({ children }) => {
       }
       if (updatedData.paxInfo !== undefined) dbUpdates.pax_info = updatedData.paxInfo;
       
+      if (updatedData.claimMdr !== undefined) {
+        const isChecked = Boolean(updatedData.claimMdr);
+        const nowIso = new Date().toISOString();
+        dbUpdates.claim_mdr = isChecked;
+        dbUpdates.claim_mdr_at = isChecked ? (updatedData.claimMdrAt || nowIso) : null;
+        dbUpdates.claim_mdr_by = isChecked ? (updatedData.claimMdrBy || updatedData.updatedBy || 'Staff') : null;
+      }
+
+      let actionDetails = 'Record information was modified.';
+      if (updatedData.status !== undefined && updatedData.status !== currentTour?.status) {
+        actionDetails = `Status changed to ${updatedData.status}`;
+      } else if (updatedData.claimMdr !== undefined && updatedData.claimMdr !== currentTour?.claimMdr) {
+        actionDetails = updatedData.claimMdr 
+          ? `Form Claim MDR divalidasi pada ${new Date().toLocaleString('id-ID')}` 
+          : 'Form Claim MDR dibatalkan checklist';
+      }
+
       const existingHistory = currentTour?.history || [];
-      
       const newHistoryLog = {
         timestamp: new Date().toISOString(),
         user: updatedData.updatedBy || 'System',
         action: 'Updated Record',
-        details: updatedData.status !== currentTour?.status 
-          ? `Status changed to ${updatedData.status}`
-          : 'Record information was modified.'
+        details: actionDetails
       };
 
       let newInternals = { ...(updatedData.internals || currentTour?.internals || {}) };
@@ -241,6 +272,11 @@ export const TourProvider = ({ children }) => {
       if (updatedData.paxCount !== undefined) newInternals.paxCount = updatedData.paxCount;
       if (updatedData.staffName !== undefined) newInternals.staffName = updatedData.staffName;
       if (updatedData.financials?.depositNumber) newInternals.depositNumber = updatedData.financials.depositNumber;
+      if (updatedData.claimMdr !== undefined) {
+        newInternals.claimMdr = dbUpdates.claim_mdr;
+        newInternals.claimMdrAt = dbUpdates.claim_mdr_at;
+        newInternals.claimMdrBy = dbUpdates.claim_mdr_by;
+      }
       newInternals.history = [newHistoryLog, ...existingHistory];
       dbUpdates.internals = newInternals;
 
@@ -267,6 +303,10 @@ export const TourProvider = ({ children }) => {
     try {
       const toInsert = dataArray.map((tourData, i) => {
         const fin = normalizeFinancials(tourData.financials || {});
+        const isClaimMdr = Boolean(tourData.claimMdr || tourData.claim_mdr);
+        const claimMdrAt = isClaimMdr ? (tourData.claimMdrAt || tourData.claim_mdr_at || new Date().toISOString()) : null;
+        const claimMdrBy = isClaimMdr ? (tourData.claimMdrBy || tourData.claim_mdr_by || tourData.staffName || 'Staff') : null;
+
         return {
           id: tourData.id || `T-${Date.now()}-${i}`,
           country: tourData.country,
@@ -277,12 +317,18 @@ export const TourProvider = ({ children }) => {
           status: tourData.status || 'Pending',
           financials: fin,
           pax_info: tourData.paxInfo || [],
+          claim_mdr: isClaimMdr,
+          claim_mdr_at: claimMdrAt,
+          claim_mdr_by: claimMdrBy,
           internals: {
             tourCode: tourData.tourCode || '',
             bookingCode: tourData.bookingCode || '',
             depositNumber: fin.depositNumber || '',
             paxCount: tourData.paxCount || 1,
-            staffName: tourData.staffName || ''
+            staffName: tourData.staffName || '',
+            claimMdr: isClaimMdr,
+            claimMdrAt: claimMdrAt,
+            claimMdrBy: claimMdrBy
           }
         };
       });

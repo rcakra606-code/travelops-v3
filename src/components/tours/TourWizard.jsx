@@ -16,6 +16,9 @@ const initialTourState = {
   paxCount: 1,
   staffName: '',
   status: 'Pending',
+  claimMdr: false,
+  claimMdrAt: null,
+  claimMdrBy: '',
   paxInfo: [],
   financials: {
     basicTourPrice: 0,
@@ -72,9 +75,16 @@ const TourWizard = ({ initialData, onComplete, onCancel }) => {
           }))
         : [];
 
+      const claimMdr = Boolean(initialData.claimMdr !== undefined ? initialData.claimMdr : initialData.internals?.claimMdr);
+      const claimMdrAt = initialData.claimMdrAt || initialData.internals?.claimMdrAt || null;
+      const claimMdrBy = initialData.claimMdrBy || initialData.internals?.claimMdrBy || '';
+
       setTourData({
         ...initialData,
         paxInfo: mappedPaxInfo,
+        claimMdr,
+        claimMdrAt,
+        claimMdrBy,
         financials: {
           ...fin,
           basicTourPrice,

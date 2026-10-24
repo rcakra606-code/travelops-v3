@@ -44,6 +44,10 @@ const ToursManager = () => {
         const totalNettPrice = parseFloat(row['Total Nett Price (Cost)'] || row['Total Nett Price'] || row['Cost'] || 0) || (basicTourPrice - discountSupplier - profit);
         const depositNumber = (row['Nomor DP'] || row['Deposit Number'] || row['Deposit'] || '').toString().trim();
         const invoiceNumber = (row['Nomor Invoice'] || row['Invoice Number'] || row['Invoice'] || '').toString().trim();
+        const rawClaimMdr = row['Status Form Claim MDR'] || row['Form Claim MDR'] || row['Claim MDR'] || '';
+        const isClaimMdr = ['true', 'yes', 'sudah', 'claimed', 'checked', '1'].includes(String(rawClaimMdr).toLowerCase().trim());
+        const claimMdrAt = row['Tanggal & Jam Claim MDR'] || row['Claim MDR At'] || (isClaimMdr ? new Date().toISOString() : null);
+        const claimMdrBy = row['PIC Claim MDR'] || (isClaimMdr ? (row['PIC Staff'] || 'Staff') : null);
 
         return {
           tourCode: row['Tour Code'] || '',
@@ -55,6 +59,9 @@ const ToursManager = () => {
           paxCount: parseInt(row['Pax Count']) || 1,
           status: row['Status Booking'] || row['Status'] || 'Pending',
           staffName: row['PIC Staff'] || row['Staff Name'] || '',
+          claimMdr: isClaimMdr,
+          claimMdrAt,
+          claimMdrBy,
           financials: {
             basicTourPrice,
             totalSales: basicTourPrice,

@@ -171,6 +171,101 @@ const Step1TourInfo = ({ data, updateData }) => {
             <option value="Past Date">Past Date</option>
           </select>
         </div>
+
+        {/* Form Claim MDR Checkbox */}
+        <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+          <div style={{
+            background: data.claimMdr ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: `1px solid ${data.claimMdr ? 'rgba(16, 185, 129, 0.35)' : 'var(--border)'}`,
+            borderRadius: '10px',
+            padding: '1rem 1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+            transition: 'all 0.2s'
+          }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              cursor: 'pointer',
+              userSelect: 'none',
+              margin: 0
+            }}>
+              <input 
+                type="checkbox" 
+                checked={Boolean(data.claimMdr)}
+                onChange={(e) => {
+                  const isChecked = e.target.checked;
+                  if (isChecked) {
+                    const nowIso = new Date().toISOString();
+                    updateData({
+                      claimMdr: true,
+                      claimMdrAt: nowIso,
+                      claimMdrBy: data.staffName || 'Staff'
+                    });
+                  } else {
+                    updateData({
+                      claimMdr: false,
+                      claimMdrAt: null,
+                      claimMdrBy: null
+                    });
+                  }
+                }}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  cursor: 'pointer',
+                  accentColor: '#10b981'
+                }}
+              />
+              <span style={{
+                fontWeight: '700',
+                fontSize: '0.925rem',
+                color: data.claimMdr ? '#34d399' : 'var(--text-main)'
+              }}>
+                Form Claim MDR
+              </span>
+              {data.claimMdr && (
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: '700',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: 'rgba(16, 185, 129, 0.2)',
+                  color: '#34d399'
+                }}>
+                  Terverifikasi / Checked
+                </span>
+              )}
+            </label>
+
+            <div style={{ marginLeft: '2.1rem', fontSize: '0.78rem' }}>
+              {data.claimMdr ? (
+                <div style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span>✓ <strong>Auto-generated Timestamp:</strong></span>
+                  <span className="font-mono" style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                    {(() => {
+                      try {
+                        const d = new Date(data.claimMdrAt || new Date());
+                        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                      } catch {
+                        return data.claimMdrAt;
+                      }
+                    })()}
+                  </span>
+                  {data.claimMdrBy && (
+                    <span style={{ color: 'var(--text-muted)' }}>• PIC: {data.claimMdrBy}</span>
+                  )}
+                </div>
+              ) : (
+                <span style={{ color: 'var(--text-subtle)' }}>
+                  Centang kotak ini jika staf telah menyelesaikan Form Claim MDR. Tanggal dan jam akan di-generate otomatis saat dicentang.
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

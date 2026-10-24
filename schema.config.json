@@ -26,6 +26,9 @@
       "financials": "JSONB",
       "pax_info": "JSONB",
       "internals": "JSONB",
+      "claim_mdr": "BOOLEAN DEFAULT FALSE",
+      "claim_mdr_at": "TIMESTAMP WITH TIME ZONE",
+      "claim_mdr_by": "VARCHAR(255)",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     },
     "travelops_cruises": {

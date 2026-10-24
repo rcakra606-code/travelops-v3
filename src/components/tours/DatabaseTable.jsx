@@ -23,6 +23,7 @@ const DatabaseTable = ({ onEdit, customData }) => {
   const [editingInvoiceTour, setEditingInvoiceTour] = useState(null);
   const [quickInvoiceValue, setQuickInvoiceValue] = useState('');
   const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+  const [togglingMdrId, setTogglingMdrId] = useState(null);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -44,6 +45,10 @@ const DatabaseTable = ({ onEdit, customData }) => {
       const sisaPelunasan = Math.max(0, totalSellingPrice - depositAmount);
       const invNum = fin.invoiceNumber ? String(fin.invoiceNumber).trim() : (t.invoiceNumber || '');
       const hasInvoice = invNum !== '';
+      const claimMdr = Boolean(t.claimMdr !== undefined ? t.claimMdr : (t.claim_mdr || t.internals?.claimMdr));
+      const claimMdrAt = t.claimMdrAt || t.claim_mdr_at || t.internals?.claimMdrAt || null;
+      const claimMdrBy = t.claimMdrBy || t.claim_mdr_by || t.internals?.claimMdrBy || '';
+      const claimMdrStatus = claimMdr ? 'Sudah Claim' : 'Belum Claim';
 
       return {
         ...t,
@@ -59,7 +64,11 @@ const DatabaseTable = ({ onEdit, customData }) => {
         sisaPelunasan,
         invoiceNumber: invNum,
         invoiceStatus: hasInvoice ? 'Sudah Di-Invoice' : 'Belum Di-Invoice',
-        invoiceStatusShort: hasInvoice ? 'Sudah' : 'Belum'
+        invoiceStatusShort: hasInvoice ? 'Sudah' : 'Belum',
+        claimMdr,
+        claimMdrAt,
+        claimMdrBy,
+        claimMdrStatus
       };
     });
   }, [dataToUse]);
@@ -270,6 +279,53 @@ const DatabaseTable = ({ onEdit, customData }) => {
     );
   };
 
+  const formatClaimMdrDateTime = (isoStr) => {
+    if (!isoStr) return '-';
+    try {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return String(isoStr);
+      return d.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }) + ' ' + d.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return String(isoStr);
+    }
+  };
+
+  const handleToggleClaimMdr = async (tour, e) => {
+    if (e) e.stopPropagation();
+    const nextClaimMdr = !tour.claimMdr;
+    const nowIso = new Date().toISOString();
+    setTogglingMdrId(tour.id);
+
+    try {
+      await updateTour(tour.id, {
+        claimMdr: nextClaimMdr,
+        claimMdrAt: nextClaimMdr ? nowIso : null,
+        claimMdrBy: nextClaimMdr ? (user?.name || 'Staff') : null,
+        updatedBy: user?.name || 'Staff'
+      });
+
+      if (viewingTour && viewingTour.id === tour.id) {
+        setViewingTour(prev => ({
+          ...prev,
+          claimMdr: nextClaimMdr,
+          claimMdrAt: nextClaimMdr ? nowIso : null,
+          claimMdrBy: nextClaimMdr ? (user?.name || 'Staff') : null
+        }));
+      }
+    } catch (err) {
+      alert('Gagal memperbarui status Form Claim MDR: ' + err.message);
+    } finally {
+      setTogglingMdrId(null);
+    }
+  };
+
   const isAdmin = user?.role === 'Admin';
   const isManager = user?.role === 'Manager';
   const isStaff = user?.role === 'Staff';
@@ -287,6 +343,9 @@ const DatabaseTable = ({ onEdit, customData }) => {
     { header: 'Departure Date', key: 'departureDate', format: null },
     { header: 'PIC Staff', key: 'staffName', format: null },
     { header: 'Status Booking', key: 'status', format: null },
+    { header: 'Status Form Claim MDR', key: 'claimMdrStatus', format: null },
+    { header: 'Tanggal & Jam Claim MDR', key: 'claimMdrAt', format: null },
+    { header: 'PIC Claim MDR', key: 'claimMdrBy', format: null },
     { header: 'Harga Dasar Tour', key: 'basicTourPrice', format: 'currency' },
     { header: 'Discount Supplier', key: 'discountSupplier', format: 'currency' },
     { header: 'Discount Branch', key: 'discountBranch', format: 'currency' },
@@ -380,7 +439,7 @@ const DatabaseTable = ({ onEdit, customData }) => {
 
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table className="data-table" style={{ minWidth: '1180px' }}>
+          <table className="data-table" style={{ minWidth: '1320px' }}>
           <thead>
             <tr>
               <th style={{ width: '44px', textAlign: 'center' }}>
@@ -466,6 +525,31 @@ const DatabaseTable = ({ onEdit, customData }) => {
               </th>
               <th>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('claimMdr')}>
+                    Form Claim MDR <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
+                  </div>
+                  <select 
+                    value={filters.claimMdrStatus || ''} 
+                    onChange={(e) => handleFilterChange('claimMdrStatus', e.target.value)} 
+                    style={{ 
+                      padding: '0.25rem 0.4rem', 
+                      fontSize: '0.75rem', 
+                      background: 'var(--bg-surface, #1e293b)', 
+                      color: 'var(--text-main, #f8fafc)', 
+                      border: '1px solid var(--border, #334155)', 
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      height: '24px'
+                    }}
+                  >
+                    <option value="">Semua</option>
+                    <option value="Sudah Claim">Sudah Claim</option>
+                    <option value="Belum Claim">Belum Claim</option>
+                  </select>
+                </div>
+              </th>
+              <th>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('staffName')}>
                     PIC Staff <ArrowUpDown size={12} style={{ marginLeft: '0.4rem', opacity: 0.7 }} />
                   </div>
@@ -520,6 +604,54 @@ const DatabaseTable = ({ onEdit, customData }) => {
                 </td>
                 <td>
                   {getInvoiceStatusBadge(tour)}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <label 
+                      onClick={(e) => e.stopPropagation()} 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.45rem', 
+                        cursor: canEditRecord(tour.staffName) ? 'pointer' : 'default',
+                        margin: 0,
+                        userSelect: 'none'
+                      }}
+                      title={tour.claimMdr ? `Claim MDR divalidasi pada ${formatClaimMdrDateTime(tour.claimMdrAt)}${tour.claimMdrBy ? ' oleh ' + tour.claimMdrBy : ''}. Klik untuk un-check.` : 'Klik untuk checklist Form Claim MDR (auto generate tanggal & jam)'}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={Boolean(tour.claimMdr)}
+                        disabled={!canEditRecord(tour.staffName) || togglingMdrId === tour.id}
+                        onChange={(e) => handleToggleClaimMdr(tour, e)}
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          cursor: canEditRecord(tour.staffName) ? 'pointer' : 'default',
+                          accentColor: '#10b981'
+                        }}
+                      />
+                      <span style={{
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        color: tour.claimMdr ? '#34d399' : 'var(--text-subtle)'
+                      }}>
+                        {tour.claimMdr ? 'Claimed' : 'Belum'}
+                      </span>
+                    </label>
+                    {tour.claimMdr && tour.claimMdrAt && (
+                      <div style={{ 
+                        fontSize: '0.675rem', 
+                        color: '#10b981', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '3px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        <span>🕒 {formatClaimMdrDateTime(tour.claimMdrAt)}</span>
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{tour.staffName || '-'}</span>
@@ -630,7 +762,7 @@ const DatabaseTable = ({ onEdit, customData }) => {
               </tr>
             )) : (
               <tr>
-                <td colSpan="10" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+                <td colSpan="11" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
                   <div style={{ display: 'inline-flex', padding: '0.75rem', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.05)', marginBottom: '0.75rem' }}>
                     <Plane size={24} style={{ opacity: 0.5 }} />
                   </div>
@@ -713,6 +845,49 @@ const DatabaseTable = ({ onEdit, customData }) => {
                 <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Status</span>
                 <div style={{ marginTop: '0.2rem' }}>{getStatusBadge(viewingTour.status)}</div>
               </div>
+            </div>
+
+            {/* Form Claim MDR Card in Inspector */}
+            <div style={{ 
+              background: viewingTour.claimMdr ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-dark)', 
+              border: `1px solid ${viewingTour.claimMdr ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`,
+              borderRadius: '12px',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.75rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: canEditRecord(viewingTour.staffName) ? 'pointer' : 'default', margin: 0 }}>
+                  <input 
+                    type="checkbox"
+                    checked={Boolean(viewingTour.claimMdr)}
+                    disabled={!canEditRecord(viewingTour.staffName) || togglingMdrId === viewingTour.id}
+                    onChange={(e) => handleToggleClaimMdr(viewingTour, e)}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }}
+                  />
+                  <span style={{ fontWeight: '700', fontSize: '0.925rem', color: viewingTour.claimMdr ? '#34d399' : 'var(--text-main)' }}>
+                    Form Claim MDR
+                  </span>
+                </label>
+                {viewingTour.claimMdr ? (
+                  <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>✓ Sudah Terchecklist</span>
+                ) : (
+                  <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Belum Dichecklist</span>
+                )}
+              </div>
+
+              {viewingTour.claimMdr && viewingTour.claimMdrAt && (
+                <div style={{ fontSize: '0.78rem', color: '#34d399', textAlign: 'right' }}>
+                  <div>Waktu Checklist: <strong className="font-mono">{formatClaimMdrDateTime(viewingTour.claimMdrAt)}</strong></div>
+                  {viewingTour.claimMdrBy && (
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>PIC: {viewingTour.claimMdrBy}</div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Financials Breakdown */}

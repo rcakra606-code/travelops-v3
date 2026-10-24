@@ -92,6 +92,23 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
             <span style={{ fontWeight: '500', color: data.status === 'Confirm' ? 'var(--success)' : data.status === 'Cancel' ? 'var(--danger)' : 'var(--warning)' }}>
               {data.status}
             </span>
+
+            <span style={{ color: 'var(--text-muted)' }}>Form Claim MDR:</span>
+            <span>
+              {data.claimMdr ? (
+                <span style={{ color: '#34d399', fontWeight: '700', fontSize: '0.8rem' }}>
+                  ✓ Checked ({(() => {
+                    try {
+                      return new Date(data.claimMdrAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date(data.claimMdrAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                    } catch {
+                      return 'Aktif';
+                    }
+                  })()})
+                </span>
+              ) : (
+                <span style={{ color: 'var(--text-subtle)', fontSize: '0.8rem' }}>Belum Dicentang</span>
+              )}
+            </span>
           </div>
         </div>
 
