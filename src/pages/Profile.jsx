@@ -139,7 +139,7 @@ const Profile = () => {
                 <div>
                   <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>Personal Information</h3>
                   <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Change your identity information</p>
-                  <button className="btn-primary" onClick={handlePersonalSave} style={{ padding: '0.5rem 2rem', fontWeight: 'bold', color: '#1e293b', background: '#eab308' }}>
+                  <button className="btn btn-primary" onClick={handlePersonalSave} style={{ padding: '0.5rem 2rem' }}>
                     Save
                   </button>
                 </div>
@@ -198,7 +198,7 @@ const Profile = () => {
                 <div>
                   <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>Security</h3>
                   <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Manage your password</p>
-                  <button className="btn-primary" onClick={handleSecuritySave} style={{ padding: '0.5rem 2rem', fontWeight: 'bold', color: '#1e293b', background: '#eab308' }}>
+                  <button className="btn btn-primary" onClick={handleSecuritySave} style={{ padding: '0.5rem 2rem' }}>
                     Save
                   </button>
                 </div>

@@ -204,14 +204,14 @@ export const AuthProvider = ({ children }) => {
       {isLoggingOut && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: '#0f172a', display: 'flex', flexDirection: 'column',
+          background: 'var(--bg-dark, #0f172a)', display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', zIndex: 99999,
-          color: '#f8fafc', animation: 'fadeIn 0.3s ease-out'
+          color: 'var(--text-main)', animation: 'fadeIn 0.3s ease-out'
         }}>
-          <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#3b82f6' }}>
+          <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: 'var(--primary)' }}>
             Goodbye, {logoutName || 'TravelOps User'}!
           </h2>
-          <p style={{ color: '#94a3b8' }}>Logging you out securely...</p>
+          <p style={{ color: 'var(--text-muted)' }}>Logging you out securely...</p>
         </div>
       )}
     </AuthContext.Provider>

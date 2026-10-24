@@ -1384,10 +1384,10 @@ select option {
 }
 
 [data-theme='light'] .toast-item-card {
-  background: rgba(255, 255, 255, 0.95);
-  color: #0f172a;
-  border-color: rgba(0, 0, 0, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.98);
+  color: #263a34;
+  border-color: #e7ebe4;
+  box-shadow: 0 10px 30px rgba(39, 65, 46, 0.08);
 }
 
 @keyframes slideInRight {
@@ -1400,4 +1400,224 @@ select option {
     opacity: 1;
   }
 }
+
+/* ===================================================
+   UNIVERSAL SOFT SAGE & CREAM THEME ENFORCEMENT
+   Ensures soft theme consistency across ALL pages
+   =================================================== */
+
+[data-theme='light'] {
+  color-scheme: light;
+}
+
+[data-theme='light'] body,
+[data-theme='light'] .app-container,
+[data-theme='light'] .main-content,
+[data-theme='light'] .content-area {
+  background-color: #f5f7f2 !important;
+  color: #263a34 !important;
+}
+
+[data-theme='light'] .sidebar {
+  background: #ffffff !important;
+  border-right-color: #e7ebe4 !important;
+}
+
+[data-theme='light'] .top-nav {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-bottom-color: #e7ebe4 !important;
+}
+
+[data-theme='light'] .card,
+[data-theme='light'] .bento-card-glass {
+  background: #ffffff !important;
+  border-color: #e7ebe4 !important;
+  box-shadow: 0 5px 25px rgba(39, 65, 46, 0.035), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  color: #263a34;
+}
+
+[data-theme='light'] .card:hover,
+[data-theme='light'] .bento-card-glass:hover {
+  border-color: #8fa995 !important;
+  box-shadow: 0 10px 30px rgba(39, 65, 46, 0.06) !important;
+}
+
+[data-theme='light'] .modal-overlay {
+  background: rgba(33, 61, 53, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+[data-theme='light'] .modal-content {
+  background: #ffffff !important;
+  border: 1px solid #e7ebe4 !important;
+  color: #263a34 !important;
+  box-shadow: 0 25px 60px -15px rgba(39, 65, 46, 0.25) !important;
+  border-radius: 20px !important;
+}
+
+/* Universal override for hardcoded dark inline styles on subpages */
+[data-theme='light'] [style*="#1e293b"],
+[data-theme='light'] [style*="#1E293B"],
+[data-theme='light'] [style*="rgb(30, 41, 59)"] {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #e7ebe4 !important;
+  color: #263a34 !important;
+}
+
+[data-theme='light'] [style*="#0f172a"],
+[data-theme='light'] [style*="#0F172A"],
+[data-theme='light'] [style*="rgb(15, 23, 42)"] {
+  background: #fafbf8 !important;
+  background-color: #fafbf8 !important;
+  border-color: #e7ebe4 !important;
+  color: #263a34 !important;
+}
+
+[data-theme='light'] [style*="#334155"],
+[data-theme='light'] [style*="#475569"],
+[data-theme='light'] [style*="rgb(51, 65, 85)"] {
+  border-color: #e7ebe4 !important;
+}
+
+/* Universal Inputs & Selects in Light Mode */
+[data-theme='light'] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme='light'] select,
+[data-theme='light'] textarea {
+  background: #fafbf8 !important;
+  border: 1px solid #e3e9e1 !important;
+  color: #263a34 !important;
+  border-radius: 10px !important;
+}
+
+[data-theme='light'] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-theme='light'] select:focus,
+[data-theme='light'] textarea:focus {
+  background: #ffffff !important;
+  border-color: #81a489 !important;
+  box-shadow: 0 0 0 3px rgba(129, 164, 137, 0.2) !important;
+}
+
+[data-theme='light'] select option {
+  background-color: #ffffff !important;
+  color: #263a34 !important;
+}
+
+/* Universal Tables in Light Mode */
+[data-theme='light'] table th,
+[data-theme='light'] .data-table th {
+  background: #fafbf8 !important;
+  color: #9aa79d !important;
+  border-bottom: 1px solid #e9ede7 !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+[data-theme='light'] table td,
+[data-theme='light'] .data-table td {
+  color: #263a34 !important;
+  border-bottom: 1px solid #eff1ec !important;
+}
+
+[data-theme='light'] table tbody tr:hover td,
+[data-theme='light'] .data-table tbody tr:hover td {
+  background: #f7f9f5 !important;
+}
+
+/* Universal Tabs in Light Mode */
+[data-theme='light'] .tabs-container {
+  border-bottom-color: #e7ebe4 !important;
+}
+
+[data-theme='light'] .tab-btn {
+  color: #718079 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme='light'] .tab-btn:hover {
+  color: #395c46 !important;
+}
+
+[data-theme='light'] .tab-btn.active {
+  color: #3d684f !important;
+  border-bottom-color: #416b52 !important;
+  font-weight: 700 !important;
+}
+
+/* Chart Tooltips & Grids in Light Mode */
+[data-theme='light'] .recharts-default-tooltip {
+  background: #ffffff !important;
+  border: 1px solid #e7ebe4 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(39, 65, 46, 0.08) !important;
+  color: #263a34 !important;
+}
+
+[data-theme='light'] .recharts-tooltip-item,
+[data-theme='light'] .recharts-tooltip-label {
+  color: #263a34 !important;
+}
+
+[data-theme='light'] .recharts-cartesian-grid line {
+  stroke: #edf1eb !important;
+}
+
+/* Section titles in Light Mode */
+[data-theme='light'] .section-title,
+[data-theme='light'] h1,
+[data-theme='light'] h2 {
+  color: #263a34;
+}
+
+/* Badges in Light Mode */
+[data-theme='light'] .badge {
+  font-weight: 600;
+}
+[data-theme='light'] .badge-success {
+  background: rgba(46, 125, 79, 0.12) !important;
+  color: #1b5e34 !important;
+  border-color: rgba(46, 125, 79, 0.25) !important;
+}
+[data-theme='light'] .badge-warning {
+  background: rgba(217, 119, 6, 0.12) !important;
+  color: #92400e !important;
+  border-color: rgba(217, 119, 6, 0.25) !important;
+}
+[data-theme='light'] .badge-danger {
+  background: rgba(220, 38, 38, 0.12) !important;
+  color: #991b1b !important;
+  border-color: rgba(220, 38, 38, 0.25) !important;
+}
+[data-theme='light'] .badge-primary {
+  background: rgba(65, 107, 82, 0.12) !important;
+  color: #274735 !important;
+  border-color: rgba(65, 107, 82, 0.25) !important;
+}
+
+/* Light text contrast fallbacks in Light Mode */
+[data-theme='light'] .card [style*="#f8fafc"],
+[data-theme='light'] .card [style*="#F8FAFC"],
+[data-theme='light'] .modal-content [style*="#f8fafc"],
+[data-theme='light'] .modal-content [style*="#F8FAFC"] {
+  color: #263a34 !important;
+}
+
+[data-theme='light'] .card [style*="#cbd5e1"],
+[data-theme='light'] .card [style*="#CBD5E1"],
+[data-theme='light'] .modal-content [style*="#cbd5e1"],
+[data-theme='light'] .modal-content [style*="#CBD5E1"] {
+  color: #4b6357 !important;
+}
+
+/* Modal header and footer dividers */
+[data-theme='light'] .modal-content > div:first-child {
+  border-bottom-color: #e7ebe4 !important;
+}
+[data-theme='light'] .modal-content form > div:last-child {
+  border-top-color: #e7ebe4 !important;
+}
+
 

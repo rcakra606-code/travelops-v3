@@ -81,7 +81,7 @@ const ForceChangePassword = () => {
                 value={newPassword} 
                 onChange={(e) => setNewPassword(e.target.value)} 
                 placeholder="Enter new password" 
-                style={{ paddingLeft: '2.75rem', width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#fff', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.5rem' }}
+                style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.5rem' }}
                 required 
               />
             </div>
@@ -96,13 +96,13 @@ const ForceChangePassword = () => {
                 value={confirmPassword} 
                 onChange={(e) => setConfirmPassword(e.target.value)} 
                 placeholder="Re-enter new password" 
-                style={{ paddingLeft: '2.75rem', width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#fff', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.5rem' }}
+                style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.5rem' }}
                 required 
               />
             </div>
           </div>
           
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', background: '#eab308', color: '#000', fontWeight: 'bold' }} disabled={isLoading}>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={isLoading}>
             {isLoading ? 'Updating...' : 'Change Password'}
           </button>
         </form>

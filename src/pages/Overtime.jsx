@@ -73,9 +73,9 @@ const Overtime = () => {
 
   const inputStyle = {
     paddingLeft: '2.5rem',
-    background: '#0f172a',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-main)',
     borderRadius: '0.5rem',
     width: '100%',
     padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -185,21 +185,21 @@ const Overtime = () => {
               <div className="fade-in">
                 {/* Stats Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Pending Requests</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#f59e0b', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--accent-orange)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <AlertCircle size={32} /> {pendingCount}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Approved Hours</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Clock size={32} /> {approvedHours}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Records</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#3b82f6', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <FileText size={32} /> {overtimes.length}
                     </div>
                   </div>
@@ -215,12 +215,12 @@ const Overtime = () => {
                       {staffData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={staffData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
                             <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                             <Legend />
-                            <Bar dataKey="Hours" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Hours" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -242,7 +242,7 @@ const Overtime = () => {
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
@@ -390,12 +390,12 @@ const Overtime = () => {
 
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '600px', background: '#111827', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #1f2937' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
-                <Plus size={24} color="#eab308" /> {editingOT ? 'Edit Overtime' : 'Add Overtime'}
+          <div className="modal-content fade-in" style={{ maxWidth: '600px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)' }}>
+                <Plus size={24} color="var(--primary)" /> {editingOT ? 'Edit Overtime' : 'Add Overtime'}
               </h2>
-              <button type="button" onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+              <button type="button" onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -410,7 +410,7 @@ const Overtime = () => {
                     required 
                     value={formData.staff} 
                     onChange={e => setFormData({...formData, staff: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #eab308', textTransform: 'uppercase', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none' }}
+                    style={{ ...inputStyle, textTransform: 'uppercase' }}
                   >
                     <option value="">Select Staff</option>
                     {activeStaff.map(user => (
@@ -442,7 +442,7 @@ const Overtime = () => {
                     required 
                     value={formData.date} 
                     onChange={e => setFormData({...formData, date: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
@@ -456,7 +456,7 @@ const Overtime = () => {
                     placeholder="e.g., 4.5"
                     value={formData.hours} 
                     onChange={e => setFormData({...formData, hours: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '0.5rem', padding: '0.75rem 1rem', outline: 'none', color: '#f8fafc' }}
+                    style={inputStyle}
                   />
                 </div>
 
@@ -467,7 +467,7 @@ const Overtime = () => {
                     required 
                     value={formData.status} 
                     onChange={e => setFormData({...formData, status: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none' }}
+                    style={inputStyle}
                   >
                     <option value="Pending">Pending</option>
                     <option value="Approved">Approved</option>
@@ -487,9 +487,9 @@ const Overtime = () => {
                           setFormData({...formData, remarks: e.target.value});
                         }
                       }}
-                      style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '0.5rem', padding: '1rem', width: '100%', outline: 'none', color: '#f8fafc', minHeight: '100px', resize: 'vertical', paddingBottom: '2rem' }}
+                      style={{ ...inputStyle, width: '100%', minHeight: '100px', resize: 'vertical', paddingBottom: '2rem' }}
                     />
-                    <div style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
+                    <div style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       {formData.remarks.length} / 500
                     </div>
                   </div>
@@ -497,11 +497,11 @@ const Overtime = () => {
 
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #1f2937' }}>
-                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   Save
                 </button>
               </div>

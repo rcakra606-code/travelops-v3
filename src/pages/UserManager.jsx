@@ -93,9 +93,9 @@ const UserManager = () => {
 
   const inputStyle = {
     paddingLeft: '2.5rem',
-    background: '#0f172a',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-main)',
     borderRadius: '0.5rem',
     width: '100%',
     padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -199,12 +199,12 @@ const UserManager = () => {
 
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: '#1e293b', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
-                <User size={24} color="#eab308" /> {editingUser ? 'Edit User' : 'Add New User'}
+          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)' }}>
+                <User size={24} color="var(--primary)" /> {editingUser ? 'Edit User' : 'Add New User'}
               </h2>
-              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -295,11 +295,11 @@ const UserManager = () => {
                 )}
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
-                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   {editingUser ? 'Save Changes' : 'Create User'}
                 </button>
               </div>
@@ -310,12 +310,12 @@ const UserManager = () => {
 
       {isResetModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '500px', background: '#1e293b', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
-                <Key size={24} color="#eab308" /> Reset Password
+          <div className="modal-content fade-in" style={{ maxWidth: '500px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)' }}>
+                <Key size={24} color="var(--primary)" /> Reset Password
               </h2>
-              <button onClick={handleCloseResetModal} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={handleCloseResetModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -338,11 +338,11 @@ const UserManager = () => {
                 </div>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
-                <button type="button" className="btn" onClick={handleCloseResetModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseResetModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   Reset Password
                 </button>
               </div>

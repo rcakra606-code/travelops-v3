@@ -131,9 +131,9 @@ const Hotel = () => {
 
   const inputStyle = {
     paddingLeft: '2.5rem',
-    background: '#0f172a',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-main)',
     borderRadius: '0.5rem',
     width: '100%',
     padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -256,19 +256,19 @@ const Hotel = () => {
               <div className="fade-in">
                 {/* Stats Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Active Stays (Checked-In)</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <CheckSquare size={32} /> {activeStays.length}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Upcoming Check-Ins</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#eab308', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Clock size={32} /> {upcomingStays.length}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Guests Managed</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#3b82f6', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <UsersIcon size={32} /> {totalGuests}
@@ -286,10 +286,10 @@ const Hotel = () => {
                       {staffData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={staffData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
                             <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                             <Legend />
                             <Bar dataKey="Bookings" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                           </BarChart>
@@ -313,7 +313,7 @@ const Hotel = () => {
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
@@ -491,12 +491,12 @@ const Hotel = () => {
 
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: '#111827', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #1f2937' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
-                <Plus size={24} color="#eab308" /> {editingHotel ? 'Edit Hotel Booking' : 'Add Hotel Booking'}
+          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--primary)' }}>
+                <Plus size={24} color="var(--primary)" /> {editingHotel ? 'Edit Hotel Booking' : 'Add Hotel Booking'}
               </h2>
-              <button type="button" onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+              <button type="button" onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -512,7 +512,7 @@ const Hotel = () => {
                     required 
                     value={formData.checkIn} 
                     onChange={e => setFormData({...formData, checkIn: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}
                   />
                   {!formData.checkIn && <div style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '0.25rem' }}>⚠️ This field is required</div>}
                 </div>
@@ -524,7 +524,7 @@ const Hotel = () => {
                     required 
                     value={formData.checkOut} 
                     onChange={e => setFormData({...formData, checkOut: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}
                   />
                 </div>
 
@@ -557,7 +557,7 @@ const Hotel = () => {
                     }} 
                     onFocus={() => setShowDropdown(true)}
                     placeholder="Search country..." 
-                    style={{ background: '#0f172a', border: '1px solid #10b981', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none', width: '100%' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none', width: '100%' }}
                   />
                   {showDropdown && (
                     <div style={{
@@ -569,9 +569,9 @@ const Hotel = () => {
                       {filteredCountries.length > 0 ? filteredCountries.map(country => (
                         <div 
                           key={country} 
-                          style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                          style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', color: 'var(--text-main)' }}
                           onClick={() => handleCountrySelect(country)}
-                          onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseEnter={(e) => e.target.style.background = 'var(--bg-surface)'}
                           onMouseLeave={(e) => e.target.style.background = 'transparent'}
                         >
                           {country}
@@ -605,7 +605,7 @@ const Hotel = () => {
                     placeholder="List of guests (comma separated)"
                     value={formData.guestList}
                     onChange={e => setFormData({...formData, guestList: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '0.5rem', padding: '1rem', width: '100%', outline: 'none', color: '#f8fafc', minHeight: '100px', resize: 'vertical' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem', width: '100%', outline: 'none', color: 'var(--text-main)', minHeight: '100px', resize: 'vertical' }}
                   />
                 </div>
 
@@ -645,7 +645,7 @@ const Hotel = () => {
                     required 
                     value={formData.staff} 
                     onChange={e => setFormData({...formData, staff: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', textTransform: 'uppercase', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none' }}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', textTransform: 'uppercase', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none' }}
                   >
                     <option value="">Select Staff</option>
                     {activeStaff.map(user => (
@@ -656,11 +656,11 @@ const Hotel = () => {
 
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #1f2937' }}>
-                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   Save
                 </button>
               </div>
@@ -672,12 +672,12 @@ const Hotel = () => {
       {/* PREVIEW MODAL */}
       {previewHotel && (
         <div className="modal-overlay fade-in">
-          <div className="modal-content" style={{ maxWidth: '600px', background: '#1e293b', padding: 0, border: '1px solid #334155' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc', fontSize: '1.2rem' }}>
-                <Eye size={20} color="#10b981" /> Hotel Booking Preview
+          <div className="modal-content" style={{ maxWidth: '600px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)', fontSize: '1.2rem' }}>
+                <Eye size={20} color="var(--primary)" /> Hotel Booking Preview
               </h2>
-              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
             </div>
@@ -685,8 +685,8 @@ const Hotel = () => {
             <div style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc', fontSize: '1.5rem' }}>{previewHotel.hotelName}</h3>
-                  <div style={{ color: '#0ea5e9', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.5rem' }}>{previewHotel.hotelName}</h3>
+                  <div style={{ color: 'var(--primary)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <MapIcon size={16} /> {previewHotel.region}
                   </div>
                 </div>
@@ -694,54 +694,54 @@ const Hotel = () => {
                   <span className={`badge ${getStatusBadge(previewHotel.status)}`} style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
                     {previewHotel.status || 'Upcoming'}
                   </span>
-                  <div style={{ marginTop: '0.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-                    Ref: <strong style={{ color: '#eab308' }}>{previewHotel.confirmationNumber || 'N/A'}</strong>
+                  <div style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Ref: <strong style={{ color: 'var(--accent-orange)' }}>{previewHotel.confirmationNumber || 'N/A'}</strong>
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Check In</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewHotel.checkIn}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Check In</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewHotel.checkIn}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Check Out</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewHotel.checkOut}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Check Out</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewHotel.checkOut}</strong>
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Supplier Details</h4>
-                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155' }}>
-                    <strong style={{ color: '#f8fafc', display: 'block', marginBottom: '0.25rem' }}>{previewHotel.supplierName || 'N/A'}</strong>
-                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
-                      Code: <span style={{ color: '#8b5cf6' }}>{previewHotel.supplierCode || '-'}</span>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Supplier Details</h4>
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <strong style={{ color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>{previewHotel.supplierName || 'N/A'}</strong>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      Code: <span style={{ color: 'var(--primary)' }}>{previewHotel.supplierCode || '-'}</span>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Guest List</h4>
-                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', maxHeight: '120px', overflowY: 'auto' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Guest List</h4>
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', maxHeight: '120px', overflowY: 'auto' }}>
                     {previewHotel.guestList ? (
-                      <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                      <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-main)', fontSize: '0.85rem' }}>
                         {previewHotel.guestList.split(',').map((g, idx) => (
                           g.trim() && <li key={idx}>{g.trim()}</li>
                         ))}
                       </ul>
                     ) : (
-                      <div style={{ color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic' }}>No guests listed</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>No guests listed</div>
                     )}
                   </div>
                 </div>
               </div>
               
-              <div style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: '#f8fafc' }}>{previewHotel.staff}</strong></span>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: 'var(--text-main)' }}>{previewHotel.staff}</strong></span>
               </div>
             </div>
           </div>

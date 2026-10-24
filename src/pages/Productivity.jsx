@@ -230,9 +230,9 @@ const Productivity = () => {
   const formatCurrency = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
   const inputStyle = {
-    background: '#0f172a',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-main)',
     borderRadius: '0.5rem',
     width: '100%',
     padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -244,7 +244,7 @@ const Productivity = () => {
     left: '0.75rem',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#64748b',
+    color: 'var(--text-muted)',
     pointerEvents: 'none'
   };
 
@@ -363,15 +363,15 @@ const Productivity = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <h1 className="section-title" style={{ marginBottom: 0 }}>Productivity Dashboard</h1>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#1e293b', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-card)', padding: '0.25rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Staff:</span>
                   <select 
                     value={selectedStaffFilter} 
                     onChange={e => setSelectedStaffFilter(e.target.value)}
-                    style={{ background: 'transparent', border: 'none', color: '#f8fafc', outline: 'none', cursor: 'pointer', fontWeight: '500' }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', fontWeight: '500' }}
                   >
-                    <option value="All" style={{ background: '#1e293b', color: '#f8fafc' }}>All Staff</option>
-                    {activeStaff.map(user => <option key={user.id} value={user.name} style={{ background: '#1e293b', color: '#f8fafc' }}>{user.name}</option>)}
+                    <option value="All" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>All Staff</option>
+                    {activeStaff.map(user => <option key={user.id} value={user.name} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{user.name}</option>)}
                   </select>
                 </div>
                 {canAdd && (
@@ -401,19 +401,19 @@ const Productivity = () => {
             {activeTab === 'overview' && (
               <div className="fade-in">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155', borderBottom: '4px solid #10b981' }}>
+                  <div className="card" style={{ borderBottom: '4px solid #10b981' }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Global Total Sales</div>
                     <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#10b981', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {formatCurrency(totalSales)}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155', borderBottom: '4px solid #3b82f6' }}>
+                  <div className="card" style={{ borderBottom: '4px solid #3b82f6' }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Global Total Profit</div>
                     <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#3b82f6', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {formatCurrency(totalProfit)}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155', borderBottom: '4px solid #f59e0b' }}>
+                  <div className="card" style={{ borderBottom: '4px solid #f59e0b' }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Global Profit Margin</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#f59e0b', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <TrendingUp size={32} /> {overallMargin}%
@@ -429,10 +429,10 @@ const Productivity = () => {
                     <div style={{ height: '350px', width: '100%' }}>
                       <ResponsiveContainer>
                         <BarChart data={catBarData} margin={{ top: 5, right: 0, left: 30, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
                           <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(val) => `Rp ${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} itemStyle={{ color: 'var(--text-main)' }} labelStyle={{ color: 'var(--text-muted)' }} />
                           <Legend />
                           <Bar dataKey="Sales" fill="#10b981" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="Profit" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -450,7 +450,7 @@ const Productivity = () => {
                           <Pie data={typePieData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={5} dataKey="value">
                             {typePieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                           </Pie>
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} itemStyle={{ color: 'var(--text-main)' }} labelStyle={{ color: 'var(--text-muted)' }} />
                           <Legend />
                         </PieChart>
                       </ResponsiveContainer>
@@ -464,29 +464,29 @@ const Productivity = () => {
             {activeTab === 'comparison' && (
               <div className="fade-in">
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                  <button className={`btn ${comparisonMode === 'type' ? 'btn-primary' : ''}`} onClick={() => setComparisonMode('type')} style={{ border: comparisonMode !== 'type' ? '1px solid #334155' : 'none', background: comparisonMode !== 'type' ? 'transparent' : '', color: comparisonMode === 'type' ? '#000' : '#f8fafc' }}>
+                  <button className={`btn ${comparisonMode === 'type' ? 'btn-primary' : ''}`} onClick={() => setComparisonMode('type')} style={{ border: comparisonMode !== 'type' ? '1px solid var(--border)' : 'none', background: comparisonMode !== 'type' ? 'var(--bg-surface)' : '', color: comparisonMode === 'type' ? 'var(--primary-fg, #fff)' : 'var(--text-main)' }}>
                     Retail vs Corporate
                   </button>
-                  <button className={`btn ${comparisonMode === 'period' ? 'btn-primary' : ''}`} onClick={() => setComparisonMode('period')} style={{ border: comparisonMode !== 'period' ? '1px solid #334155' : 'none', background: comparisonMode !== 'period' ? 'transparent' : '', color: comparisonMode === 'period' ? '#000' : '#f8fafc' }}>
+                  <button className={`btn ${comparisonMode === 'period' ? 'btn-primary' : ''}`} onClick={() => setComparisonMode('period')} style={{ border: comparisonMode !== 'period' ? '1px solid var(--border)' : 'none', background: comparisonMode !== 'period' ? 'var(--bg-surface)' : '', color: comparisonMode === 'period' ? 'var(--primary-fg, #fff)' : 'var(--text-main)' }}>
                     Period vs Period (YoY / QoQ)
                   </button>
                 </div>
 
-                <div className="card" style={{ marginBottom: '1.5rem', background: '#1e293b', border: '1px solid #334155' }}>
+                <div className="card" style={{ marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <div style={{ fontWeight: '600', color: comparisonMode === 'period' ? '#3b82f6' : '#fff' }}><Calendar size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/> {comparisonMode === 'period' ? 'Period 1:' : 'Filter Period:'}</div>
-                      <input type="month" value={compP1Start} onChange={e => setCompP1Start(e.target.value)} style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '0.5rem', borderRadius: '0.25rem' }} />
-                      <span>to</span>
-                      <input type="month" value={compP1End} onChange={e => setCompP1End(e.target.value)} style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '0.5rem', borderRadius: '0.25rem' }} />
+                      <div style={{ fontWeight: '600', color: comparisonMode === 'period' ? '#3b82f6' : 'var(--text-main)' }}><Calendar size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/> {comparisonMode === 'period' ? 'Period 1:' : 'Filter Period:'}</div>
+                      <input type="month" value={compP1Start} onChange={e => setCompP1Start(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
+                      <span style={{ color: 'var(--text-muted)' }}>to</span>
+                      <input type="month" value={compP1End} onChange={e => setCompP1End(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
                     </div>
                     
                     {comparisonMode === 'period' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '1px solid #334155', paddingLeft: '1.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
                         <div style={{ fontWeight: '600', color: '#8b5cf6' }}><Calendar size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/> Period 2:</div>
-                        <input type="month" value={compP2Start} onChange={e => setCompP2Start(e.target.value)} style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '0.5rem', borderRadius: '0.25rem' }} />
-                        <span>to</span>
-                        <input type="month" value={compP2End} onChange={e => setCompP2End(e.target.value)} style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '0.5rem', borderRadius: '0.25rem' }} />
+                        <input type="month" value={compP2Start} onChange={e => setCompP2Start(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
+                        <span style={{ color: 'var(--text-muted)' }}>to</span>
+                        <input type="month" value={compP2End} onChange={e => setCompP2End(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
                       </div>
                     )}
                   </div>
@@ -499,10 +499,10 @@ const Productivity = () => {
                   <div style={{ height: '400px', width: '100%' }}>
                     <ResponsiveContainer>
                       <BarChart data={comparisonMode === 'type' ? compTypeData : compPeriodData} margin={{ top: 5, right: 0, left: 30, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
                         <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(val) => `Rp ${val/1000000}M`} />
-                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} itemStyle={{ color: 'var(--text-main)' }} labelStyle={{ color: 'var(--text-muted)' }} />
                         <Legend />
                         {comparisonMode === 'type' ? (
                           <>
@@ -527,10 +527,10 @@ const Productivity = () => {
                   <div style={{ height: '400px', width: '100%' }}>
                     <ResponsiveContainer>
                       <BarChart data={comparisonMode === 'type' ? compTypeData : compPeriodData} margin={{ top: 5, right: 0, left: 30, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
                         <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(val) => `Rp ${val/1000000}M`} />
-                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} itemStyle={{ color: 'var(--text-main)' }} labelStyle={{ color: 'var(--text-muted)' }} />
                         <Legend />
                         {comparisonMode === 'type' ? (
                           <>
@@ -553,12 +553,12 @@ const Productivity = () => {
             {/* TAB: MANAGEMENT REPORT */}
             {activeTab === 'report' && (
               <div className="fade-in">
-                <div className="card" style={{ marginBottom: '1.5rem', background: '#1e293b', border: '1px solid #334155' }}>
+                <div className="card" style={{ marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                    <div style={{ fontWeight: '600' }}><Calendar size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/> Report Period:</div>
-                    <input type="month" value={reportStart} onChange={e => setReportStart(e.target.value)} style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '0.5rem', borderRadius: '0.25rem' }} />
-                    <span>to</span>
-                    <input type="month" value={reportEnd} onChange={e => setReportEnd(e.target.value)} style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', padding: '0.5rem', borderRadius: '0.25rem' }} />
+                    <div style={{ fontWeight: '600', color: 'var(--text-main)' }}><Calendar size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}/> Report Period:</div>
+                    <input type="month" value={reportStart} onChange={e => setReportStart(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
+                    <span style={{ color: 'var(--text-muted)' }}>to</span>
+                    <input type="month" value={reportEnd} onChange={e => setReportEnd(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
                   </div>
                 </div>
 
@@ -576,8 +576,8 @@ const Productivity = () => {
                     </thead>
                     <tbody>
                       {reportRows.map((row, idx) => (
-                        <tr key={idx} style={row.isTotal ? { background: '#1e293b', fontWeight: 'bold' } : {}}>
-                          <td style={{ color: row.isTotal ? '#eab308' : 'var(--text-main)' }}>{row.category}</td>
+                        <tr key={idx} style={row.isTotal ? { background: 'var(--bg-surface)', fontWeight: 'bold' } : {}}>
+                          <td style={{ color: row.isTotal ? 'var(--primary)' : 'var(--text-main)' }}>{row.category}</td>
                           <td>
                             {row.type !== '-' && (
                               <span className={`badge ${row.type === 'Retail' ? 'badge-primary' : 'badge-warning'}`}>
@@ -681,12 +681,12 @@ const Productivity = () => {
       {/* CRUD MODAL */}
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: '#111827', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #1f2937' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
-                <Plus size={24} color="#eab308" /> {editingRec ? 'Edit Record' : 'Add Productivity Record'}
+          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--primary)' }}>
+                <Plus size={24} color="var(--primary)" /> {editingRec ? 'Edit Record' : 'Add Productivity Record'}
               </h2>
-              <button type="button" onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+              <button type="button" onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -696,12 +696,12 @@ const Productivity = () => {
                 
                 <div className="input-group">
                   <label>Period (Month/Year)<span style={{color: '#ef4444'}}>*</span></label>
-                  <input type="month" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} style={{ background: '#0f172a', border: '1px solid #334155' }} />
+                  <input type="month" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem' }} />
                 </div>
 
                 <div className="input-group">
                   <label>Staff<span style={{color: '#ef4444'}}>*</span></label>
-                  <select required value={formData.staff} onChange={e => setFormData({...formData, staff: e.target.value})} style={{ background: '#0f172a', border: '1px solid #334155', textTransform: 'uppercase', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}>
+                  <select required value={formData.staff} onChange={e => setFormData({...formData, staff: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', textTransform: 'uppercase', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}>
                     <option value="">Select Staff</option>
                     {activeStaff.map(user => <option key={user.id} value={user.name}>{user.name}</option>)}
                   </select>
@@ -709,14 +709,14 @@ const Productivity = () => {
 
                 <div className="input-group">
                   <label>Product Category<span style={{color: '#ef4444'}}>*</span></label>
-                  <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ background: '#0f172a', border: '1px solid #10b981', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}>
+                  <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--primary)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}>
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 
                 <div className="input-group">
                   <label>Sales Type<span style={{color: '#ef4444'}}>*</span></label>
-                  <select required value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} style={{ background: '#0f172a', border: '1px solid #3b82f6', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}>
+                  <select required value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '0.5rem' }}>
                     {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
@@ -739,14 +739,14 @@ const Productivity = () => {
 
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Remarks</label>
-                  <textarea placeholder="Additional notes" value={formData.remarks} onChange={e => setFormData({...formData, remarks: e.target.value})} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '0.5rem', padding: '1rem', width: '100%', color: '#f8fafc', minHeight: '80px', resize: 'vertical' }} />
+                  <textarea placeholder="Additional notes" value={formData.remarks} onChange={e => setFormData({...formData, remarks: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem', width: '100%', color: 'var(--text-main)', minHeight: '80px', resize: 'vertical' }} />
                 </div>
 
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #1f2937' }}>
-                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>Save Record</button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Record</button>
               </div>
             </form>
           </div>

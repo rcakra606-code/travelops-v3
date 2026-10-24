@@ -133,9 +133,9 @@ const Telecom = () => {
 
   const inputStyle = {
     paddingLeft: '2.5rem',
-    background: '#0f172a',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-main)',
     borderRadius: '0.5rem',
     width: '100%',
     padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -263,21 +263,21 @@ const Telecom = () => {
               <div className="fade-in">
                 {/* Stats Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Active Telecoms</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#3b82f6', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Clock size={32} /> {activeTelecoms.length}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Completed</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <CheckCircle size={32} /> {completedTelecoms.length}
                     </div>
                   </div>
-                  <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                  <div className="card">
                     <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Deposit Collected</div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#eab308', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--accent-orange)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <DollarSign size={24} /> Rp {formatCurrency(totalDepositValue)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>From {depositedTelecoms.length} customers</div>
@@ -294,13 +294,13 @@ const Telecom = () => {
                       {staffData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={staffData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
                             <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                             <Legend />
-                            <Bar dataKey="Active" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                            <Bar dataKey="Completed" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Active" stackId="a" fill="var(--primary)" radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="Completed" stackId="a" fill="var(--secondary)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -322,7 +322,7 @@ const Telecom = () => {
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
@@ -479,12 +479,12 @@ const Telecom = () => {
 
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: '#111827', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #1f2937' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#eab308' }}>
-                <Plus size={24} color="#eab308" /> {editingTel ? 'Edit Telecom' : 'Add Telecom'}
+          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--primary)' }}>
+                <Plus size={24} color="var(--primary)" /> {editingTel ? 'Edit Telecom' : 'Add Telecom'}
               </h2>
-              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -551,21 +551,21 @@ const Telecom = () => {
                     }} 
                     onFocus={() => setShowDropdown(true)}
                     placeholder="Search country..." 
-                    style={{ background: '#0f172a', border: '1px solid #10b981', color: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.5rem', outline: 'none', width: '100%' }}
+                    style={{ ...inputStyle, width: '100%' }}
                   />
                   {showDropdown && (
                     <div style={{
                       position: 'absolute', top: '100%', left: 0, right: 0, 
                       background: 'var(--bg-card)', border: '1px solid var(--border)',
                       borderRadius: '0.5rem', maxHeight: '200px', overflowY: 'auto', zIndex: 10,
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                      boxShadow: 'var(--shadow)'
                     }}>
                       {filteredCountries.length > 0 ? filteredCountries.map(country => (
                         <div 
                           key={country} 
-                          style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                          style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', color: 'var(--text-main)' }}
                           onClick={() => handleCountrySelect(country)}
-                          onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseEnter={(e) => e.target.style.background = 'var(--bg-surface)'}
                           onMouseLeave={(e) => e.target.style.background = 'transparent'}
                         >
                           {country}
@@ -585,7 +585,7 @@ const Telecom = () => {
                     required 
                     value={formData.tanggalMulai} 
                     onChange={e => setFormData({...formData, tanggalMulai: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
@@ -595,9 +595,9 @@ const Telecom = () => {
                     type="date" 
                     value={formData.tanggalSelesai} 
                     onChange={e => setFormData({...formData, tanggalSelesai: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '0.25rem' }}>Kosongkan jika masih aktif</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.25rem' }}>Kosongkan jika masih aktif</div>
                 </div>
 
                 {/* Row 4 */}
@@ -650,7 +650,7 @@ const Telecom = () => {
                     type="date" 
                     value={formData.estimasiPengambilan} 
                     onChange={e => setFormData({...formData, estimasiPengambilan: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
@@ -661,7 +661,7 @@ const Telecom = () => {
                     required 
                     value={formData.staff} 
                     onChange={e => setFormData({...formData, staff: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', textTransform: 'uppercase' }}
+                    style={{ ...inputStyle, textTransform: 'uppercase' }}
                   >
                     <option value="">Select Staff</option>
                     {activeStaff.map(user => (
@@ -676,7 +676,7 @@ const Telecom = () => {
                     required 
                     value={formData.depositStatus} 
                     onChange={e => setFormData({...formData, depositStatus: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #10b981' }}
+                    style={inputStyle}
                   >
                     <option value="Sudah">Sudah</option>
                     <option value="Belum">Belum</option>
@@ -687,7 +687,7 @@ const Telecom = () => {
                 <div className="input-group">
                   <label>Jumlah Deposit</label>
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>Rp</span>
+                    <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>Rp</span>
                     <input 
                       type="text" 
                       value={formData.jumlahDeposit} 
@@ -703,7 +703,7 @@ const Telecom = () => {
                     type="date" 
                     value={formData.tanggalPengambilan} 
                     onChange={e => setFormData({...formData, tanggalPengambilan: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
@@ -714,17 +714,17 @@ const Telecom = () => {
                     type="date" 
                     value={formData.tanggalPengembalian} 
                     onChange={e => setFormData({...formData, tanggalPengembalian: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #1f2937' }}>
-                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   {editingTel ? 'Update Telecom' : 'Save Telecom'}
                 </button>
               </div>
@@ -736,12 +736,12 @@ const Telecom = () => {
       {/* PREVIEW MODAL */}
       {previewTelecom && (
         <div className="modal-overlay fade-in">
-          <div className="modal-content" style={{ maxWidth: '600px', background: '#1e293b', padding: 0, border: '1px solid #334155' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc', fontSize: '1.2rem' }}>
-                <Eye size={20} color="#10b981" /> Telecom Details Preview
+          <div className="modal-content" style={{ maxWidth: '600px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)', fontSize: '1.2rem' }}>
+                <Eye size={20} color="var(--primary)" /> Telecom Details Preview
               </h2>
-              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
             </div>
@@ -749,8 +749,8 @@ const Telecom = () => {
             <div style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc', fontSize: '1.5rem' }}>{previewTelecom.nama}</h3>
-                  <div style={{ color: '#0ea5e9', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.5rem' }}>{previewTelecom.nama}</h3>
+                  <div style={{ color: 'var(--primary)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Phone size={16} /> {previewTelecom.noTelephone}
                   </div>
                 </div>
@@ -758,68 +758,68 @@ const Telecom = () => {
                   <span className={`badge ${previewTelecom.depositStatus === 'Sudah' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
                     Deposit: {previewTelecom.depositStatus}
                   </span>
-                  <div style={{ marginTop: '0.5rem', color: '#eab308', fontSize: '1rem', fontWeight: 'bold' }}>
+                  <div style={{ marginTop: '0.5rem', color: 'var(--accent-orange)', fontSize: '1rem', fontWeight: 'bold' }}>
                     Rp {new Intl.NumberFormat('id-ID').format(Number(previewTelecom.jumlahDeposit) || 0)}
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Type Product</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.typeProduct || '-'}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Type Product</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewTelecom.typeProduct || '-'}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Region</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.region}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Region</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewTelecom.region}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Tanggal Mulai</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.tanggalMulai}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Tanggal Mulai</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewTelecom.tanggalMulai}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Tanggal Selesai</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewTelecom.tanggalSelesai || '-'}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Tanggal Selesai</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewTelecom.tanggalSelesai || '-'}</strong>
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Rekening Details</h4>
-                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155' }}>
-                    <strong style={{ color: '#f8fafc', display: 'block', marginBottom: '0.25rem' }}>{previewTelecom.namaRekening || 'N/A'}</strong>
-                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
-                      Bank: <span style={{ color: '#a78bfa' }}>{previewTelecom.bank || '-'}</span>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Rekening Details</h4>
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <strong style={{ color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>{previewTelecom.namaRekening || 'N/A'}</strong>
+                    <div style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                      Bank: <span style={{ color: 'var(--primary)' }}>{previewTelecom.bank || '-'}</span>
                     </div>
-                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
-                      No Rekening: <span style={{ color: '#3b82f6' }}>{previewTelecom.noRekening || '-'}</span>
+                    <div style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                      No Rekening: <span style={{ color: 'var(--primary)' }}>{previewTelecom.noRekening || '-'}</span>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Additional Info</h4>
-                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Additional Info</h4>
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div>
-                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Estimasi Pengambilan:</span>
-                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewTelecom.estimasiPengambilan || '-'}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>Estimasi Pengambilan:</span>
+                      <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{previewTelecom.estimasiPengambilan || '-'}</span>
                     </div>
                     <div>
-                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Tanggal Pengambilan:</span>
-                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewTelecom.tanggalPengambilan || '-'}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>Tanggal Pengambilan:</span>
+                      <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{previewTelecom.tanggalPengambilan || '-'}</span>
                     </div>
                     <div>
-                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Tanggal Pengembalian:</span>
-                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewTelecom.tanggalPengembalian || '-'}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>Tanggal Pengembalian:</span>
+                      <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{previewTelecom.tanggalPengembalian || '-'}</span>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <div style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: '#f8fafc' }}>{previewTelecom.staff}</strong></span>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: 'var(--text-main)' }}>{previewTelecom.staff}</strong></span>
               </div>
             </div>
           </div>

@@ -221,9 +221,9 @@ const PublicTracker = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at top, #0f172a 0%, #030712 100%)',
-      color: '#f8fafc',
-      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      background: 'var(--bg-dark, #f5f7f2)',
+      color: 'var(--text-main, #263a34)',
+      fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
       padding: '1.5rem 1rem'
     }}>
       {/* Brand Top Header */}
@@ -233,23 +233,24 @@ const PublicTracker = () => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        borderBottom: '1px solid var(--border, #e7ebe4)',
         paddingBottom: '1rem'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
-            width: '36px', height: '36px', borderRadius: '10px',
-            background: 'linear-gradient(135deg, #06b6d4 0%, #6366f1 100%)',
+            width: '36px', height: '36px', borderRadius: '12px',
+            background: 'var(--sage-light, #e6efe7)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#ffffff', boxShadow: '0 0 16px rgba(6, 182, 212, 0.4)'
+            color: 'var(--primary, #476b52)', border: '1px solid var(--border, #e7ebe4)',
+            boxShadow: '0 2px 8px rgba(71, 107, 82, 0.1)'
           }}>
-            <Plane size={20} strokeWidth={2.5} />
+            <Plane size={20} strokeWidth={2.2} />
           </div>
           <div>
-            <div style={{ fontWeight: '800', fontSize: '1.15rem', letterSpacing: '-0.02em', color: '#ffffff' }}>
+            <div style={{ fontWeight: '800', fontSize: '1.15rem', letterSpacing: '-0.02em', color: 'var(--text-main, #263a34)' }}>
               TravelOps
             </div>
-            <div style={{ fontSize: '0.675rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '0.675rem', color: 'var(--text-subtle, #9aa89d)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>
               Client Live Tracking Hub
             </div>
           </div>
@@ -258,11 +259,11 @@ const PublicTracker = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '0.35rem',
-            padding: '0.25rem 0.6rem', borderRadius: '20px',
-            background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)',
-            fontSize: '0.7rem', color: '#34d399', fontWeight: '600'
+            padding: '0.25rem 0.65rem', borderRadius: '20px',
+            background: '#ebf4ec', border: '1px solid #d4e7d7',
+            fontSize: '0.7rem', color: '#537f5f', fontWeight: '600'
           }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399' }} />
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#537f5f' }} />
             <span>Live Sync</span>
           </div>
         </div>
@@ -273,24 +274,23 @@ const PublicTracker = () => {
 
         {/* Tracking Search Card */}
         <div style={{
-          background: 'rgba(30, 41, 59, 0.5)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '16px',
-          padding: '1.5rem',
+          background: 'var(--bg-card, #ffffff)',
+          border: '1px solid var(--border, #e7ebe4)',
+          borderRadius: '18px',
+          padding: '1.75rem',
           marginBottom: '1.5rem',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)'
+          boxShadow: 'var(--shadow-card, 0 5px 25px rgba(39, 65, 46, 0.035))'
         }}>
-          <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: '800', color: '#ffffff' }}>
+          <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.35rem', fontWeight: '700', color: 'var(--text-main, #263a34)', fontFamily: "'Fraunces', serif" }}>
             Track Your Travel & Document Status
           </h2>
-          <p style={{ margin: '0 0 1rem 0', fontSize: '0.825rem', color: '#94a3b8' }}>
+          <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted, #78877e)' }}>
             Enter your Booking Code, Courier Resi Number, or Confirmation Reference to check live progress.
           </p>
 
-          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+              <Search size={16} style={{ position: 'absolute', left: '0.95rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #9aa89d)' }} />
               <input
                 type="text"
                 placeholder="e.g. BOOK-12345, JNE98213..."
@@ -298,11 +298,11 @@ const PublicTracker = () => {
                 onChange={e => setInputCode(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.75rem 1rem 0.75rem 2.5rem',
-                  borderRadius: '10px',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#ffffff',
+                  padding: '0.75rem 1rem 0.75rem 2.6rem',
+                  borderRadius: '12px',
+                  background: 'var(--bg-surface, #fafbf8)',
+                  border: '1px solid var(--border, #e3e9e1)',
+                  color: 'var(--text-main, #263a34)',
                   fontSize: '0.9rem',
                   outline: 'none',
                   boxSizing: 'border-box'
@@ -312,10 +312,11 @@ const PublicTracker = () => {
             <button
               type="submit"
               disabled={loading}
+              className="btn btn-primary"
               style={{
-                padding: '0.75rem 1.5rem',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+                padding: '0.75rem 1.6rem',
+                borderRadius: '12px',
+                background: 'var(--primary, #416b52)',
                 color: '#ffffff',
                 border: 'none',
                 fontWeight: '700',
@@ -324,7 +325,7 @@ const PublicTracker = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                boxShadow: '0 4px 15px rgba(6, 182, 212, 0.35)'
+                boxShadow: '0 4px 14px rgba(65, 107, 82, 0.22)'
               }}
             >
               {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} />}

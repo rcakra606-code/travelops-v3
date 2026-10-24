@@ -177,9 +177,9 @@ const Documents = () => {
 
   const inputStyle = {
     paddingLeft: '2.5rem',
-    background: '#0f172a',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border)',
+    color: 'var(--text-main)',
     borderRadius: '0.5rem',
     width: '100%',
     padding: '0.75rem 1rem 0.75rem 2.5rem',
@@ -391,11 +391,11 @@ const Documents = () => {
             <div className="fade-in">
               {/* Top Metrics Row */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-                <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                <div className="card">
                   <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                     Active Processing
                   </div>
-                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#3b82f6', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Clock size={32} /> {activeDocs.length}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Waiting for send date</div>
@@ -421,21 +421,21 @@ const Documents = () => {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Past estimated done date</div>
                 </div>
 
-                <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                <div className="card">
                   <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                     Total Completed
                   </div>
-                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <CheckCircle size={32} /> {completedDocs.length}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Successfully processed</div>
                 </div>
 
-                <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                <div className="card">
                   <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                     Avg Processing Time
                   </div>
-                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#eab308', marginTop: '0.5rem' }}>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--accent-orange)', marginTop: '0.5rem' }}>
                     {avgProcessingTime} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>days</span>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>From receive to send</div>
@@ -452,13 +452,13 @@ const Documents = () => {
                     {workloadData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={workloadData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
                           <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                          <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                          <RechartsTooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                           <Legend />
-                          <Bar dataKey="Active" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                          <Bar dataKey="Completed" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Active" stackId="a" fill="var(--primary)" radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="Completed" stackId="a" fill="var(--secondary)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
@@ -480,7 +480,7 @@ const Documents = () => {
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
-                          <RechartsTooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem' }} />
+                          <RechartsTooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.5rem', color: 'var(--text-main)' }} />
                           <Legend />
                         </PieChart>
                       </ResponsiveContainer>
@@ -674,8 +674,8 @@ const Documents = () => {
                             {doc.appointmentDate ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '160px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontWeight: '700', color: '#f8fafc', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                    <Calendar size={13} color="#eab308" /> {formatAppointmentDate(doc.appointmentDate)}
+                                  <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                    <Calendar size={13} color="var(--primary)" /> {formatAppointmentDate(doc.appointmentDate)}
                                   </span>
                                   {doc.appointmentTime && (
                                     <span style={{ color: '#38bdf8', fontSize: '0.75rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -809,12 +809,12 @@ const Documents = () => {
 
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: '#1e293b', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc' }}>
-                <Plus size={24} color="#eab308" /> {editingDoc ? 'Edit Document' : 'Add Document'}
+          <div className="modal-content fade-in" style={{ maxWidth: '800px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)' }}>
+                <Plus size={24} color="var(--primary)" /> {editingDoc ? 'Edit Document' : 'Add Document'}
               </h2>
-              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -822,15 +822,15 @@ const Documents = () => {
             <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
               <div className="form-grid">
                 <div className="input-group">
-                  <label>Receive Date<span style={{color: '#ef4444'}}>*</span></label>
+                  <label>Receive Date<span style={{color: 'var(--danger)'}}>*</span></label>
                   <input 
                     type="date" 
                     required 
                     value={formData.receiveDate} 
                     onChange={e => setFormData({...formData, receiveDate: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
-                  {!formData.receiveDate && <div style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '0.25rem' }}>⚠️ This field is required</div>}
+                  {!formData.receiveDate && <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '0.25rem' }}>⚠️ This field is required</div>}
                 </div>
                 
                 <div className="input-group">
@@ -839,14 +839,14 @@ const Documents = () => {
                     type="date" 
                     value={formData.sendDate} 
                     onChange={e => setFormData({...formData, sendDate: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label>Guest Name<span style={{color: '#ef4444'}}>*</span></label>
+                  <label>Guest Name<span style={{color: 'var(--danger)'}}>*</span></label>
                   <div style={{ position: 'relative' }}>
-                    <User size={16} style={{...iconStyle, color: '#8b5cf6'}} />
+                    <User size={16} style={{...iconStyle, color: 'var(--primary)'}} />
                     <input 
                       type="text" 
                       required 
@@ -861,7 +861,7 @@ const Documents = () => {
                 <div className="input-group">
                   <label>Passport/Visa Country</label>
                   <div style={{ position: 'relative' }}>
-                    <Globe size={16} style={{...iconStyle, color: '#3b82f6'}} />
+                    <Globe size={16} style={{...iconStyle, color: 'var(--primary)'}} />
                     <input 
                       type="text" 
                       placeholder="Country name"
@@ -873,12 +873,12 @@ const Documents = () => {
                 </div>
 
                 <div className="input-group">
-                  <label>Process Type<span style={{color: '#ef4444'}}>*</span></label>
+                  <label>Process Type<span style={{color: 'var(--danger)'}}>*</span></label>
                   <select 
                     required 
                     value={formData.processType} 
                     onChange={e => setFormData({...formData, processType: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   >
                     <option value="Normal">Normal</option>
                     <option value="Express">Express</option>
@@ -889,7 +889,7 @@ const Documents = () => {
                 <div className="input-group">
                   <label>Booking Code</label>
                   <div style={{ position: 'relative' }}>
-                    <Clipboard size={16} style={{...iconStyle, color: '#f97316'}} />
+                    <Clipboard size={16} style={{...iconStyle, color: 'var(--accent-orange)'}} />
                     <input 
                       type="text" 
                       placeholder="BKG-001"
@@ -903,7 +903,7 @@ const Documents = () => {
                 <div className="input-group">
                   <label>Invoice Number</label>
                   <div style={{ position: 'relative' }}>
-                    <Receipt size={16} style={{...iconStyle, color: '#94a3b8'}} />
+                    <Receipt size={16} style={{...iconStyle, color: 'var(--text-muted)'}} />
                     <input 
                       type="text" 
                       placeholder="INV-001"
@@ -917,7 +917,7 @@ const Documents = () => {
                 <div className="input-group">
                   <label>Phone Number</label>
                   <div style={{ position: 'relative' }}>
-                    <Phone size={16} style={{...iconStyle, color: '#ec4899'}} />
+                    <Phone size={16} style={{...iconStyle, color: 'var(--primary)'}} />
                     <input 
                       type="text" 
                       placeholder="+62..."
@@ -934,17 +934,17 @@ const Documents = () => {
                     type="date" 
                     value={formData.estimatedDone} 
                     onChange={e => setFormData({...formData, estimatedDone: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label>Staff<span style={{color: '#ef4444'}}>*</span></label>
+                  <label>Staff<span style={{color: 'var(--danger)'}}>*</span></label>
                   <select 
                     required 
                     value={formData.staff} 
                     onChange={e => setFormData({...formData, staff: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', textTransform: 'uppercase' }}
+                    style={{ ...inputStyle, textTransform: 'uppercase' }}
                   >
                     <option value="">Select Staff</option>
                     {activeStaff.map(user => (
@@ -956,7 +956,7 @@ const Documents = () => {
                 <div className="input-group">
                   <label>Tour Code</label>
                   <div style={{ position: 'relative' }}>
-                    <Ticket size={16} style={{...iconStyle, color: '#eab308'}} />
+                    <Ticket size={16} style={{...iconStyle, color: 'var(--accent-orange)'}} />
                     <input 
                       type="text" 
                       placeholder="TRV-001"
@@ -979,7 +979,7 @@ const Documents = () => {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                     <Calendar size={18} color="#fbbf24" />
-                    <h3 style={{ margin: 0, fontSize: '0.925rem', fontWeight: '700', color: '#f8fafc' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.925rem', fontWeight: '700', color: 'var(--text-main)' }}>
                       Jadwal Appointment Visa (Biometrik / Wawancara Kedutaan)
                     </h3>
                   </div>
@@ -993,7 +993,7 @@ const Documents = () => {
                         type="date" 
                         value={formData.appointmentDate || ''} 
                         onChange={e => setFormData({...formData, appointmentDate: e.target.value})}
-                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                        style={inputStyle}
                       />
                     </div>
 
@@ -1005,7 +1005,7 @@ const Documents = () => {
                         type="time" 
                         value={formData.appointmentTime || ''} 
                         onChange={e => setFormData({...formData, appointmentTime: e.target.value})}
-                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                        style={inputStyle}
                       />
                     </div>
 
@@ -1019,7 +1019,7 @@ const Documents = () => {
                         placeholder="Pilih atau ketik lokasi (Contoh: VFS Global Kuningan City Mall Lt. 2, Jakarta)"
                         value={formData.appointmentLocation || ''} 
                         onChange={e => setFormData({...formData, appointmentLocation: e.target.value})}
-                        style={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc' }}
+                        style={inputStyle}
                       />
                       <datalist id="visa-locations">
                         <option value="VFS Global Kuningan City Mall Lt. 2, Jakarta (UK, Schengen, Canada)" />
@@ -1033,7 +1033,7 @@ const Documents = () => {
                         <option value="Kantor Imigrasi Jakarta Pusat" />
                         <option value="Kantor Imigrasi Jakarta Barat" />
                       </datalist>
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                         💡 Masukkan tempat appointment visa, biometrik, atau wawancara yang tertera pada surat konfirmasi booking visa.
                       </div>
                     </div>
@@ -1049,19 +1049,19 @@ const Documents = () => {
                     maxLength="500"
                     value={formData.notes || ''} 
                     onChange={e => setFormData({...formData, notes: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', width: '100%', resize: 'vertical' }}
+                    style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
                   ></textarea>
-                  <div style={{ position: 'absolute', bottom: '0.5rem', right: '1rem', fontSize: '0.75rem', color: '#64748b' }}>
+                  <div style={{ position: 'absolute', bottom: '0.5rem', right: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {(formData.notes || '').length} / 500
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
-                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseModal} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   {editingDoc ? 'Update Document' : 'Save Document'}
                 </button>
               </div>
@@ -1073,41 +1073,41 @@ const Documents = () => {
       {/* SHIPPING MODAL */}
       {shippingDoc && (
         <div className="modal-overlay fade-in">
-          <div className="modal-content" style={{ maxWidth: '500px', background: '#1e293b', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc' }}>
-                <Truck size={24} color="#f59e0b" /> Kirim Dokumen
+          <div className="modal-content" style={{ maxWidth: '500px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)' }}>
+                <Truck size={24} color="var(--accent-orange)" /> Kirim Dokumen
               </h2>
-              <button onClick={handleCloseShipping} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={handleCloseShipping} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
             
             <form onSubmit={handleShippingSubmit} style={{ padding: '1.5rem' }}>
-              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
-                <strong style={{ display: 'block', color: '#f8fafc', marginBottom: '0.25rem' }}>{shippingDoc.guestName}</strong>
-                <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{shippingDoc.country || shippingDoc.processType}</span>
+              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
+                <strong style={{ display: 'block', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{shippingDoc.guestName}</strong>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{shippingDoc.country || shippingDoc.processType}</span>
               </div>
 
               <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
                 <div className="input-group">
-                  <label>Tanggal Kirim<span style={{color: '#ef4444'}}>*</span></label>
+                  <label>Tanggal Kirim<span style={{color: 'var(--danger)'}}>*</span></label>
                   <input 
                     type="date" 
                     required 
                     value={shippingData.sendDate} 
                     onChange={e => setShippingData({...shippingData, sendDate: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   />
                 </div>
 
                 <div className="input-group">
-                  <label>Metode Pengiriman<span style={{color: '#ef4444'}}>*</span></label>
+                  <label>Metode Pengiriman<span style={{color: 'var(--danger)'}}>*</span></label>
                   <select 
                     required 
                     value={shippingData.shippingMethod} 
                     onChange={e => setShippingData({...shippingData, shippingMethod: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155' }}
+                    style={inputStyle}
                   >
                     <option value="Messenger">Messenger (Kurir Internal)</option>
                     <option value="Ekspedisi">Ekspedisi (JNE/Tiki/dll)</option>
@@ -1117,25 +1117,25 @@ const Documents = () => {
                 {shippingData.shippingMethod === 'Ekspedisi' && (
                   <>
                     <div className="input-group">
-                      <label>Jasa Ekspedisi<span style={{color: '#ef4444'}}>*</span></label>
+                      <label>Jasa Ekspedisi<span style={{color: 'var(--danger)'}}>*</span></label>
                       <input 
                         type="text" 
                         required 
                         placeholder="Contoh: JNE / TIKI / SiCepat"
                         value={shippingData.shippingCourier} 
                         onChange={e => setShippingData({...shippingData, shippingCourier: e.target.value})}
-                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                        style={inputStyle}
                       />
                     </div>
                     <div className="input-group">
-                      <label>Nomor Resi<span style={{color: '#ef4444'}}>*</span></label>
+                      <label>Nomor Resi<span style={{color: 'var(--danger)'}}>*</span></label>
                       <input 
                         type="text" 
                         required 
                         placeholder="Masukkan no resi..."
                         value={shippingData.shippingResi} 
                         onChange={e => setShippingData({...shippingData, shippingResi: e.target.value})}
-                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                        style={inputStyle}
                       />
                     </div>
                   </>
@@ -1148,16 +1148,16 @@ const Documents = () => {
                     placeholder="Contoh: Dititipkan ke satpam"
                     value={shippingData.shippingNotes} 
                     onChange={e => setShippingData({...shippingData, shippingNotes: e.target.value})}
-                    style={{ background: '#0f172a', border: '1px solid #334155', width: '100%', resize: 'vertical' }}
+                    style={{ ...inputStyle, width: '100%', resize: 'vertical' }}
                   ></textarea>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
-                <button type="button" className="btn" onClick={handleCloseShipping} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseShipping} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Batal
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#f59e0b', color: '#000', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   Kirim Sekarang
                 </button>
               </div>
@@ -1169,45 +1169,45 @@ const Documents = () => {
       {/* RECEIVE MODAL */}
       {receiveDoc && (
         <div className="modal-overlay fade-in">
-          <div className="modal-content" style={{ maxWidth: '400px', background: '#1e293b', padding: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc' }}>
-                <Inbox size={24} color="#10b981" /> Terima Dokumen
+          <div className="modal-content" style={{ maxWidth: '400px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)' }}>
+                <Inbox size={24} color="var(--primary)" /> Terima Dokumen
               </h2>
-              <button onClick={handleCloseReceive} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={handleCloseReceive} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
             
             <form onSubmit={handleReceiveSubmit} style={{ padding: '1.5rem' }}>
-              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
-                <strong style={{ display: 'block', color: '#f8fafc', marginBottom: '0.25rem' }}>{receiveDoc.guestName}</strong>
-                <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Dikirim via: {receiveDoc.shippingMethod} {receiveDoc.shippingCourier ? `(${receiveDoc.shippingCourier})` : ''}</span>
+              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
+                <strong style={{ display: 'block', color: 'var(--text-main)', marginBottom: '0.25rem' }}>{receiveDoc.guestName}</strong>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Dikirim via: {receiveDoc.shippingMethod} {receiveDoc.shippingCourier ? `(${receiveDoc.shippingCourier})` : ''}</span>
               </div>
 
               <div className="input-group">
-                <label>Status Penerimaan<span style={{color: '#ef4444'}}>*</span></label>
+                <label>Status Penerimaan<span style={{color: 'var(--danger)'}}>*</span></label>
                 <select 
                   required 
                   value={receiveData.receivedStatus} 
                   onChange={e => setReceiveData({...receiveData, receivedStatus: e.target.value})}
-                  style={{ background: '#0f172a', border: '1px solid #334155' }}
+                  style={inputStyle}
                 >
                   <option value="Final">Diterima (Final)</option>
                   <option value="Needs Return">Dikembalikan / Perlu Dikirim Ulang</option>
                 </select>
               </div>
               {receiveData.receivedStatus === 'Needs Return' && (
-                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#ef4444', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--danger)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <AlertCircle size={14} /> Dokumen akan berstatus "Returned" dan perlu dikirim ulang.
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #334155' }}>
-                <button type="button" className="btn" onClick={handleCloseReceive} style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#f8fafc' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                <button type="button" className="btn" onClick={handleCloseReceive} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                   Batal
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#10b981', color: '#fff', border: 'none', fontWeight: 'bold' }}>
+                <button type="submit" className="btn btn-primary">
                   Konfirmasi
                 </button>
               </div>
@@ -1219,12 +1219,12 @@ const Documents = () => {
       {/* PREVIEW MODAL */}
       {previewDoc && (
         <div className="modal-overlay fade-in">
-          <div className="modal-content" style={{ maxWidth: '600px', background: '#1e293b', padding: 0, border: '1px solid #334155' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: '#f8fafc', fontSize: '1.2rem' }}>
-                <Eye size={20} color="#10b981" /> Document Details Preview
+          <div className="modal-content" style={{ maxWidth: '600px', background: 'var(--bg-card)', padding: 0, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--text-main)', fontSize: '1.2rem' }}>
+                <Eye size={20} color="var(--primary)" /> Document Details Preview
               </h2>
-              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button type="button" onClick={handleClosePreview} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
             </div>
@@ -1232,43 +1232,43 @@ const Documents = () => {
             <div style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc', fontSize: '1.5rem' }}>{previewDoc.guestName}</h3>
-                  <div style={{ color: '#0ea5e9', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.5rem' }}>{previewDoc.guestName}</h3>
+                  <div style={{ color: 'var(--primary)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Globe size={16} /> {previewDoc.country || '-'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span className={`badge ${previewDoc.shippingStatus === 'Received' ? 'badge-primary' : previewDoc.shippingStatus === 'Sent' ? 'badge-warning' : previewDoc.shippingStatus === 'Returned' ? 'badge-danger' : 'badge-primary'}`} style={{background: previewDoc.shippingStatus === 'Received' ? 'rgba(16, 185, 129, 0.1)' : undefined, color: previewDoc.shippingStatus === 'Received' ? '#10b981' : undefined, fontSize: '1rem', padding: '0.5rem 1rem'}}>
+                  <span className={`badge ${previewDoc.shippingStatus === 'Received' ? 'badge-primary' : previewDoc.shippingStatus === 'Sent' ? 'badge-warning' : previewDoc.shippingStatus === 'Returned' ? 'badge-danger' : 'badge-primary'}`} style={{fontSize: '1rem', padding: '0.5rem 1rem'}}>
                     {previewDoc.shippingStatus || 'Processing'}
                   </span>
                 </div>
               </div>
 
-              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', marginBottom: '1.5rem' }}>
+              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Process Type</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewDoc.processType}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Process Type</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewDoc.processType}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Receive Date</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewDoc.receiveDate}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Receive Date</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewDoc.receiveDate}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Send Date</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewDoc.sendDate || '-'}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Send Date</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewDoc.sendDate || '-'}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Estimated Done</span>
-                    <strong style={{ color: '#f8fafc' }}>{previewDoc.estimatedDone || '-'}</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>Estimated Done</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{previewDoc.estimatedDone || '-'}</strong>
                   </div>
                 </div>
               </div>
 
               {/* Visa Appointment Card in Preview */}
               <div style={{
-                background: previewDoc.appointmentDate ? 'rgba(234, 179, 8, 0.08)' : '#0f172a',
-                border: `1px solid ${previewDoc.appointmentDate ? 'rgba(234, 179, 8, 0.35)' : '#334155'}`,
+                background: previewDoc.appointmentDate ? 'rgba(234, 179, 8, 0.08)' : 'var(--bg-surface)',
+                border: `1px solid ${previewDoc.appointmentDate ? 'rgba(234, 179, 8, 0.35)' : 'var(--border)'}`,
                 borderRadius: '8px',
                 padding: '1.25rem',
                 marginBottom: '1.5rem'
@@ -1276,7 +1276,7 @@ const Documents = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Calendar size={18} color="#fbbf24" />
-                    <strong style={{ color: '#f8fafc', fontSize: '0.95rem' }}>Jadwal Appointment Visa</strong>
+                    <strong style={{ color: 'var(--text-main)', fontSize: '0.95rem' }}>Jadwal Appointment Visa</strong>
                   </div>
                   {getAppointmentBadge(previewDoc.appointmentDate)}
                 </div>
@@ -1285,19 +1285,19 @@ const Documents = () => {
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Tanggal</span>
-                        <strong style={{ color: '#f8fafc', fontSize: '0.925rem' }}>📅 {formatAppointmentDate(previewDoc.appointmentDate)}</strong>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Tanggal</span>
+                        <strong style={{ color: 'var(--text-main)', fontSize: '0.925rem' }}>📅 {formatAppointmentDate(previewDoc.appointmentDate)}</strong>
                       </div>
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Waktu / Jam</span>
-                        <strong style={{ color: '#38bdf8', fontSize: '0.925rem' }}>⏰ {previewDoc.appointmentTime || 'Jam belum ditentukan'}</strong>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Waktu / Jam</span>
+                        <strong style={{ color: 'var(--primary)', fontSize: '0.925rem' }}>⏰ {previewDoc.appointmentTime || 'Jam belum ditentukan'}</strong>
                       </div>
                     </div>
                     {previewDoc.appointmentLocation && (
-                      <div style={{ marginTop: '0.5rem', background: '#0f172a', padding: '0.75rem', borderRadius: '6px', border: '1px solid #334155' }}>
-                        <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Tempat / Lokasi</span>
-                        <div style={{ color: '#f8fafc', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                          <MapPin size={16} color="#f43f5e" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <div style={{ marginTop: '0.5rem', background: 'var(--bg-card)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Tempat / Lokasi</span>
+                        <div style={{ color: 'var(--text-main)', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                          <MapPin size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: '2px' }} />
                           <span>{previewDoc.appointmentLocation}</span>
                         </div>
                       </div>
@@ -1325,7 +1325,7 @@ const Documents = () => {
                         padding: '0.55rem 1.15rem',
                         background: 'rgba(34, 197, 94, 0.15)',
                         border: '1px solid rgba(34, 197, 94, 0.35)',
-                        color: '#4ade80',
+                        color: 'var(--primary)',
                         fontSize: '0.825rem',
                         fontWeight: '700',
                         borderRadius: '6px',
@@ -1336,7 +1336,7 @@ const Documents = () => {
                     </button>
                   </div>
                 ) : (
-                  <div style={{ color: '#94a3b8', fontSize: '0.825rem', fontStyle: 'italic' }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.825rem', fontStyle: 'italic' }}>
                     Belum ada jadwal appointment visa untuk dokumen ini. Klik "Edit Dokumen" untuk menambahkan tanggal, waktu, dan lokasi.
                   </div>
                 )}
@@ -1344,48 +1344,48 @@ const Documents = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Booking Info</h4>
-                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                      Booking Code: <span style={{ color: '#f59e0b' }}>{previewDoc.bookingCode || '-'}</span>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Booking Info</h4>
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <div style={{ color: 'var(--text-main)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                      Booking Code: <span style={{ color: 'var(--accent-orange)' }}>{previewDoc.bookingCode || '-'}</span>
                     </div>
-                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                      Invoice Number: <span style={{ color: '#94a3b8' }}>{previewDoc.invoiceNumber || '-'}</span>
+                    <div style={{ color: 'var(--text-main)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                      Invoice Number: <span style={{ color: 'var(--text-muted)' }}>{previewDoc.invoiceNumber || '-'}</span>
                     </div>
-                    <div style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
-                      Tour Code: <span style={{ color: '#eab308' }}>{previewDoc.tourCode || '-'}</span>
+                    <div style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                      Tour Code: <span style={{ color: 'var(--accent-orange)' }}>{previewDoc.tourCode || '-'}</span>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase' }}>Shipping Details</h4>
-                  <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Shipping Details</h4>
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div>
-                      <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Method:</span>
-                      <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewDoc.shippingMethod || '-'}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>Method:</span>
+                      <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{previewDoc.shippingMethod || '-'}</span>
                     </div>
                     {previewDoc.shippingCourier && (
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Courier:</span>
-                        <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewDoc.shippingCourier} (Resi: {previewDoc.shippingResi})</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>Courier:</span>
+                        <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{previewDoc.shippingCourier} (Resi: {previewDoc.shippingResi})</span>
                       </div>
                     )}
                     {previewDoc.shippingNotes && (
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Notes:</span>
-                        <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>{previewDoc.shippingNotes}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block' }}>Notes:</span>
+                        <span style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>{previewDoc.shippingNotes}</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
               
-              <div style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: '#f8fafc' }}>{previewDoc.staff}</strong></span>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Handled by: <strong style={{ color: 'var(--text-main)' }}>{previewDoc.staff}</strong></span>
                 {previewDoc.phoneNumber && (
-                  <span style={{ color: '#64748b', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <Phone size={14} color="#ec4899" /> {previewDoc.phoneNumber}
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Phone size={14} color="var(--primary)" /> {previewDoc.phoneNumber}
                   </span>
                 )}
               </div>

@@ -190,31 +190,31 @@ const StaffPerformance = () => {
               <h1 className="section-title" style={{ marginBottom: 0 }}>Staff Performance Overview</h1>
               
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#1e293b', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                   <Calendar size={18} color="var(--text-muted)" />
                   <input 
                     type="month" 
                     value={period} 
                     onChange={e => setPeriod(e.target.value)}
-                    style={{ background: 'transparent', border: 'none', color: '#f8fafc', outline: 'none', padding: 0 }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', padding: 0 }}
                   />
                   {period && (
                     <button onClick={() => setPeriod('')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem' }}>Clear</button>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#1e293b', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                   <UserCheck size={18} color="var(--primary)" />
                   {isStaffRole ? (
-                     <span style={{ fontWeight: '500' }}>{user?.name}</span>
+                     <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>{user?.name}</span>
                   ) : (
                     <select 
                       value={selectedStaff} 
                       onChange={e => setSelectedStaff(e.target.value)}
-                      style={{ background: 'transparent', border: 'none', color: '#f8fafc', outline: 'none', cursor: 'pointer', fontWeight: '500', padding: 0 }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', fontWeight: '500', padding: 0 }}
                     >
-                      <option value="All" style={{ background: '#1e293b' }}>All Staff Overview</option>
-                      {activeStaff.map(u => <option key={u.id} value={u.name} style={{ background: '#1e293b' }}>{u.name}</option>)}
+                      <option value="All" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>All Staff Overview</option>
+                      {activeStaff.map(u => <option key={u.id} value={u.name} style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>{u.name}</option>)}
                     </select>
                   )}
                 </div>
@@ -246,7 +246,7 @@ const StaffPerformance = () => {
             {activeTab === 'productivity' && (
               <div className="fade-in">
                 <div className="card">
-                  <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f8fafc' }}>
+                  <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
                     <BarChartIcon size={20} color="#8b5cf6" /> Productivity Data Breakdown (Retail vs Corporate)
                   </h3>
 
@@ -268,10 +268,10 @@ const StaffPerformance = () => {
                   <div style={{ height: '350px', width: '100%', marginBottom: '2rem' }}>
                     <ResponsiveContainer>
                       <BarChart data={productivityBreakdown} margin={{ top: 5, right: 0, left: 30, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
                         <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(val) => `Rp ${(val/1000000).toFixed(0)}M`} />
-                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
                         <Legend />
                         <Bar dataKey="retailSales" name="Retail Sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="corpSales" name="Corporate Sales" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
@@ -287,10 +287,10 @@ const StaffPerformance = () => {
                           <th>PRODUCT CATEGORY</th>
                           <th style={{ textAlign: 'right' }}>RETAIL SALES</th>
                           <th style={{ textAlign: 'right' }}>CORP SALES</th>
-                          <th style={{ textAlign: 'right', borderLeft: '1px solid #334155' }}>TOTAL SALES</th>
-                          <th style={{ textAlign: 'right', borderLeft: '1px solid #334155' }}>RETAIL PROFIT</th>
+                          <th style={{ textAlign: 'right', borderLeft: '1px solid var(--border)' }}>TOTAL SALES</th>
+                          <th style={{ textAlign: 'right', borderLeft: '1px solid var(--border)' }}>RETAIL PROFIT</th>
                           <th style={{ textAlign: 'right' }}>CORP PROFIT</th>
-                          <th style={{ textAlign: 'right', borderLeft: '1px solid #334155' }}>TOTAL PROFIT</th>
+                          <th style={{ textAlign: 'right', borderLeft: '1px solid var(--border)' }}>TOTAL PROFIT</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -307,8 +307,8 @@ const StaffPerformance = () => {
                               <td style={{ fontWeight: '500' }}>{row.name}</td>
                               <td style={{ textAlign: 'right', color: '#3b82f6' }}>{formatCurrency(row.retailSales)}</td>
                               <td style={{ textAlign: 'right', color: '#8b5cf6' }}>{formatCurrency(row.corpSales)}</td>
-                              <td style={{ textAlign: 'right', fontWeight: 'bold', borderLeft: '1px solid #334155' }}>Rp {formatCurrency(totalSales)}</td>
-                              <td style={{ textAlign: 'right', color: '#10b981', borderLeft: '1px solid #334155' }}>
+                              <td style={{ textAlign: 'right', fontWeight: 'bold', borderLeft: '1px solid var(--border)' }}>Rp {formatCurrency(totalSales)}</td>
+                              <td style={{ textAlign: 'right', color: '#10b981', borderLeft: '1px solid var(--border)' }}>
                                 <div>{formatCurrency(row.retailProfit)}</div>
                                 <div style={{ fontSize: '0.7rem', color: retailMargin >= 10 ? '#10b981' : retailMargin >= 5 ? '#f59e0b' : '#ef4444' }}>{retailMargin}% margin</div>
                               </td>
@@ -316,7 +316,7 @@ const StaffPerformance = () => {
                                 <div>{formatCurrency(row.corpProfit)}</div>
                                 <div style={{ fontSize: '0.7rem', color: corpMargin >= 10 ? '#10b981' : corpMargin >= 5 ? '#f59e0b' : '#ef4444' }}>{corpMargin}% margin</div>
                               </td>
-                              <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#10b981', borderLeft: '1px solid #334155' }}>
+                              <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#10b981', borderLeft: '1px solid var(--border)' }}>
                                 <div>Rp {formatCurrency(totalProfit)}</div>
                                 <div style={{ fontSize: '0.7rem', color: totalMargin >= 10 ? '#10b981' : totalMargin >= 5 ? '#f59e0b' : '#ef4444' }}>{totalMargin}% margin</div>
                               </td>
@@ -342,11 +342,11 @@ const StaffPerformance = () => {
 
                           return (
                             <tr style={{ background: 'rgba(59, 130, 246, 0.05)', fontWeight: 'bold' }}>
-                              <td style={{ color: '#eab308' }}>GRAND TOTAL</td>
+                              <td style={{ color: 'var(--primary)' }}>GRAND TOTAL</td>
                               <td style={{ textAlign: 'right', color: '#3b82f6' }}>{formatCurrency(tRS)}</td>
                               <td style={{ textAlign: 'right', color: '#8b5cf6' }}>{formatCurrency(tCS)}</td>
-                              <td style={{ textAlign: 'right', borderLeft: '1px solid #334155' }}>Rp {formatCurrency(tTS)}</td>
-                              <td style={{ textAlign: 'right', color: '#10b981', borderLeft: '1px solid #334155' }}>
+                              <td style={{ textAlign: 'right', borderLeft: '1px solid var(--border)' }}>Rp {formatCurrency(tTS)}</td>
+                              <td style={{ textAlign: 'right', color: '#10b981', borderLeft: '1px solid var(--border)' }}>
                                 <div>{formatCurrency(tRP)}</div>
                                 <div style={{ fontSize: '0.7rem', color: gRetailMargin >= 10 ? '#10b981' : gRetailMargin >= 5 ? '#f59e0b' : '#ef4444' }}>{gRetailMargin}% margin</div>
                               </td>
@@ -354,7 +354,7 @@ const StaffPerformance = () => {
                                 <div>{formatCurrency(tCP)}</div>
                                 <div style={{ fontSize: '0.7rem', color: gCorpMargin >= 10 ? '#10b981' : gCorpMargin >= 5 ? '#f59e0b' : '#ef4444' }}>{gCorpMargin}% margin</div>
                               </td>
-                              <td style={{ textAlign: 'right', color: '#10b981', borderLeft: '1px solid #334155' }}>
+                              <td style={{ textAlign: 'right', color: '#10b981', borderLeft: '1px solid var(--border)' }}>
                                 <div>Rp {formatCurrency(tTP)}</div>
                                 <div style={{ fontSize: '0.7rem', color: gTotalMargin >= 10 ? '#10b981' : gTotalMargin >= 5 ? '#f59e0b' : '#ef4444' }}>{gTotalMargin}% margin</div>
                               </td>
@@ -373,7 +373,7 @@ const StaffPerformance = () => {
               <div className="fade-in">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
                   <Database size={24} color="#10b981" />
-                  <h2 style={{ margin: 0, color: '#f8fafc' }}>Tour Performance Analytics</h2>
+                  <h2 style={{ margin: 0, color: 'var(--text-main)' }}>Tour Performance Analytics</h2>
                 </div>
 
                 {/* KPI Cards */}
@@ -410,7 +410,7 @@ const StaffPerformance = () => {
                             <Pie data={tourAnalytics.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
                               {tourAnalytics.statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
@@ -427,10 +427,10 @@ const StaffPerformance = () => {
                       {tourAnalytics.topDestinations.length > 0 ? (
                         <ResponsiveContainer>
                           <BarChart data={tourAnalytics.topDestinations} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={true} vertical={false} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={true} vertical={false} />
                             <XAxis type="number" stroke="var(--text-muted)" fontSize={11} />
                             <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} />
-                            <RechartsTooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                            <RechartsTooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} cursor={{fill: 'var(--border)', opacity: 0.2}} />
                             <Bar dataKey="pax" name="Passengers" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -448,14 +448,14 @@ const StaffPerformance = () => {
               <div className="fade-in">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
                   <Target size={24} color="#f43f5e" />
-                  <h2 style={{ margin: 0, color: '#f8fafc' }}>Target vs Achievement Analytics</h2>
+                  <h2 style={{ margin: 0, color: 'var(--text-main)' }}>Target vs Achievement Analytics</h2>
                 </div>
 
                 {/* KPI Cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                   <div className="card" style={{ borderBottom: '4px solid #64748b' }}>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Target Sales</div>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#64748b', marginTop: '0.5rem' }}>Rp {formatCurrency(salesMetrics.targetSales)}</div>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Rp {formatCurrency(salesMetrics.targetSales)}</div>
                   </div>
                   <div className="card" style={{ borderBottom: '4px solid #3b82f6' }}>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Achievement Sales</div>
@@ -466,7 +466,7 @@ const StaffPerformance = () => {
                   </div>
                   <div className="card" style={{ borderBottom: '4px solid #64748b' }}>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Target Profit</div>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#64748b', marginTop: '0.5rem' }}>Rp {formatCurrency(salesMetrics.targetProfit)}</div>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Rp {formatCurrency(salesMetrics.targetProfit)}</div>
                   </div>
                   <div className="card" style={{ borderBottom: '4px solid #10b981' }}>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Achievement Profit</div>
@@ -487,12 +487,12 @@ const StaffPerformance = () => {
                       {salesChartData.length > 0 ? (
                         <ResponsiveContainer>
                           <BarChart data={salesChartData} margin={{ top: 5, right: 0, left: 30, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
                             <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(val) => `Rp ${(val/1000000).toFixed(0)}M`} />
-                            <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                            <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
                             <Legend />
-                            <Bar dataKey="targetSales" name="Target Sales" fill="#64748b" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="targetSales" name="Target Sales" fill="#94a3b8" radius={[4, 4, 0, 0]} />
                             <Bar dataKey="achievementSales" name="Achievement Sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -511,12 +511,12 @@ const StaffPerformance = () => {
                       {salesChartData.length > 0 ? (
                         <ResponsiveContainer>
                           <BarChart data={salesChartData} margin={{ top: 5, right: 0, left: 30, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                             <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
                             <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(val) => `Rp ${(val/1000000).toFixed(0)}M`} />
-                            <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                            <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
                             <Legend />
-                            <Bar dataKey="targetProfit" name="Target Profit" fill="#64748b" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="targetProfit" name="Target Profit" fill="#94a3b8" radius={[4, 4, 0, 0]} />
                             <Bar dataKey="achievementProfit" name="Achievement Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
