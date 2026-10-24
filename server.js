@@ -463,7 +463,7 @@ function cleanJsonOutput(text) {
 
 // Resilient model fallback executor for Gemini models
 async function runWithModelFallback(runnerFn) {
-  const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastError = null;
   for (const model of models) {
     try {
@@ -474,6 +474,93 @@ async function runWithModelFallback(runnerFn) {
     }
   }
   throw lastError || new Error('All Gemini models failed to process request');
+}
+
+// RAG Operational Grounding Retriever for TravelOps AI Copilot
+async function getOperationalGrounding(message, currentPath) {
+  const contextNotes = [];
+
+  // 1. Determine module and operational context from current URL path
+  const path = (currentPath || '').toLowerCase();
+  let moduleContext = 'TravelOps General Operations (Ticketing, Customer Service, General Inquiries)';
+  if (path.includes('/tour')) {
+    moduleContext = 'Tour Management & Itinerary Planning (Focus: tour schedules, group pacing, driver hours, itinerary breakdown, FOC, margin calculation)';
+  } else if (path.includes('/document')) {
+    moduleContext = 'Document & Visa Operations (Focus: passport validity min 6 months, visa requirements for Indonesian passport holders, embassy appointments, biometrics, document completion tracking)';
+  } else if (path.includes('/hotel')) {
+    moduleContext = 'Hotel Reservations & Accommodations (Focus: group rates, rooming list formats, bed types Twin/Double, city tax, early check-in/late check-out, breakfast vouchers)';
+  } else if (path.includes('/cruise')) {
+    moduleContext = 'Cruise Bookings & Sea Packages (Focus: cabin categories, port taxes, gratuities, shore excursion timing, passenger manifest)';
+  } else if (path.includes('/corporate')) {
+    moduleContext = 'Corporate Accounts & MICE (Focus: B2B proposals, corporate travel policy adherence, RFP quotations, payment terms, attendee rosters)';
+  } else if (path.includes('/knowledge') || path.includes('/destination')) {
+    moduleContext = 'Destination Knowledge Base & Intelligence (Focus: plug/voltage standards, local currency & tipping etiquette, emergency numbers, cultural dos & donts)';
+  }
+  contextNotes.push(`[Active Screen / Module Context]: ${moduleContext}`);
+
+  // 2. Query Supabase for destination intelligence grounding if relevant
+  if (supabaseAdmin) {
+    try {
+      const msgLower = (message || '').toLowerCase();
+
+      // Retrieve country intelligence if country is mentioned or relevant
+      const { data: countries } = await supabaseAdmin
+        .from('travelops_dest_countries')
+        .select('name, general_info, currency, emergency, power_plugs, visa_info, customs_etiquette')
+        .limit(25);
+
+      if (countries && countries.length > 0) {
+        const matchedCountries = countries.filter(c => 
+          c.name && (msgLower.includes(c.name.toLowerCase()) || (c.id && msgLower.includes(c.id.toLowerCase())))
+        );
+
+        if (matchedCountries.length > 0) {
+          contextNotes.push('\n[Verified Company Destination Knowledge (RAG)] :');
+          for (const c of matchedCountries.slice(0, 3)) {
+            const vInfo = typeof c.visa_info === 'object' ? JSON.stringify(c.visa_info) : c.visa_info;
+            const plugInfo = typeof c.power_plugs === 'object' ? JSON.stringify(c.power_plugs) : c.power_plugs;
+            const currInfo = typeof c.currency === 'object' ? JSON.stringify(c.currency) : c.currency;
+            contextNotes.push(`• Country: ${c.name} | Visa: ${vInfo || 'Check requirements'} | Plugs: ${plugInfo || 'Standard'} | Currency: ${currInfo || 'Local'}`);
+            if (c.general_info) {
+              contextNotes.push(`  Overview: ${c.general_info}`);
+            }
+          }
+        }
+      }
+
+      // Ground with tour routes if query relates to itineraries, routes, or tour planning
+      if (
+        msgLower.includes('itinerary') || 
+        msgLower.includes('rute') || 
+        msgLower.includes('tour') || 
+        msgLower.includes('paket') || 
+        msgLower.includes('hari') ||
+        path.includes('/tour')
+      ) {
+        const { data: routes } = await supabaseAdmin
+          .from('travelops_tour_routes')
+          .select('title, country_name, duration_days, duration_nights, cities_sequence, route_highlights')
+          .limit(10);
+
+        if (routes && routes.length > 0) {
+          const relevantRoutes = routes.filter(r => 
+            (r.country_name && msgLower.includes(r.country_name.toLowerCase())) ||
+            (r.title && msgLower.includes(r.title.toLowerCase()))
+          );
+          const pool = relevantRoutes.length > 0 ? relevantRoutes : routes.slice(0, 3);
+          contextNotes.push('\n[Company Master Tour Routes Reference]:');
+          for (const r of pool.slice(0, 3)) {
+            const cities = Array.isArray(r.cities_sequence) ? r.cities_sequence.join(' ➔ ') : r.cities_sequence;
+            contextNotes.push(`• Route: "${r.title}" (${r.duration_days}D${r.duration_nights}N in ${r.country_name || 'Destination'}) | Cities: ${cities || '-'}`);
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.warn('[Copilot RAG Grounding] Non-blocking DB fetch warning:', dbErr.message);
+    }
+  }
+
+  return contextNotes.join('\n');
 }
 
 // 1. Parse Tour Itinerary PDF with Gemini Multimodal
@@ -742,10 +829,10 @@ app.post('/api/knowledge/audit-entity', requireAuth, async (req, res) => {
   }
 });
 
-// 3. AI Operations Copilot Assistant (Proxied for security, protects API key)
+// 3. AI Operations Copilot Assistant (Proxied for security, protects API key, RAG grounded)
 app.post('/api/ai/copilot-chat', requireAuth, async (req, res) => {
   try {
-    const { message, history, userContext } = req.body;
+    const { message, history, userContext, currentPath } = req.body;
     if (!message || !message.trim()) {
       return res.status(400).json({ success: false, error: 'Message cannot be empty.' });
     }
@@ -758,12 +845,21 @@ app.post('/api/ai/copilot-chat', requireAuth, async (req, res) => {
       });
     }
 
-    const systemPrompt = `You are the "TravelOps AI Operations Copilot", a high-level travel consultant and operations assistant built inside the TravelOps travel management platform.
-Your job is to assist travel consultants, tour operators, and reservation staff with:
-1. Destination Intelligence: Visa requirements, electrical plugs, weather, currency, emergency contacts, local customs, and halal/dietary guidance.
-2. Communication: Drafting professional WhatsApp messages, customer booking confirmations, tour leader briefing notes, and payment reminder emails.
-3. Operations Planning: Day-by-day tour itinerary suggestions, POI visit estimates, flight connection advisories, and hotel location recommendations.
-4. Professionalism: Be concise, highly accurate, polite, and structure your responses with clean bullet points and emojis. If the user writes in Indonesian, respond in natural, professional Indonesian.`;
+    // 1. Retrieve RAG database facts and current workspace context
+    const groundingContext = await getOperationalGrounding(message, currentPath);
+
+    const systemPrompt = `You are the "TravelOps AI Operations Copilot", a senior travel operations manager, master itinerary architect, and professional travel communications specialist built inside the TravelOps travel agency ERP platform.
+
+CORE CAPABILITIES & OBJECTIVES:
+1. Destination Intelligence & Logistics: Visa policies for Indonesian passport holders (Schengen, Japan e-Visa/sticker, UK, US, Korea K-ETA, Australia eVisitor, China, Turkey, Saudi Umrah/Tourist), 6-month passport validity rules, electrical plug/voltage standards, currency & payment methods (cash vs card/Suica/travel cards), local tipping customs, emergency services, and halal/Muslim-friendly dining guidance.
+2. Itinerary Planning & Operational Feasibility: Day-by-day tour programs, transit and buffer timings, bus driver regulations (e.g. EU 9-hour daily driving limits), sightseeing sequence, optimal hotel locations, and seasonal packing advisories.
+3. Commercial & Agency Operations: Group pricing calculations, Single Supplement logic, FOC (Free of Charge) tour leader ratios (e.g. 15+1 FOC, 20+1 FOC), rooming list allocations (Twin, Double, Triple, CWB, CNB), and supplier coordination.
+4. Client-Ready Communications: Drafting professional WhatsApp broadcasts, booking confirmations, payment reminders (DP, second payment, final balance H-14/H-7), flight departure notifications, and tour leader daily briefing sheets.
+
+COMMUNICATION TONE & FORMATTING RULES:
+- Professional, polite, highly articulate, and helpful. If queried in Indonesian, respond in natural, professional Indonesian travel industry terminology (e.g., pax, land arrangement, rooming list, tipping guide/driver, itinerary, flight manifest).
+- Format your response with clean bold headers, concise bullet points, and appropriate emojis so it is effortless to scan.
+- When generating messages for clients, ensure the tone is warm and professional ("Selamat pagi/siang Bapak/Ibu..."), with clear key details (Dates, Amounts, Bank Accounts, Deadlines) and placeholder signatures.`;
 
     const contents = [];
     if (Array.isArray(history)) {
@@ -778,14 +874,28 @@ Your job is to assist travel consultants, tour operators, and reservation staff 
       }
     }
 
-    const operatorName = userContext?.name || req.authUser?.email || 'Staff';
-    const operatorRole = userContext?.role || 'Staff';
+    const operatorName = userContext?.name || req.authUser?.email || 'Operations Staff';
+    const operatorRole = userContext?.role || 'Travel Consultant';
+
+    const promptWithContext = `${systemPrompt}
+
+---
+[ACTIVE OPERATOR PROFILE]
+Name: ${operatorName}
+Role: ${operatorRole}
+Current Module / Screen: ${currentPath || '/dashboard'}
+
+${groundingContext}
+---
+
+[OPERATOR QUERY]
+${message.trim()}
+
+Provide a structured, accurate, and actionable response based on the above operational context.`;
 
     contents.push({
       role: 'user',
-      parts: [{
-        text: `${systemPrompt}\n\n[Active Operator: ${operatorName} | Role: ${operatorRole}]\nUser Question: ${message.trim()}`
-      }]
+      parts: [{ text: promptWithContext }]
     });
 
     const response = await runWithModelFallback(async (model) => {
@@ -793,7 +903,7 @@ Your job is to assist travel consultants, tour operators, and reservation staff 
         model,
         contents,
         config: {
-          temperature: 0.7,
+          temperature: 0.65,
           maxOutputTokens: 2048
         }
       });
@@ -804,7 +914,11 @@ Your job is to assist travel consultants, tour operators, and reservation staff 
       throw new Error('No text generated by Gemini.');
     }
 
-    res.status(200).json({ success: true, text: replyText });
+    res.status(200).json({ 
+      success: true, 
+      text: replyText,
+      grounded: Boolean(groundingContext && groundingContext.includes('[Verified Company'))
+    });
   } catch (error) {
     console.error('Error in copilot-chat endpoint:', error);
     res.status(500).json({
