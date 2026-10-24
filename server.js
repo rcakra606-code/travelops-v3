@@ -76,8 +76,25 @@ const emailLimiter = rateLimit({
   message: { success: false, message: 'Email sending limit reached. Please try again in an hour.' }
 });
 
-// Middleware
-app.use(cors());
+// Middleware (Restricted CORS)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  process.env.APP_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, same-origin)
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.up.railway.app') || origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    return callback(new Error('Blocked by CORS policy'));
+  },
+  credentials: true
+}));
 app.use('/api/', limiter);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -460,7 +477,7 @@ async function runWithModelFallback(runnerFn) {
 }
 
 // 1. Parse Tour Itinerary PDF with Gemini Multimodal
-app.post('/api/knowledge/parse-itinerary-pdf', async (req, res) => {
+app.post('/api/knowledge/parse-itinerary-pdf', requireAuth, async (req, res) => {
   try {
     const { pdfBase64, fileName, prompt: customPrompt } = req.body;
     if (!pdfBase64) {
@@ -614,7 +631,7 @@ IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without 
 });
 
 // 2. Generate or Enrich Destination Intelligence on-demand with AI
-app.post('/api/knowledge/generate-destination-ai', async (req, res) => {
+app.post('/api/knowledge/generate-destination-ai', requireAuth, async (req, res) => {
   try {
     const { query, type, context } = req.body;
     if (!query || !type) {
@@ -697,7 +714,7 @@ ${type === 'country' ? `
 });
 
 // 2b. Audit Destination Entity Freshness with AI
-app.post('/api/knowledge/audit-entity', async (req, res) => {
+app.post('/api/knowledge/audit-entity', requireAuth, async (req, res) => {
   try {
     const { prompt } = req.body;
     if (!prompt) {
@@ -800,7 +817,7 @@ Your job is to assist travel consultants, tour operators, and reservation staff 
 // Server-side in-memory dispatch tracker to prevent duplicate reminder emails per day
 const dailyRemindersDispatched = new Map();
 
-app.post('/api/send-email', emailLimiter, async (req, res) => {
+app.post('/api/send-email', requireAuth, emailLimiter, async (req, res) => {
   const { to, subject, text, html, smtpConfig, category } = req.body;
 
   const host = smtpConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com';

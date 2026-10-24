@@ -58,7 +58,8 @@ export async function syncDatabase() {
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO authenticated;`);
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO service_role;`);
         
-        await client.query(`CREATE POLICY "Allow all access to ${tableName}" ON public."${tableName}" FOR ALL TO public USING (true) WITH CHECK (true);`);
+        await client.query(`CREATE POLICY "Allow public read access to ${tableName}" ON public."${tableName}" FOR SELECT TO public USING (true);`);
+        await client.query(`CREATE POLICY "Allow authenticated full access to ${tableName}" ON public."${tableName}" FOR ALL TO authenticated USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);`);
         
         console.log(`✅ Auto-Schema Sync: Table ${tableName} created and permissions granted successfully!`);
       } else {

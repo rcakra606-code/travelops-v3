@@ -131,57 +131,20 @@ const AiCopilot = () => {
           })
         });
 
-        if (backendRes.ok) {
-          const backendData = await backendRes.json();
-          if (backendData.success && backendData.text) {
-            responseText = backendData.text;
-          }
+        if (!backendRes.ok) {
+          const errData = await backendRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Server error (${backendRes.status}) saat menghubungi Copilot AI.`);
+        }
+
+        const backendData = await backendRes.json();
+        if (backendData.success && backendData.text) {
+          responseText = backendData.text;
+        } else {
+          throw new Error('Tidak menerima balasan dari AI Copilot.');
         }
       } catch (backendErr) {
-        console.warn('Backend AI proxy unavailable, attempting client fallback...', backendErr);
-      }
-
-      // 2. Fallback Strategy: Direct client Gemini API call if key is available in Vite environment
-      if (!responseText) {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (apiKey) {
-          const conversationContents = [
-            {
-              role: 'user',
-              parts: [{ text: `${SYSTEM_PROMPT}\n\n[Active Operator: ${user.name || user.email} | Role: ${user.role || 'Staff'}]\nUser Question: ${text}` }]
-            }
-          ];
-
-          const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-          for (const model of models) {
-            try {
-              const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-              const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: conversationContents,
-                  generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 2048
-                  }
-                })
-              });
-
-              if (res.ok) {
-                const data = await res.json();
-                responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (responseText) break;
-              }
-            } catch (mErr) {
-              console.warn(`Copilot model ${model} attempt failed:`, mErr.message);
-            }
-          }
-        }
-      }
-
-      if (!responseText) {
-        throw new Error('Tidak menerima balasan dari AI. Pastikan server backend aktif atau API key Gemini terkonfigurasi.');
+        console.error('Backend AI proxy error:', backendErr);
+        throw backendErr;
       }
 
       setMessages(prev => [

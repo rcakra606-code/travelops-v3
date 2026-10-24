@@ -499,61 +499,7 @@ export const KnowledgeProvider = ({ children }) => {
     }
   };
 
-  const callGeminiDirect = async (pdfBase64Clean, prompt) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_GEMINI_API_KEY is not configured in .env');
-    }
-    const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
-    
-    let lastError = null;
-    for (const model of models) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const payload = {
-          contents: [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: 'application/pdf',
-                    data: pdfBase64Clean
-                  }
-                },
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: 'application/json'
-          }
-        };
 
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`Gemini API error (${res.status}): ${errText}`);
-        }
-
-        const resJson = await res.json();
-        const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawText) throw new Error('No content returned from Gemini');
-
-        return cleanJsonOutput(rawText);
-      } catch (err) {
-        lastError = err;
-        console.warn(`Model ${model} direct call failed:`, err.message);
-      }
-    }
-    throw lastError || new Error('Failed to process PDF with Gemini');
-  };
 
   // 1. Parse PDF Itinerary
   const parsePdfItinerary = async (pdfBase64, fileName) => {
@@ -641,25 +587,34 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
 IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without any introductory or commentary text.
 `;
 
-    // 1. First attempt: Server-side API endpoint (seamless for live production deployments)
+    // Secure server-side API proxy with authentication token
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
       const serverRes = await fetch('/api/knowledge/parse-itinerary-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ pdfBase64: cleanBase64, fileName, prompt: extractionPrompt })
       });
-      if (serverRes.ok) {
-        const json = await serverRes.json();
-        if (json.success && json.data) {
-          return json.data;
-        }
-      }
-    } catch (serverErr) {
-      console.warn('[PDF PARSER] Server endpoint unavailable, falling back to direct client call:', serverErr.message);
-    }
 
-    // 2. Second attempt: Client-side direct call to Gemini
-    return await callGeminiDirect(cleanBase64, extractionPrompt);
+      if (!serverRes.ok) {
+        const errJson = await serverRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server error (${serverRes.status}) processing PDF.`);
+      }
+
+      const json = await serverRes.json();
+      if (json.success && json.data) {
+        return json.data;
+      }
+      throw new Error('No structured data returned by server.');
+    } catch (err) {
+      console.error('[PDF PARSER ERROR]', err.message);
+      throw err;
+    }
   };
 
   // 2. Generate with AI on demand
@@ -739,56 +694,34 @@ ${type === 'country' ? `
 `}
 `;
 
-    // 1. Try server-side API proxy first
+    // Secure server-side API proxy with authentication token
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
       const serverRes = await fetch('/api/knowledge/generate-destination-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ query, type, context })
       });
-      if (serverRes.ok) {
-        const json = await serverRes.json();
-        if (json.success && json.data) {
-          return json.data;
-        }
-      }
-    } catch (serverErr) {
-      console.warn('[AI GENERATOR] Server proxy unavailable, trying client direct call:', serverErr.message);
-    }
 
-    // 2. Client-side fallback
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_GEMINI_API_KEY is not configured in .env and backend server is unreachable.');
-    }
-    const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
-    let lastError = null;
-
-    for (const model of models) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
-          })
-        });
-        if (!res.ok) {
-          throw new Error(`Model ${model} status ${res.status}`);
-        }
-        const resJson = await res.json();
-        const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) {
-          return cleanJsonOutput(rawText);
-        }
-      } catch (err) {
-        lastError = err;
-        console.warn(`generateWithAi attempt on ${model} failed:`, err.message);
+      if (!serverRes.ok) {
+        const errJson = await serverRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server error (${serverRes.status}) generating intelligence.`);
       }
+
+      const json = await serverRes.json();
+      if (json.success && json.data) {
+        return json.data;
+      }
+      throw new Error('No destination data generated.');
+    } catch (err) {
+      console.error('[AI GENERATOR ERROR]', err.message);
+      throw err;
     }
-    throw lastError || new Error('Failed to generate destination intelligence with Gemini');
   };
 
   // --- 4. LIVE DATA FRESHNESS CHECKER & AUTO-UPDATER ENGINE ---
@@ -830,50 +763,34 @@ Respond ONLY with valid JSON matching this schema:
 }
 `;
 
-    // 1. Try server-side audit proxy first
+    // Secure server-side audit proxy with authentication token
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
       const serverRes = await fetch('/api/knowledge/audit-entity', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ entity, type, prompt: auditPrompt })
       });
-      if (serverRes.ok) {
-        const json = await serverRes.json();
-        if (json.success && json.data) {
-          return json.data;
-        }
-      }
-    } catch (serverErr) {
-      console.warn('[AUDIT] Server audit endpoint unavailable, trying direct client call:', serverErr.message);
-    }
 
-    // 2. Client-side fallback
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is not configured in .env and backend is unreachable');
-    const models = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'];
-    let lastError = null;
-
-    for (const model of models) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: auditPrompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
-          })
-        });
-        if (!res.ok) throw new Error(`Model ${model} status ${res.status}`);
-        const resJson = await res.json();
-        const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) return cleanJsonOutput(rawText);
-      } catch (err) {
-        lastError = err;
-        console.warn(`checkEntityFreshness on ${model} failed:`, err.message);
+      if (!serverRes.ok) {
+        const errJson = await serverRes.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server error (${serverRes.status}) auditing entity.`);
       }
+
+      const json = await serverRes.json();
+      if (json.success && json.data) {
+        return json.data;
+      }
+      throw new Error('No audit data generated.');
+    } catch (err) {
+      console.error('[AUDIT ERROR]', err.message);
+      throw err;
     }
-    throw lastError || new Error('Failed to audit entity with Gemini');
   };
 
   // Run batch audit on all knowledge base records

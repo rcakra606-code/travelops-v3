@@ -169,9 +169,15 @@ const Settings = () => {
     setTestEmailResult('');
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
       const res = await fetch('/api/send-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           to: testEmailTarget,
           subject: 'TravelOps SMTP Test Verification',
@@ -536,9 +542,15 @@ const Settings = () => {
         : `[MANUAL REMINDER] TravelOps Operations Milestones (${detectedReminders.length} Due)`;
 
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
+
         const res = await fetch('/api/send-email', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({
             to: targetRecipient,
             subject: manualSubject,

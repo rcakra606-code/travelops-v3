@@ -473,9 +473,15 @@ const ReminderEngine = () => {
       `;
 
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
+
         const res = await fetch('/api/send-email', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({
             to: targetRecipient,
             subject: emailSubject,
