@@ -358,69 +358,103 @@ const Dashboard = () => {
 
     if (widget.id === 'welcome') {
       return (
-        <div key="welcome" className="bento-col-12 reveal surface relative overflow-hidden rounded-[22px] min-h-[190px] flex items-center justify-between p-6 sm:p-8" style={{
-          position: 'relative',
-          borderRadius: '20px',
-          background: 'linear-gradient(135deg, #213d35 0%, #29483e 100%)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden'
-        }}>
+        <div 
+          key="welcome" 
+          className="bento-col-12 reveal surface dashboard-welcome-hero" 
+          style={{
+            position: 'relative',
+            borderRadius: '22px',
+            background: 'linear-gradient(135deg, #213d35 0%, #28473e 50%, #2e5247 100%)',
+            border: '1px solid rgba(220, 235, 220, 0.22)',
+            overflow: 'hidden',
+            padding: '2.5rem 2.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '2.5rem',
+            minHeight: '210px',
+            boxShadow: '0 12px 36px rgba(25, 45, 38, 0.18)'
+          }}
+        >
           <img 
             src="https://images.pexels.com/photos/1174732/pexels-photo-1174732.jpeg?auto=compress&cs=tinysrgb&w=1280" 
             alt="Pemandangan resort pantai yang tenang"
             className="hero-photo"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.38, pointerEvents: 'none' }}
+            style={{ 
+              position: 'absolute', 
+              inset: 0, 
+              width: '100%', 
+              height: '100%', 
+              objectFit: 'cover', 
+              opacity: 0.32, 
+              pointerEvents: 'none' 
+            }}
           />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(33, 61, 53, 0.95) 0%, rgba(33, 61, 53, 0.72) 60%, rgba(33, 61, 53, 0.35) 100%)', pointerEvents: 'none' }} />
+          <div 
+            style={{ 
+              position: 'absolute', 
+              inset: 0, 
+              background: 'linear-gradient(90deg, rgba(27, 48, 42, 0.96) 0%, rgba(27, 48, 42, 0.8) 55%, rgba(27, 48, 42, 0.42) 100%)', 
+              pointerEvents: 'none' 
+            }} 
+          />
           
-          <div style={{ position: 'relative', zIndex: 2, maxWidth: '640px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
-              <p style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.18em', fontSize: '0.725rem', fontWeight: '700', color: '#dcebdc' }}>
+          <div style={{ position: 'relative', zIndex: 2, maxWidth: '720px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7ec794' }} />
+              <p style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.2em', fontSize: '0.75rem', fontWeight: '700', color: '#cfe4d3' }}>
                 PUSAT OPERASIONAL · PERJALANAN TERENCANA
               </p>
             </div>
-            <h1 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.75rem', fontWeight: '600', color: '#ffffff', lineHeight: '1.25' }}>
+            <h1 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '2.15rem', fontWeight: '600', color: '#ffffff', lineHeight: '1.3', letterSpacing: '-0.015em' }}>
               Setiap perjalanan, tertata dengan baik.
             </h1>
-            <p style={{ margin: '0.65rem 0 0 0', fontSize: '0.875rem', color: '#edf3eb', lineHeight: '1.5' }}>
-              Selamat datang kembali, <strong>{user?.name || user?.email?.split('@')[0] || 'Operator'}</strong>. Pantau {tourStats.activeBookings + activeCruises + activeHotels} perjalanan aktif, {activeDocs} dokumen pending, dan {tourStats.confirmedPax} peserta tour dalam satu ruang kerja yang tenang.
+            <p style={{ margin: '1rem 0 0 0', fontSize: '0.95rem', color: '#eef4ed', lineHeight: '1.65', maxWidth: '640px' }}>
+              Selamat datang kembali, <strong style={{ color: '#ffffff', fontWeight: '700' }}>{user?.name || user?.email?.split('@')[0] || 'Operator'}</strong>. Pantau {tourStats.activeBookings + activeCruises + activeHotels} perjalanan aktif, {activeDocs} dokumen pending, dan {tourStats.confirmedPax} peserta tour dalam satu ruang kerja yang tenang.
             </p>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: '0.85rem', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
             <span style={{ 
               display: 'inline-flex', 
               alignItems: 'center', 
-              gap: '0.45rem', 
-              padding: '0.35rem 0.85rem', 
+              gap: '0.55rem', 
+              padding: '0.55rem 1.15rem', 
               borderRadius: '9999px', 
-              background: 'rgba(238, 244, 237, 0.18)', 
-              backdropFilter: 'blur(8px)',
+              background: 'rgba(238, 244, 237, 0.14)', 
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               border: '1px solid rgba(220, 235, 220, 0.3)', 
               color: '#dcebdc', 
-              fontSize: '0.75rem', 
-              fontWeight: '600' 
+              fontSize: '0.825rem', 
+              fontWeight: '600',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
             }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#79a483' }} />
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#66c07e', boxShadow: '0 0 8px #66c07e' }} />
               Data & Operasional Aktif
             </span>
             <button 
               onClick={() => setIsCustomizing(true)}
               className="btn"
               style={{ 
-                fontSize: '0.775rem', 
-                padding: '0.45rem 0.85rem', 
-                display: 'flex', 
+                fontSize: '0.825rem', 
+                padding: '0.55rem 1.15rem', 
+                display: 'inline-flex', 
                 alignItems: 'center', 
-                gap: '0.45rem', 
-                borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.15)',
+                gap: '0.55rem', 
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.18)',
                 color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                backdropFilter: 'blur(8px)'
+                border: '1px solid rgba(255, 255, 255, 0.32)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                cursor: 'pointer',
+                fontWeight: '600',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
               }}
             >
-              <Settings2 size={14} /> Atur Tata Letak
+              <Settings2 size={15} /> Atur Tata Letak
             </button>
           </div>
         </div>

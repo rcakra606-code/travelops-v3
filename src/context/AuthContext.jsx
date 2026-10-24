@@ -107,9 +107,10 @@ export const AuthProvider = ({ children }) => {
 
       // Log session
       try {
-        const UAParser = (await import('ua-parser-js')).default;
-        const parser = new UAParser();
-        const result = parser.getResult();
+        const uaModule = await import('ua-parser-js');
+        const UAParserClass = uaModule.UAParser || uaModule.default || uaModule;
+        const parser = typeof UAParserClass === 'function' ? new UAParserClass() : (UAParserClass.UAParser ? new UAParserClass.UAParser() : null);
+        const result = parser && parser.getResult ? parser.getResult() : {};
         
         let ip = 'Unknown';
         try {

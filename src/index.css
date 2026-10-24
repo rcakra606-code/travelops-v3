@@ -430,6 +430,37 @@ body {
   filter: drop-shadow(0 0 8px rgba(112, 141, 120, 0.4));
 }
 
+/* Dashboard Welcome Hero Banner */
+.dashboard-welcome-hero {
+  position: relative;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #213d35 0%, #28473e 50%, #2e5247 100%);
+  border: 1px solid rgba(220, 235, 220, 0.2);
+  overflow: hidden;
+  padding: 2.75rem 3rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 2.5rem !important;
+  min-height: 220px !important;
+  box-shadow: 0 14px 40px rgba(25, 45, 38, 0.18) !important;
+}
+
+[data-theme='light'] .dashboard-welcome-hero {
+  background: linear-gradient(135deg, #244138 0%, #2c4d43 50%, #345c4f 100%) !important;
+  border: 1px solid rgba(220, 235, 220, 0.28) !important;
+  box-shadow: 0 14px 38px rgba(33, 61, 53, 0.16) !important;
+}
+
+@media (max-width: 960px) {
+  .dashboard-welcome-hero {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 2.25rem 2rem !important;
+    gap: 1.75rem !important;
+  }
+}
+
 /* Cards & Bento Grid */
 .card {
   background: var(--bg-card);
