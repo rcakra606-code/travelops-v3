@@ -73,6 +73,9 @@
       "shipping_resi": "VARCHAR(100)",
       "shipping_notes": "TEXT",
       "received_status": "VARCHAR(50)",
+      "appointment_date": "DATE",
+      "appointment_time": "VARCHAR(50)",
+      "appointment_location": "VARCHAR(255)",
       "created_at": "TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
     },
     "travelops_telecoms": {

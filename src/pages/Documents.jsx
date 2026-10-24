@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Edit2, Trash2, X, User, Globe, Clipboard, 
   Receipt, Phone, Ticket, BarChart2, FileText, AlertCircle, Clock, CheckCircle, AlertTriangle,
-  Truck, Inbox, MapPin, Box, ArrowUpDown, Eye, Share2
+  Truck, Inbox, MapPin, Box, ArrowUpDown, Eye, Share2, Calendar
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -40,7 +40,10 @@ const Documents = () => {
     estimatedDone: '',
     staff: '',
     tourCode: '',
-    notes: ''
+    notes: '',
+    appointmentDate: '',
+    appointmentTime: '',
+    appointmentLocation: ''
   });
 
   // Shipping & Receiving States
@@ -64,7 +67,23 @@ const Documents = () => {
   const handleOpenModal = (doc = null) => {
     if (doc) {
       setEditingDoc(doc);
-      setFormData(doc);
+      setFormData({
+        receiveDate: doc.receiveDate || '',
+        sendDate: doc.sendDate || '',
+        guestName: doc.guestName || '',
+        country: doc.country || '',
+        processType: doc.processType || 'Normal',
+        bookingCode: doc.bookingCode || '',
+        invoiceNumber: doc.invoiceNumber || '',
+        phoneNumber: doc.phoneNumber || '',
+        estimatedDone: doc.estimatedDone || '',
+        staff: doc.staff || '',
+        tourCode: doc.tourCode || '',
+        notes: doc.notes || '',
+        appointmentDate: doc.appointmentDate || '',
+        appointmentTime: doc.appointmentTime || '',
+        appointmentLocation: doc.appointmentLocation || ''
+      });
     } else {
       setEditingDoc(null);
       setFormData({
@@ -79,7 +98,10 @@ const Documents = () => {
         estimatedDone: '',
         staff: '',
         tourCode: '',
-        notes: ''
+        notes: '',
+        appointmentDate: '',
+        appointmentTime: '',
+        appointmentLocation: ''
       });
     }
     setIsModalOpen(true);
@@ -194,6 +216,55 @@ const Documents = () => {
     return estDate < today;
   });
 
+  // Upcoming Visa Appointments
+  const upcomingAppointments = documents.filter(d => {
+    if (!d.appointmentDate) return false;
+    const appDate = new Date(d.appointmentDate);
+    appDate.setHours(0, 0, 0, 0);
+    return appDate >= today;
+  }).sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate));
+
+  const formatAppointmentDate = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return String(dateStr);
+      return d.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return String(dateStr);
+    }
+  };
+
+  const getAppointmentBadge = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      const target = new Date(dateStr);
+      target.setHours(0, 0, 0, 0);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const diffTime = target.getTime() - now.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        return <span className="badge badge-danger" style={{ fontSize: '0.675rem', padding: '2px 8px', fontWeight: '800' }}>🔴 Hari Ini</span>;
+      } else if (diffDays === 1) {
+        return <span className="badge badge-warning" style={{ fontSize: '0.675rem', padding: '2px 8px', fontWeight: '700' }}>🟡 Besok</span>;
+      } else if (diffDays > 1 && diffDays <= 7) {
+        return <span className="badge badge-primary" style={{ fontSize: '0.675rem', padding: '2px 8px', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }}>🟢 H-{diffDays}</span>;
+      } else if (diffDays > 7) {
+        return <span className="badge" style={{ fontSize: '0.675rem', padding: '2px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>Mendatang</span>;
+      } else {
+        return <span className="badge" style={{ fontSize: '0.675rem', padding: '2px 8px', background: 'rgba(100, 116, 139, 0.2)', color: '#94a3b8' }}>Selesai / Lewat</span>;
+      }
+    } catch {
+      return null;
+    }
+  };
+
   // Setup DataTable hook
   const {
     filters,
@@ -262,6 +333,9 @@ const Documents = () => {
     { header: 'Guest Name', key: 'guestName', format: null },
     { header: 'Country', key: 'country', format: null },
     { header: 'Process Type', key: 'processType', format: null },
+    { header: 'Tanggal Appointment Visa', key: 'appointmentDate', format: null },
+    { header: 'Waktu Appointment Visa', key: 'appointmentTime', format: null },
+    { header: 'Tempat Appointment Visa', key: 'appointmentLocation', format: null },
     { header: 'Booking Code', key: 'bookingCode', format: null },
     { header: 'Invoice Number', key: 'invoiceNumber', format: null },
     { header: 'Phone Number', key: 'phoneNumber', format: null },
@@ -316,7 +390,7 @@ const Documents = () => {
           {activeTab === 'dashboard' ? (
             <div className="fade-in">
               {/* Top Metrics Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
                 <div className="card" style={{ background: '#1e293b', border: '1px solid #334155' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                     Active Processing
@@ -325,6 +399,16 @@ const Documents = () => {
                     <Clock size={32} /> {activeDocs.length}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Waiting for send date</div>
+                </div>
+
+                <div className="card" style={{ background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(234, 179, 8, 0.04))', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#fbbf24', textTransform: 'uppercase' }}>
+                    Upcoming Appointments
+                  </div>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fbbf24', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Calendar size={32} /> {upcomingAppointments.length}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Visa biometric & embassy</div>
                 </div>
 
                 <div className="card" style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05))', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
@@ -407,6 +491,70 @@ const Documents = () => {
                 </div>
               </div>
 
+              {/* Upcoming Visa Appointments Schedule Card */}
+              {upcomingAppointments.length > 0 && (
+                <div className="card" style={{ borderLeft: '4px solid #eab308', marginBottom: '1.5rem', background: 'rgba(234, 179, 8, 0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fbbf24', fontSize: '1rem' }}>
+                      <Calendar size={20} /> Jadwal Appointment Visa Terdekat ({upcomingAppointments.length})
+                    </h3>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Urut berdasarkan tanggal appointment terdekat
+                    </span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table" style={{ background: 'transparent' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ color: '#fbbf24' }}>GUEST NAME</th>
+                          <th style={{ color: '#fbbf24' }}>NEGARA</th>
+                          <th style={{ color: '#fbbf24' }}>JADWAL APPOINTMENT</th>
+                          <th style={{ color: '#fbbf24' }}>TEMPAT / LOKASI</th>
+                          <th style={{ color: '#fbbf24' }}>PIC STAFF</th>
+                          <th style={{ color: '#fbbf24' }}>STATUS</th>
+                          <th style={{ color: '#fbbf24' }}>AKSI</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {upcomingAppointments.slice(0, 5).map(doc => (
+                          <tr key={doc.id}>
+                            <td><strong>{doc.guestName}</strong></td>
+                            <td>{doc.country || '-'}</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontWeight: '700', color: '#f8fafc' }}>
+                                  📅 {formatAppointmentDate(doc.appointmentDate)}
+                                </span>
+                                {doc.appointmentTime && (
+                                  <span style={{ color: '#38bdf8', fontSize: '0.75rem', fontWeight: '600' }}>
+                                    ⏰ {doc.appointmentTime}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
+                              📍 {doc.appointmentLocation || '-'}
+                            </td>
+                            <td>{doc.staff}</td>
+                            <td>{getAppointmentBadge(doc.appointmentDate)}</td>
+                            <td>
+                              <button 
+                                className="btn" 
+                                style={{ padding: '0.35rem 0.65rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                onClick={() => handleOpenPreview(doc)}
+                                title="Lihat Detail & Kirim WA"
+                              >
+                                <Eye size={13} /> Detail
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Action Required Table */}
               {overdueDocs.length > 0 && (
                 <div className="card" style={{ borderLeft: '4px solid #ef4444' }}>
@@ -476,6 +624,14 @@ const Documents = () => {
                         </th>
                         <th>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('appointmentDate')}>
+                              APPOINTMENT VISA <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
+                            </div>
+                            <input type="text" placeholder="Filter..." value={filters.appointmentLocation || filters.appointmentDate || ''} onChange={(e) => handleFilterChange('appointmentLocation', e.target.value)} style={{ padding: '0.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '0.25rem', fontSize: '0.75rem' }} />
+                          </div>
+                        </th>
+                        <th>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSort('shippingStatus')}>
                               STATUS LOGISTIK <ArrowUpDown size={14} style={{ marginLeft: '0.5rem' }} />
                             </div>
@@ -514,6 +670,37 @@ const Documents = () => {
                           <td>{doc.receiveDate}</td>
                           <td>{doc.guestName}</td>
                           <td>{doc.country || '-'}</td>
+                          <td>
+                            {doc.appointmentDate ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '160px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: '700', color: '#f8fafc', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                    <Calendar size={13} color="#eab308" /> {formatAppointmentDate(doc.appointmentDate)}
+                                  </span>
+                                  {doc.appointmentTime && (
+                                    <span style={{ color: '#38bdf8', fontSize: '0.75rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                      <Clock size={12} /> {doc.appointmentTime}
+                                    </span>
+                                  )}
+                                </div>
+                                {doc.appointmentLocation && (
+                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '3px' }} title={doc.appointmentLocation}>
+                                    <MapPin size={11} color="#f43f5e" style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '175px' }}>
+                                      {doc.appointmentLocation}
+                                    </span>
+                                  </div>
+                                )}
+                                <div style={{ marginTop: '2px' }}>
+                                  {getAppointmentBadge(doc.appointmentDate)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-subtle)', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                                Belum Dijadwalkan
+                              </span>
+                            )}
+                          </td>
                           <td>
                             <span className={`badge ${doc.shippingStatus === 'Received' ? 'badge-primary' : doc.shippingStatus === 'Sent' ? 'badge-warning' : doc.shippingStatus === 'Returned' ? 'badge-danger' : 'badge-primary'}`} style={{background: doc.shippingStatus === 'Received' ? 'rgba(16, 185, 129, 0.1)' : undefined, color: doc.shippingStatus === 'Received' ? '#10b981' : undefined}}>
                               {doc.shippingStatus || 'Processing'}
@@ -592,14 +779,14 @@ const Documents = () => {
                       ))}
                       {documents.length === 0 && (
                         <tr>
-                          <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                             No document records found. Click "Add Document" to create one.
                           </td>
                         </tr>
                       )}
                       {documents.length > 0 && paginatedData.length === 0 && (
                         <tr>
-                          <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                             No matching records found.
                           </td>
                         </tr>
@@ -777,6 +964,79 @@ const Documents = () => {
                       onChange={e => setFormData({...formData, tourCode: e.target.value})}
                       style={inputStyle}
                     />
+                  </div>
+                </div>
+
+                {/* VISA APPOINTMENT SECTION */}
+                <div style={{
+                  gridColumn: '1 / -1',
+                  background: 'rgba(234, 179, 8, 0.06)',
+                  border: '1.5px solid rgba(234, 179, 8, 0.3)',
+                  borderRadius: '10px',
+                  padding: '1.25rem',
+                  marginTop: '0.25rem',
+                  marginBottom: '0.25rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <Calendar size={18} color="#fbbf24" />
+                    <h3 style={{ margin: 0, fontSize: '0.925rem', fontWeight: '700', color: '#f8fafc' }}>
+                      Jadwal Appointment Visa (Biometrik / Wawancara Kedutaan)
+                    </h3>
+                  </div>
+
+                  <div className="form-grid" style={{ marginBottom: 0 }}>
+                    <div className="input-group">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Calendar size={13} color="#fbbf24" /> Tanggal Appointment Visa
+                      </label>
+                      <input 
+                        type="date" 
+                        value={formData.appointmentDate || ''} 
+                        onChange={e => setFormData({...formData, appointmentDate: e.target.value})}
+                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                      />
+                    </div>
+
+                    <div className="input-group">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Clock size={13} color="#38bdf8" /> Waktu / Jam Appointment
+                      </label>
+                      <input 
+                        type="time" 
+                        value={formData.appointmentTime || ''} 
+                        onChange={e => setFormData({...formData, appointmentTime: e.target.value})}
+                        style={{ background: '#0f172a', border: '1px solid #334155' }}
+                      />
+                    </div>
+
+                    <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <MapPin size={13} color="#f43f5e" /> Tempat / Lokasi Appointment Visa
+                      </label>
+                      <input 
+                        type="text" 
+                        list="visa-locations"
+                        placeholder="Pilih atau ketik lokasi (Contoh: VFS Global Kuningan City Mall Lt. 2, Jakarta)"
+                        value={formData.appointmentLocation || ''} 
+                        onChange={e => setFormData({...formData, appointmentLocation: e.target.value})}
+                        style={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc' }}
+                      />
+                      <datalist id="visa-locations">
+                        <option value="VFS Global Kuningan City Mall Lt. 2, Jakarta (UK, Schengen, Canada)" />
+                        <option value="TLScontact Menara Anugrah Lt. 2, Mega Kuningan, Jakarta (France, Germany)" />
+                        <option value="JVAC (Japan Visa Application Centre) Lotte Shopping Avenue Lt. 4, Jakarta" />
+                        <option value="KVAC (Korea Visa Application Center) Lotte Shopping Avenue Lt. 5, Jakarta" />
+                        <option value="Kedutaan Besar Amerika Serikat, Jl. Medan Merdeka Selatan, Jakarta" />
+                        <option value="Kedutaan Besar Australia, Jl. Patra Kuningan Raya, Jakarta" />
+                        <option value="VFS Global Mall Bali Galeria, Bali" />
+                        <option value="Kantor Imigrasi Jakarta Selatan" />
+                        <option value="Kantor Imigrasi Jakarta Pusat" />
+                        <option value="Kantor Imigrasi Jakarta Barat" />
+                      </datalist>
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                        💡 Masukkan tempat appointment visa, biometrik, atau wawancara yang tertera pada surat konfirmasi booking visa.
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1003,6 +1263,83 @@ const Documents = () => {
                     <strong style={{ color: '#f8fafc' }}>{previewDoc.estimatedDone || '-'}</strong>
                   </div>
                 </div>
+              </div>
+
+              {/* Visa Appointment Card in Preview */}
+              <div style={{
+                background: previewDoc.appointmentDate ? 'rgba(234, 179, 8, 0.08)' : '#0f172a',
+                border: `1px solid ${previewDoc.appointmentDate ? 'rgba(234, 179, 8, 0.35)' : '#334155'}`,
+                borderRadius: '8px',
+                padding: '1.25rem',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Calendar size={18} color="#fbbf24" />
+                    <strong style={{ color: '#f8fafc', fontSize: '0.95rem' }}>Jadwal Appointment Visa</strong>
+                  </div>
+                  {getAppointmentBadge(previewDoc.appointmentDate)}
+                </div>
+
+                {previewDoc.appointmentDate ? (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Tanggal</span>
+                        <strong style={{ color: '#f8fafc', fontSize: '0.925rem' }}>📅 {formatAppointmentDate(previewDoc.appointmentDate)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Waktu / Jam</span>
+                        <strong style={{ color: '#38bdf8', fontSize: '0.925rem' }}>⏰ {previewDoc.appointmentTime || 'Jam belum ditentukan'}</strong>
+                      </div>
+                    </div>
+                    {previewDoc.appointmentLocation && (
+                      <div style={{ marginTop: '0.5rem', background: '#0f172a', padding: '0.75rem', borderRadius: '6px', border: '1px solid #334155' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Tempat / Lokasi</span>
+                        <div style={{ color: '#f8fafc', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                          <MapPin size={16} color="#f43f5e" style={{ flexShrink: 0, marginTop: '2px' }} />
+                          <span>{previewDoc.appointmentLocation}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* WhatsApp Reminder Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const guest = previewDoc.guestName || 'Tamu';
+                        const tgl = formatAppointmentDate(previewDoc.appointmentDate);
+                        const jam = previewDoc.appointmentTime ? `pukul ${previewDoc.appointmentTime}` : '';
+                        const loc = previewDoc.appointmentLocation || '-';
+                        const text = `Halo Bapak/Ibu ${guest},\n\nBerikut kami informasikan jadwal Appointment Visa Anda:\n📅 Tanggal: ${tgl}\n⏰ Waktu: ${jam}\n📍 Lokasi: ${loc}\nNegara: ${previewDoc.country || '-'}\n\nHarap hadir 15-20 menit lebih awal dengan membawa seluruh dokumen persyaratan asli dan bukti appointment.\n\nSalam,\nTravelOps Management`;
+                        const phone = previewDoc.phoneNumber ? previewDoc.phoneNumber.replace(/[^0-9]/g, '') : '';
+                        const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+                        window.open(url, '_blank');
+                      }}
+                      className="btn"
+                      style={{
+                        marginTop: '1rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.55rem 1.15rem',
+                        background: 'rgba(34, 197, 94, 0.15)',
+                        border: '1px solid rgba(34, 197, 94, 0.35)',
+                        color: '#4ade80',
+                        fontSize: '0.825rem',
+                        fontWeight: '700',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Share2 size={15} /> Kirim Jadwal ke Tamu via WhatsApp
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ color: '#94a3b8', fontSize: '0.825rem', fontStyle: 'italic' }}>
+                    Belum ada jadwal appointment visa untuk dokumen ini. Klik "Edit Dokumen" untuk menambahkan tanggal, waktu, dan lokasi.
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>

@@ -75,7 +75,10 @@ const PublicTracker = () => {
           shippingCourier: d.shipping_courier,
           shippingResi: d.shipping_resi,
           shippingNotes: d.shipping_notes,
-          receivedStatus: d.received_status
+          receivedStatus: d.received_status,
+          appointmentDate: d.appointment_date,
+          appointmentTime: d.appointment_time,
+          appointmentLocation: d.appointment_location
         });
         setLoading(false);
         return;
@@ -471,6 +474,74 @@ const PublicTracker = () => {
                 );
               })()}
             </div>
+
+            {/* Visa Appointment Highlight Card in Public Tracker */}
+            {record.appointmentDate && (
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.12) 0%, rgba(245, 158, 11, 0.05) 100%)',
+                border: '1.5px solid rgba(234, 179, 8, 0.35)',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: 'rgba(234, 179, 8, 0.2)', color: '#fbbf24',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <Calendar size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.725rem', fontWeight: '800', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Jadwal Appointment Visa Anda
+                      </div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#ffffff' }}>
+                        {record.appointmentDate} {record.appointmentTime ? `• Pukul ${record.appointmentTime}` : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const days = getDaysCountdown(record.appointmentDate);
+                    if (days === 0) {
+                      return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', fontSize: '0.75rem', fontWeight: '800' }}>🔴 Hari Ini</span>;
+                    } else if (days === 1) {
+                      return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', fontSize: '0.75rem', fontWeight: '800' }}>🟡 Besok</span>;
+                    } else if (days > 1) {
+                      return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', fontSize: '0.75rem', fontWeight: '800' }}>🟢 {days} Hari Lagi</span>;
+                    }
+                    return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(100, 116, 139, 0.2)', color: '#94a3b8', fontSize: '0.75rem', fontWeight: '600' }}>Telah Lewat</span>;
+                  })()}
+                </div>
+
+                {record.appointmentLocation && (
+                  <div style={{
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.85rem'
+                  }}>
+                    <MapPin size={16} color="#f43f5e" style={{ flexShrink: 0 }} />
+                    <span style={{ color: '#cbd5e1' }}>
+                      <strong style={{ color: '#f8fafc' }}>Lokasi:</strong> {record.appointmentLocation}
+                    </span>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
+                  ℹ️ Mohon hadir minimal 15-20 menit sebelum jadwal dengan membawa paspor asli, pasfoto, dan dokumen pendukung asli.
+                </div>
+              </div>
+            )}
 
             {/* Courier / Shipping Resi Callout Card */}
             {record.shippingResi && (

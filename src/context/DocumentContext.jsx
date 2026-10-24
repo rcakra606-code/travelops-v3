@@ -38,7 +38,10 @@ export const DocumentProvider = ({ children }) => {
         shippingCourier: d.shipping_courier,
         shippingResi: d.shipping_resi,
         shippingNotes: d.shipping_notes,
-        receivedStatus: d.received_status
+        receivedStatus: d.received_status,
+        appointmentDate: d.appointment_date,
+        appointmentTime: d.appointment_time,
+        appointmentLocation: d.appointment_location
       }));
       setDocuments(mapped);
     } catch (err) {
@@ -73,7 +76,10 @@ export const DocumentProvider = ({ children }) => {
         shipping_courier: docData.shippingCourier,
         shipping_resi: docData.shippingResi,
         shipping_notes: docData.shippingNotes,
-        received_status: docData.receivedStatus
+        received_status: docData.receivedStatus,
+        appointment_date: docData.appointmentDate || null,
+        appointment_time: docData.appointmentTime || null,
+        appointment_location: docData.appointmentLocation || null
       }]);
       if (error) throw error;
       await fetchDocuments();
@@ -106,6 +112,9 @@ export const DocumentProvider = ({ children }) => {
       if (updatedData.shippingResi !== undefined) dbUpdates.shipping_resi = updatedData.shippingResi;
       if (updatedData.shippingNotes !== undefined) dbUpdates.shipping_notes = updatedData.shippingNotes;
       if (updatedData.receivedStatus !== undefined) dbUpdates.received_status = updatedData.receivedStatus;
+      if (updatedData.appointmentDate !== undefined) dbUpdates.appointment_date = updatedData.appointmentDate || null;
+      if (updatedData.appointmentTime !== undefined) dbUpdates.appointment_time = updatedData.appointmentTime || null;
+      if (updatedData.appointmentLocation !== undefined) dbUpdates.appointment_location = updatedData.appointmentLocation || null;
 
       const { error } = await supabase.from('travelops_documents').update(dbUpdates).eq('id', id);
       if (error) throw error;
