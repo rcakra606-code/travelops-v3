@@ -1072,7 +1072,7 @@ const Settings = () => {
 
                   {/* Automated Reminders Checkbox & Schedule Description */}
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule (2 Jalur Email)</h3>
+                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule (3 Jalur Email Terpisah)</h3>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
                       <input 
                         type="checkbox" 
@@ -1080,7 +1080,7 @@ const Settings = () => {
                         onChange={e => setFormData({...formData, enableReminders: e.target.checked})} 
                         style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
                       />
-                      Aktifkan 2 jalur email reminder otomatis (Operasional &amp; Administrasi)
+                      Aktifkan 3 jalur email reminder otomatis (Operasional, Administrasi, &amp; Dokumen/Visa)
                     </label>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.65rem', marginLeft: '1.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <div style={{ background: 'rgba(6, 182, 212, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.2)' }}>
@@ -1098,6 +1098,15 @@ const Settings = () => {
                         </div>
                         <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
                           Notifikasi peringatan khusus untuk tour dengan <strong>Nomor Invoice belum diterbitkan</strong> dan tour dengan <strong>Form Claim MDR belum dicentang</strong>.
+                        </p>
+                      </div>
+
+                      <div style={{ background: 'rgba(99, 102, 241, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#818cf8', fontWeight: '700' }}>
+                          <span>🛂</span> Email 3: Reminder Dokumen &amp; Visa Operasional (Terpisah)
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
+                          Notifikasi terpisah untuk dokumen dalam proses berdasarkan <strong>Tanggal Estimasi Selesai staff</strong> (overdue/deadline), serta reminder <strong>Jadwal Appointment Visa</strong> pada H-3, H-2, H-1, dan Hari-H.
                         </p>
                       </div>
                     </div>
@@ -1200,7 +1209,7 @@ const Settings = () => {
                           <Bell size={18} color="var(--primary)" /> Manual Trigger & Operations Reminders Diagnostic
                         </h4>
                         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.4' }}>
-                          Trigger an immediate diagnostic scan across all Tours and Cruises in the database. If automated scheduling encountered errors or missed reminders, this will check every milestone and dispatch email notices on demand.
+                          Trigger an immediate diagnostic scan across all Tours, Cruises, and Documents in the database. If automated scheduling encountered errors or missed reminders, this will check every milestone and dispatch email notices on demand.
                         </p>
                       </div>
                     </div>

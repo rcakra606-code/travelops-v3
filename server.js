@@ -950,7 +950,7 @@ app.post('/api/send-email', requireAuth, emailLimiter, async (req, res) => {
   const catKey = category || 'general';
   const dispatchKey = `${catKey}_${to.toLowerCase().trim()}_${todayStr}`;
 
-  if ((category === 'daily_reminder' || category === 'daily_operational_reminder' || category === 'daily_admin_reminder') && dailyRemindersDispatched.has(dispatchKey)) {
+  if ((category === 'daily_reminder' || category === 'daily_operational_reminder' || category === 'daily_admin_reminder' || category === 'daily_document_reminder') && dailyRemindersDispatched.has(dispatchKey)) {
     console.log(`[EMAIL DISPATCH] Daily reminder (${category}) already sent to ${to} today (${todayStr}). Skipping duplicate.`);
     return res.status(200).json({ 
       success: true, 

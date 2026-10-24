@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useTours } from '../context/TourContext';
 import { useCruises } from '../context/CruiseContext';
+import { useDocuments } from '../context/DocumentContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../supabaseClient';
@@ -12,12 +13,21 @@ const ReminderEngine = () => {
   const { settings } = useSettings();
   const { tours } = useTours();
   const { cruises } = useCruises();
+  const { documents } = useDocuments();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const [logs, setLogs] = useState([]);
   const [showToast, setShowToast] = useState(false);
-  const [alertSummary, setAlertSummary] = useState({ operational: 0, admin: 0, mdr: 0, invoice: 0 });
+  const [alertSummary, setAlertSummary] = useState({ 
+    operational: 0, 
+    admin: 0, 
+    mdr: 0, 
+    invoice: 0,
+    document: 0,
+    appointments: 0,
+    pendingDocs: 0
+  });
   const [emailDeliveryStatus, setEmailDeliveryStatus] = useState(null); // 'sent' | 'failed' | null
   const hasTriggeredRef = useRef(false);
 
@@ -49,7 +59,9 @@ const ReminderEngine = () => {
 
       const targetAction = category === 'operational' 
         ? 'DAILY_OPERATIONAL_EMAIL_DISPATCH' 
-        : 'DAILY_ADMIN_EMAIL_DISPATCH';
+        : category === 'admin'
+        ? 'DAILY_ADMIN_EMAIL_DISPATCH'
+        : 'DAILY_DOCUMENT_EMAIL_DISPATCH';
 
       const { data, error } = await supabase
         .from('travelops_logs')
@@ -96,6 +108,8 @@ const ReminderEngine = () => {
     const operationalItems = [];
     const uninvoicedItems = [];
     const unclaimedMdrItems = [];
+    const appointmentDocItems = [];
+    const pendingDocItems = [];
     const logMessages = [];
 
     // Helper to extract customer/guest name details
@@ -325,6 +339,124 @@ const ReminderEngine = () => {
       cruises.forEach(c => checkItem(c, 'Cruise'));
     }
 
+    // =========================================================================
+    // EMAIL 3: JALUR DOKUMEN & VISA OPERASIONAL (APPOINTMENT & IN-PROGRESS DOCS)
+    // =========================================================================
+    if (Array.isArray(documents)) {
+      documents.forEach(doc => {
+        const guestName = doc.guestName || '-';
+        const country = doc.country || '-';
+        const docType = doc.docType || 'Visa';
+        const staffPIC = doc.staff || 'Unassigned';
+        const bookingRef = doc.bookingCode || doc.tourCode || doc.id;
+        const phone = doc.phoneNumber || '-';
+
+        // 3A. Reminder Jadwal Appointment Visa (3, 2, 1 hari & Hari H)
+        if (doc.appointmentDate) {
+          const diffApp = getDiffDays(doc.appointmentDate);
+          if (diffApp !== null && [3, 2, 1, 0].includes(diffApp)) {
+            let milestoneLabel = '';
+            let urgencyLevel = 'notice';
+
+            if (diffApp === 0) {
+              milestoneLabel = '🔴 HARI INI: Jadwal Janji Temu / Appointment Visa!';
+              urgencyLevel = 'urgent';
+            } else if (diffApp === 1) {
+              milestoneLabel = '🚨 BESOK (H-1): Jadwal Appointment Visa';
+              urgencyLevel = 'urgent';
+            } else if (diffApp === 2) {
+              milestoneLabel = '⚡ H-2: Jadwal Appointment Visa';
+              urgencyLevel = 'warning';
+            } else if (diffApp === 3) {
+              milestoneLabel = '📋 H-3: Jadwal Appointment Visa';
+              urgencyLevel = 'notice';
+            }
+
+            const appTimeStr = doc.appointmentTime ? ` pk ${doc.appointmentTime}` : '';
+            const appLocStr = doc.appointmentLocation ? ` @ ${doc.appointmentLocation}` : '';
+            const message = `🛂 [APPOINTMENT] ${guestName} - ${docType} (${country}): ${milestoneLabel}${appTimeStr}${appLocStr} • PIC: ${staffPIC}`;
+            logMessages.push(message);
+
+            appointmentDocItems.push({
+              id: doc.id,
+              guestName,
+              phoneNumber: phone,
+              docType,
+              country,
+              processType: doc.processType || 'Normal',
+              appointmentDate: doc.appointmentDate,
+              appointmentTime: doc.appointmentTime || '-',
+              appointmentLocation: doc.appointmentLocation || 'Kedutaan / VFS Center',
+              staff: staffPIC,
+              bookingRef,
+              diff: diffApp,
+              milestoneLabel,
+              urgencyLevel
+            });
+          }
+        }
+
+        // 3B. Reminder Dokumen Belum Terproses & Masih Dalam Proses (Target Estimasi Selesai Staff)
+        // Belum selesai = shippingStatus !== 'Received'
+        const isCompleted = doc.shippingStatus === 'Received';
+        if (!isCompleted) {
+          let urgencyLevel = 'in_progress';
+          let statusLabel = '';
+          const diffEst = doc.estimatedDone ? getDiffDays(doc.estimatedDone) : null;
+
+          if (!doc.estimatedDone) {
+            urgencyLevel = 'unassigned';
+            statusLabel = '⚠️ Estimasi Selesai Belum Diinput Staff';
+          } else if (diffEst < 0) {
+            urgencyLevel = 'overdue';
+            statusLabel = `🚨 TERLAMBAT: Melewati Target Selesai (${Math.abs(diffEst)} hari lalu)`;
+          } else if (diffEst === 0) {
+            urgencyLevel = 'today';
+            statusLabel = '🔴 HARI INI: Target Estimasi Selesai Staff';
+          } else if (diffEst <= 3) {
+            urgencyLevel = 'warning';
+            statusLabel = `⚡ SEGERA: Target Selesai dlm ${diffEst} hari (H-${diffEst})`;
+          } else {
+            urgencyLevel = 'in_progress';
+            statusLabel = `📋 PROSES: Target Selesai ${diffEst} hari lagi (H-${diffEst})`;
+          }
+
+          const message = `📄 [DOKUMEN] ${guestName} - ${docType} (${country}): ${statusLabel} • PIC: ${staffPIC}`;
+          logMessages.push(message);
+
+          pendingDocItems.push({
+            id: doc.id,
+            guestName,
+            phoneNumber: phone,
+            docType,
+            country,
+            processType: doc.processType || 'Normal',
+            receiveDate: doc.receiveDate || '-',
+            estimatedDone: doc.estimatedDone || null,
+            shippingStatus: doc.shippingStatus || 'Processing',
+            staff: staffPIC,
+            bookingRef,
+            diff: diffEst,
+            urgencyLevel,
+            statusLabel
+          });
+        }
+      });
+
+      // Sort appointments: H-0 first, then H-1, H-2, H-3
+      appointmentDocItems.sort((a, b) => a.diff - b.diff);
+
+      // Sort pending docs: Overdue first, then Today, then Unassigned, then upcoming in-progress
+      pendingDocItems.sort((a, b) => {
+        const priority = { overdue: 1, today: 2, unassigned: 3, warning: 4, in_progress: 5 };
+        const prioA = priority[a.urgencyLevel] || 99;
+        const prioB = priority[b.urgencyLevel] || 99;
+        if (prioA !== prioB) return prioA - prioB;
+        if (a.diff !== null && b.diff !== null) return a.diff - b.diff;
+        return 0;
+      });
+    }
+
     const host = settings?.smtpHost || 'smtp.gmail.com';
     const port = Number(settings?.smtpPort || 587);
     const userEmail = settings?.smtpUser;
@@ -342,10 +474,13 @@ const ReminderEngine = () => {
       operational: operationalItems.length,
       admin: unclaimedMdrItems.length + uninvoicedItems.length,
       mdr: unclaimedMdrItems.length,
-      invoice: uninvoicedItems.length
+      invoice: uninvoicedItems.length,
+      document: appointmentDocItems.length + pendingDocItems.length,
+      appointments: appointmentDocItems.length,
+      pendingDocs: pendingDocItems.length
     });
 
-    const totalAlerts = operationalItems.length + unclaimedMdrItems.length + uninvoicedItems.length;
+    const totalAlerts = operationalItems.length + unclaimedMdrItems.length + uninvoicedItems.length + appointmentDocItems.length + pendingDocItems.length;
 
     if (totalAlerts > 0) {
       setLogs(logMessages);
@@ -708,24 +843,283 @@ const ReminderEngine = () => {
         }
       }
 
+      // =========================================================================
+      // 3. DISPATCH EMAIL 3: REMINDER DOKUMEN & VISA OPERASIONAL (TERPISAH)
+      // =========================================================================
+      if (appointmentDocItems.length > 0 || pendingDocItems.length > 0) {
+        const docSentKey = `travelops_reminders_document_sent_${cleanRecipient}_${todayStr}`;
+        const alreadySentDoc = !isManual && await checkHasSentCategoryToday('document', cleanRecipient, todayStr);
+
+        if (!alreadySentDoc) {
+          if (!isManual) localStorage.setItem(docSentKey, 'sending');
+
+          const docSubjectParts = [];
+          if (appointmentDocItems.length > 0) docSubjectParts.push(`${appointmentDocItems.length} Jadwal Appointment Visa`);
+          if (pendingDocItems.length > 0) docSubjectParts.push(`${pendingDocItems.length} Dokumen Belum Selesai / In-Progress`);
+
+          const docEmailSubject = `[DOKUMEN & VISA] Peringatan: ${docSubjectParts.join(' & ')} - TravelOps`;
+
+          const docEmailHtml = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 780px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1.5px solid #c7d2fe; border-radius: 12px; color: #1e293b;">
+              
+              <!-- Header Banner -->
+              <div style="border-bottom: 2px solid #6366f1; padding-bottom: 14px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 28px;">🛂</span>
+                  <div>
+                    <h2 style="margin: 0; color: #312e81; font-size: 20px; font-weight: 800;">TravelOps Dokumen &amp; Visa Operasional</h2>
+                    <p style="margin: 0; font-size: 12px; color: #4f46e5; font-weight: 700;">Monitoring Dokumen Dalam Proses &amp; Reminder Jadwal Appointment</p>
+                  </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
+                  ${appointmentDocItems.length > 0 ? `
+                    <span style="background: #ede9fe; color: #5b21b6; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #ddd6fe;">
+                      🛂 ${appointmentDocItems.length} Jadwal Appointment
+                    </span>
+                  ` : ''}
+                  ${pendingDocItems.length > 0 ? `
+                    <span style="background: #e0e7ff; color: #3730a3; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #c7d2fe;">
+                      📄 ${pendingDocItems.length} Dokumen In-Progress
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+
+              <p style="font-size: 13.5px; color: #334155; margin-bottom: 18px; line-height: 1.5;">
+                Halo Tim Dokumen &amp; Visa Operations, berikut ringkasan status <strong>seluruh dokumen yang masih dalam proses</strong> serta <strong>jadwal appointment visa (H-3 s/d Hari-H)</strong> per <strong>${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>:
+              </p>
+
+              <!-- SUB-SECTION 1: JADWAL APPOINTMENT VISA (H-3, H-2, H-1, H-0) -->
+              ${appointmentDocItems.length > 0 ? `
+                <div style="background: #f5f3ff; border: 1.5px solid #ddd6fe; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #c4b5fd; padding-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 20px;">🛂</span>
+                      <div>
+                        <h3 style="margin: 0; color: #4c1d95; font-size: 15px; font-weight: 800;">
+                          1. Jadwal Appointment Visa (${appointmentDocItems.length} Janji Temu / Biometrik)
+                        </h3>
+                        <p style="margin: 0; font-size: 11.5px; color: #6d28d9;">
+                          Reminder Janji Temu / Biometrik / Wawancara Kedutaan (milestone H-3, H-2, H-1, &amp; Hari-H). Mohon briefing tamu &amp; persiapkan berkas asli.
+                        </p>
+                      </div>
+                    </div>
+                    <span style="background: #7c3aed; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
+                      VISA APPOINTMENT
+                    </span>
+                  </div>
+
+                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #ddd6fe;">
+                    <thead>
+                      <tr style="background: #ede9fe; color: #4c1d95; text-align: left;">
+                        <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu &amp; Kontak</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Tipe Dokumen &amp; Negara</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Tgl &amp; Waktu Appointment</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Lokasi Janji Temu</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Staff PIC</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Milestone Tempo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${appointmentDocItems.map(item => `
+                        <tr style="border-bottom: 1px solid #ede9fe;">
+                          <td style="padding: 10px 8px; font-weight: 700; color: #0f172a;">
+                            👤 ${item.guestName}
+                            <div style="font-size: 10.5px; color: #64748b; font-weight: normal; margin-top: 2px;">
+                              📞 ${item.phoneNumber}
+                              ${item.bookingRef !== '-' ? ` • <span style="font-family: monospace;">${item.bookingRef}</span>` : ''}
+                            </div>
+                          </td>
+                          <td style="padding: 10px 8px; color: #334155;">
+                            <strong>${item.country}</strong>
+                            <div style="font-size: 11px; color: #64748b;">
+                              ${item.docType}
+                              ${item.processType && item.processType !== 'Normal' ? ` • <span style="color: #e11d48; font-weight: 700;">${item.processType}</span>` : ''}
+                            </div>
+                          </td>
+                          <td style="padding: 10px 8px;">
+                            <div style="font-family: monospace; color: #4338ca; font-weight: 700; font-size: 12.5px;">
+                              📅 ${item.appointmentDate}
+                            </div>
+                            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                              ⏰ ${item.appointmentTime !== '-' ? item.appointmentTime : 'Waktu Belum Diset'}
+                            </div>
+                          </td>
+                          <td style="padding: 10px 8px; color: #334155;">
+                            📍 <strong>${item.appointmentLocation}</strong>
+                          </td>
+                          <td style="padding: 10px 8px; color: #4f46e5; font-weight: 600;">
+                            💼 ${item.staff}
+                          </td>
+                          <td style="padding: 10px 8px;">
+                            <span style="background: ${item.diff === 0 ? '#fee2e2' : item.diff === 1 ? '#ffedd5' : item.diff === 2 ? '#fef3c7' : '#ede9fe'}; color: ${item.diff === 0 ? '#b91c1c' : item.diff === 1 ? '#c2410c' : item.diff === 2 ? '#b45309' : '#5b21b6'}; font-weight: 800; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; border: 1px solid ${item.diff === 0 ? '#f87171' : item.diff === 1 ? '#fb923c' : item.diff === 2 ? '#fcd34d' : '#c4b5fd'}; display: inline-block;">
+                              ${item.milestoneLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              ` : ''}
+
+              <!-- SUB-SECTION 2: DOKUMEN BELUM SELESAI / DALAM PROSES (TARGET ESTIMASI STAFF) -->
+              ${pendingDocItems.length > 0 ? `
+                <div style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #a5b4fc; padding-bottom: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 20px;">📄</span>
+                      <div>
+                        <h3 style="margin: 0; color: #312e81; font-size: 15px; font-weight: 800;">
+                          2. Dokumen Masih Dalam Proses / Belum Selesai (${pendingDocItems.length} Dokumen)
+                        </h3>
+                        <p style="margin: 0; font-size: 11.5px; color: #4338ca;">
+                          Seluruh dokumen aktif yang belum berstatus 'Received'. Urgensi dipantau berdasarkan Tanggal Estimasi Selesai yang diinput oleh staff.
+                        </p>
+                      </div>
+                    </div>
+                    <span style="background: #4f46e5; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
+                      IN-PROGRESS MONITOR
+                    </span>
+                  </div>
+
+                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #c7d2fe;">
+                    <thead>
+                      <tr style="background: #e0e7ff; color: #312e81; text-align: left;">
+                        <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu &amp; Kode</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Tipe Dokumen &amp; Negara</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Tgl Terima &amp; Pengiriman</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Target Estimasi Selesai (Staff)</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Staff PIC</th>
+                        <th style="padding: 10px 8px; font-weight: 700;">Status Urgensi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${pendingDocItems.map(item => `
+                        <tr style="border-bottom: 1px solid #e0e7ff;">
+                          <td style="padding: 10px 8px; font-weight: 700; color: #0f172a;">
+                            👤 ${item.guestName}
+                            <div style="font-size: 10.5px; color: #64748b; font-weight: normal; margin-top: 2px;">
+                              📞 ${item.phoneNumber}
+                              ${item.bookingRef !== '-' ? ` • <span style="font-family: monospace;">${item.bookingRef}</span>` : ''}
+                            </div>
+                          </td>
+                          <td style="padding: 10px 8px; color: #334155;">
+                            <strong>${item.country}</strong>
+                            <div style="font-size: 11px; color: #64748b;">
+                              ${item.docType}
+                              ${item.processType && item.processType !== 'Normal' ? ` • <span style="color: #e11d48; font-weight: 700;">${item.processType}</span>` : ''}
+                            </div>
+                          </td>
+                          <td style="padding: 10px 8px;">
+                            <div style="font-family: monospace; color: #334155;">📥 ${item.receiveDate}</div>
+                            <span style="display: inline-block; margin-top: 3px; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${item.shippingStatus === 'Sent' ? '#fef3c7' : item.shippingStatus === 'Returned' ? '#fee2e2' : '#e0e7ff'}; color: ${item.shippingStatus === 'Sent' ? '#b45309' : item.shippingStatus === 'Returned' ? '#b91c1c' : '#3730a3'};">
+                              📦 ${item.shippingStatus}
+                            </span>
+                          </td>
+                          <td style="padding: 10px 8px;">
+                            ${item.estimatedDone ? `
+                              <div style="font-family: monospace; color: #312e81; font-weight: 700; font-size: 12px;">
+                                🎯 ${item.estimatedDone}
+                              </div>
+                            ` : `
+                              <div style="color: #d97706; font-size: 11px; font-weight: 700;">
+                                ⚠️ Belum Diinput Staff
+                              </div>
+                            `}
+                          </td>
+                          <td style="padding: 10px 8px; color: #4f46e5; font-weight: 600;">
+                            💼 ${item.staff}
+                          </td>
+                          <td style="padding: 10px 8px;">
+                            <span style="background: ${item.urgencyLevel === 'overdue' ? '#fee2e2' : item.urgencyLevel === 'today' ? '#ffedd5' : item.urgencyLevel === 'unassigned' ? '#fef3c7' : item.urgencyLevel === 'warning' ? '#fef3c7' : '#ecfdf5'}; color: ${item.urgencyLevel === 'overdue' ? '#b91c1c' : item.urgencyLevel === 'today' ? '#c2410c' : item.urgencyLevel === 'unassigned' ? '#b45309' : item.urgencyLevel === 'warning' ? '#b45309' : '#047857'}; font-weight: 800; padding: 3px 8px; border-radius: 4px; font-size: 10px; border: 1px solid ${item.urgencyLevel === 'overdue' ? '#f87171' : item.urgencyLevel === 'today' ? '#fb923c' : item.urgencyLevel === 'unassigned' ? '#fcd34d' : item.urgencyLevel === 'warning' ? '#fcd34d' : '#a7f3d0'}; display: inline-block;">
+                              ${item.statusLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              ` : ''}
+
+              <!-- Instructions / Direct Action Tip -->
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+                <p style="margin: 0; font-size: 11.5px; color: #64748b;">
+                  Penerima: <strong>${targetRecipient}</strong> • Jalur: <strong>Email 3 - Dokumen &amp; Visa Operasional (Terpisah)</strong>
+                </p>
+                <p style="margin: 4px 0 0 0; font-size: 11.5px; color: #334155;">
+                  💡 <em>Tips: Buka modul Dokumen di TravelOps untuk memperbarui status proses, menginput tanggal estimasi selesai staff, atau mengonfirmasi kehadiran janji temu appointment visa.</em>
+                </p>
+              </div>
+
+              <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+                TravelOps Document &amp; Visa Suite • Automated Daily Dispatcher
+              </p>
+            </div>
+          `;
+
+          try {
+            const res = await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({
+                to: targetRecipient,
+                subject: docEmailSubject,
+                text: `TravelOps Dokumen & Visa Digest\n\nJadwal Appointment: ${appointmentDocItems.length}\nDokumen Belum Selesai / In-Progress: ${pendingDocItems.length}`,
+                html: docEmailHtml,
+                category: isManual ? 'manual_reminder' : 'daily_document_reminder',
+                smtpConfig
+              })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) {
+              localStorage.setItem(docSentKey, 'true');
+              await logSystemAction(
+                user,
+                'DAILY_DOCUMENT_EMAIL_DISPATCH',
+                JSON.stringify({ 
+                  recipient: cleanRecipient, 
+                  date: todayStr, 
+                  totalCount: appointmentDocItems.length + pendingDocItems.length,
+                  appointmentCount: appointmentDocItems.length,
+                  pendingDocCount: pendingDocItems.length,
+                  timestamp: new Date().toISOString() 
+                })
+              );
+            } else {
+              localStorage.removeItem(docSentKey);
+            }
+          } catch (err) {
+            localStorage.removeItem(docSentKey);
+            console.error('[ReminderEngine] Error dispatching document email:', err);
+          }
+        }
+      }
+
       setEmailDeliveryStatus('sent');
       if (isManual) {
-        toast?.success(`2 Jalur Reminder (Operasional & Administrasi) berhasil dicek dan dikirim ke ${targetRecipient}!`);
+        toast?.success(`3 Jalur Reminder (Operasional, Administrasi, & Dokumen/Visa) berhasil dicek dan dikirim ke ${targetRecipient}!`);
       }
 
     } else if (isManual) {
-      setLogs(['Semua tour dan cruise telah diperiksa. Tidak ada pending administrasi (Invoice & Claim MDR) maupun agenda keberangkatan hari ini!']);
+      setLogs(['Semua tour, cruise, dan dokumen telah diperiksa. Tidak ada pending administrasi, dokumen belum selesai, maupun agenda mendesak hari ini!']);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 5000);
-      toast?.info('Pemeriksaan selesai: Seluruh administrasi lengkap dan tidak ada jadwal mendesak hari ini.');
+      toast?.info('Pemeriksaan selesai: Seluruh data lengkap dan tidak ada jadwal mendesak hari ini.');
     }
-  }, [settings, tours, cruises, user, toast]);
+  }, [settings, tours, cruises, documents, user, toast]);
 
   // Automated Daily Check: triggers once per user per calendar day
   useEffect(() => {
     if (authLoading || !user) return;
-    if (!tours || tours.length === 0) return;
     if (hasTriggeredRef.current) return;
+
+    // Check if data collections are loaded
+    const hasData = (Array.isArray(tours) && tours.length > 0) || 
+                    (Array.isArray(cruises) && cruises.length > 0) || 
+                    (Array.isArray(documents) && documents.length > 0);
+    if (!hasData) return;
 
     const isEnabled = settings?.enableReminders !== false;
     if (!isEnabled) return;
@@ -737,16 +1131,18 @@ const ReminderEngine = () => {
       const cleanRecipient = targetRecipient.toLowerCase().trim();
       const opKey = `travelops_reminders_operational_sent_${cleanRecipient}_${todayStr}`;
       const adminKey = `travelops_reminders_admin_sent_${cleanRecipient}_${todayStr}`;
+      const docKey = `travelops_reminders_document_sent_${cleanRecipient}_${todayStr}`;
 
       const opDone = localStorage.getItem(opKey) === 'true';
       const adminDone = localStorage.getItem(adminKey) === 'true';
+      const docDone = localStorage.getItem(docKey) === 'true';
 
-      if (opDone && adminDone) return;
+      if (opDone && adminDone && docDone) return;
 
       hasTriggeredRef.current = true;
       runRemindersCheck(false);
     }
-  }, [authLoading, tours, settings, user, runRemindersCheck]);
+  }, [authLoading, tours, cruises, documents, settings, user, runRemindersCheck]);
 
   // Support manual trigger from Settings page
   useEffect(() => {
@@ -761,7 +1157,7 @@ const ReminderEngine = () => {
   if (!showToast || logs.length === 0) return null;
 
   const targetRecipient = settings?.notificationEmail || user?.email || settings?.smtpUser || 'user email';
-  const hasAdminAlerts = alertSummary.admin > 0;
+  const hasUrgentAlerts = alertSummary.admin > 0 || alertSummary.document > 0;
 
   return (
     <div 
@@ -772,34 +1168,32 @@ const ReminderEngine = () => {
         left: '24px',
         background: 'var(--bg-surface)',
         border: '1px solid var(--border)',
-        borderLeft: hasAdminAlerts ? '4px solid #ef4444' : '4px solid var(--primary)',
+        borderLeft: hasUrgentAlerts ? '4px solid #ef4444' : '4px solid var(--primary)',
         borderRadius: '12px',
         padding: '1rem 1.25rem',
         boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
         zIndex: 9999,
-        maxWidth: '430px'
+        maxWidth: '440px'
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{ 
             width: '28px', height: '28px', borderRadius: '6px', 
-            background: hasAdminAlerts ? 'rgba(239, 68, 68, 0.15)' : 'rgba(6, 182, 212, 0.15)', 
-            color: hasAdminAlerts ? '#ef4444' : 'var(--primary)', 
+            background: hasUrgentAlerts ? 'rgba(239, 68, 68, 0.15)' : 'rgba(6, 182, 212, 0.15)', 
+            color: hasUrgentAlerts ? '#ef4444' : 'var(--primary)', 
             display: 'flex', alignItems: 'center', justifyContent: 'center' 
           }}>
-            {hasAdminAlerts ? <AlertTriangle size={15} /> : <Bell size={15} />}
+            {hasUrgentAlerts ? <AlertTriangle size={15} /> : <Bell size={15} />}
           </div>
           <div>
             <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '700' }}>
-              {alertSummary.admin > 0 && alertSummary.operational > 0
-                ? 'Operasional & Administrasi Digest'
-                : alertSummary.admin > 0
-                ? 'Administrasi Alert (Invoice & Claim MDR)'
+              {alertSummary.admin > 0 || alertSummary.document > 0
+                ? 'TravelOps Alerts (Admin & Dokumen)'
                 : 'Operasional Tour & Cruise Reminders'}
             </h4>
             <span style={{ fontSize: '0.675rem', color: 'var(--text-subtle)' }}>
-              2 Jalur Email: {targetRecipient}
+              3 Jalur Email: {targetRecipient}
             </span>
           </div>
         </div>
@@ -812,22 +1206,46 @@ const ReminderEngine = () => {
         </button>
       </div>
 
-      <div style={{ maxHeight: '160px', overflowY: 'auto', fontSize: '0.785rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+      <div style={{ maxHeight: '170px', overflowY: 'auto', fontSize: '0.785rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
         {logs.map((log, i) => {
           const isMdr = log.includes('[ADMIN: CLAIM MDR]');
           const isInvoice = log.includes('[ADMIN: INVOICE]');
+          const isAppointment = log.includes('[APPOINTMENT]');
+          const isDoc = log.includes('[DOKUMEN]');
           const isOp = log.includes('[OPERASIONAL]');
+
+          let icon = '✈️';
+          let badgeColor = 'var(--primary)';
+          let textColor = 'var(--text-main)';
+
+          if (isMdr) {
+            icon = '📋';
+            badgeColor = '#f43f5e';
+            textColor = '#fda4af';
+          } else if (isInvoice) {
+            icon = '🧾';
+            badgeColor = '#fbbf24';
+            textColor = '#fef08a';
+          } else if (isAppointment) {
+            icon = '🛂';
+            badgeColor = '#818cf8';
+            textColor = '#c7d2fe';
+          } else if (isDoc) {
+            icon = '📄';
+            badgeColor = '#a78bfa';
+            textColor = '#ddd6fe';
+          }
 
           return (
             <div key={i} style={{ display: 'flex', gap: '0.45rem', alignItems: 'flex-start' }}>
               <span style={{ 
-                color: isMdr ? '#f43f5e' : isInvoice ? '#fbbf24' : 'var(--primary)', 
+                color: badgeColor, 
                 fontWeight: 'bold' 
               }}>
-                {isMdr ? '📋' : isInvoice ? '🧾' : '✈️'}
+                {icon}
               </span> 
               <span style={{ 
-                color: isMdr ? '#fda4af' : isInvoice ? '#fef08a' : 'var(--text-main)', 
+                color: textColor, 
                 lineHeight: '1.4' 
               }}>
                 {log}
