@@ -13,6 +13,11 @@ const CsvImportUtility = ({ onImport, templateHeaders }) => {
   const handleFileUpload = async (e) => {
     const selected = e.target.files[0];
     if (selected) {
+      const fileName = selected.name.toLowerCase();
+      if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+        setError('Format file tidak didukung. Harap unggah file spreadsheet .csv atau .xlsx.');
+        return;
+      }
       setFile(selected);
       setError('');
       setIsProcessing(true);

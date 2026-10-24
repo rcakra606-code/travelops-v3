@@ -33,6 +33,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Disable X-Powered-By header to prevent fingerprinting
+app.disable('x-powered-by');
+
 // Trust the first proxy (Railway load balancer) so express-rate-limit can accurately get IPs
 app.set('trust proxy', 1);
 
@@ -41,6 +44,23 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disabled for React inline scripts compatibility if needed
   crossOriginEmbedderPolicy: false
 }));
+
+// Block vulnerability scanner probes and PHP probe requests (.php, .env, .git, wp-*, phpmyadmin, etc.)
+app.use((req, res, next) => {
+  const url = req.originalUrl.toLowerCase();
+  if (
+    url.endsWith('.php') ||
+    url.includes('.php?') ||
+    url.includes('/.env') ||
+    url.includes('/.git') ||
+    url.includes('/wp-') ||
+    url.includes('phpmyadmin') ||
+    url.includes('/cgi-bin/')
+  ) {
+    return res.status(404).send('Not Found');
+  }
+  next();
+});
 
 // Rate Limiting (General)
 const limiter = rateLimit({
@@ -256,7 +276,12 @@ app.get('/api/public/track/:code', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Tracking code is required' });
   }
 
+  // Sanitize tracking code to prevent filter injection (alphanumeric, dash, underscore, dot)
   const cleanCode = code.trim();
+  const sanitizedCode = cleanCode.replace(/[^a-zA-Z0-9_\-\.]/g, '');
+  if (!sanitizedCode) {
+    return res.status(400).json({ success: false, error: 'Invalid tracking code format' });
+  }
 
   try {
     const client = supabaseAdmin || createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY);
@@ -265,7 +290,7 @@ app.get('/api/public/track/:code', async (req, res) => {
     const { data: docs } = await client
       .from('travelops_documents')
       .select('*')
-      .or(`booking_code.eq.${cleanCode},invoice_number.eq.${cleanCode},shipping_resi.eq.${cleanCode},id.eq.${cleanCode}`)
+      .or(`booking_code.eq.${sanitizedCode},invoice_number.eq.${sanitizedCode},shipping_resi.eq.${sanitizedCode},id.eq.${sanitizedCode}`)
       .limit(1);
 
     if (docs && docs.length > 0) {
@@ -298,7 +323,7 @@ app.get('/api/public/track/:code', async (req, res) => {
     const { data: tours } = await client
       .from('travelops_tours')
       .select('*')
-      .or(`id.eq.${cleanCode}`)
+      .or(`id.eq.${sanitizedCode}`)
       .limit(1);
 
     if (tours && tours.length > 0) {
@@ -325,7 +350,7 @@ app.get('/api/public/track/:code', async (req, res) => {
     const { data: hotels } = await client
       .from('travelops_hotels')
       .select('*')
-      .or(`confirmation_number.eq.${cleanCode},id.eq.${cleanCode}`)
+      .or(`confirmation_number.eq.${sanitizedCode},id.eq.${sanitizedCode}`)
       .limit(1);
 
     if (hotels && hotels.length > 0) {
@@ -350,7 +375,7 @@ app.get('/api/public/track/:code', async (req, res) => {
     const { data: cruises } = await client
       .from('travelops_cruises')
       .select('*')
-      .or(`booking_ref.eq.${cleanCode},id.eq.${cleanCode}`)
+      .or(`booking_ref.eq.${sanitizedCode},id.eq.${sanitizedCode}`)
       .limit(1);
 
     if (cruises && cruises.length > 0) {
@@ -373,7 +398,7 @@ app.get('/api/public/track/:code', async (req, res) => {
 
     return res.status(404).json({
       success: false,
-      error: `No records found for tracking reference "${cleanCode}"`
+      error: `No records found for tracking reference "${sanitizedCode}"`
     });
   } catch (error) {
     console.error('Error in public tracking endpoint:', error);
@@ -456,6 +481,19 @@ app.post('/api/knowledge/parse-itinerary-pdf', async (req, res) => {
       cleanBase64 = cleanBase64.split('base64,')[1];
     }
     cleanBase64 = cleanBase64.replace(/\s+/g, '');
+
+    // Validate PDF magic bytes: Base64 for "%PDF" starts with "JVBERi"
+    if (!cleanBase64.startsWith('JVBERi')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Security Error: Uploaded payload is not a valid PDF file.'
+      });
+    }
+
+    // Sanitize fileName to prevent directory traversal or script extensions
+    const cleanFileName = (fileName || 'Itinerary.pdf')
+      .replace(/[^a-zA-Z0-9_\-\. ]/g, '')
+      .trim();
 
     const prompt = customPrompt || `
 You are an expert travel operations intelligence assistant for an international tour operator.
@@ -563,7 +601,7 @@ IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without 
 
     res.status(200).json({
       success: true,
-      fileName: fileName || 'Itinerary.pdf',
+      fileName: cleanFileName.endsWith('.pdf') ? cleanFileName : `${cleanFileName}.pdf`,
       data: parsedData
     });
   } catch (error) {

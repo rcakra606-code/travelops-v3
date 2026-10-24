@@ -27,9 +27,14 @@ async function fixRLS() {
     ];
 
     for (const tableName of tables) {
-      console.log(`Enabling RLS for ${tableName}...`);
+      console.log(`Enabling RLS & Grants for ${tableName}...`);
       // Enable RLS
       await client.query(`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY;`);
+
+      // Grant permissions complying with Supabase requirements
+      await client.query(`GRANT SELECT ON public."${tableName}" TO anon;`);
+      await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO authenticated;`);
+      await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO service_role;`);
       
       // Create Policy
       try {

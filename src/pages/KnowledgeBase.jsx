@@ -143,8 +143,8 @@ const KnowledgeBase = () => {
   const handlePdfUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
-      alert('Please upload a valid PDF file.');
+    if (!file.name.toLowerCase().endsWith('.pdf') || (file.type && file.type !== 'application/pdf')) {
+      alert('Harap unggah file dokumen PDF (.pdf) yang valid.');
       return;
     }
     setPdfFile(file);

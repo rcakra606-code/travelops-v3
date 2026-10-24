@@ -52,9 +52,15 @@ export async function syncDatabase() {
         
         // Enable RLS
         await client.query(`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY;`);
+        
+        // Grant permissions complying with Supabase PostgREST requirements
+        await client.query(`GRANT SELECT ON public."${tableName}" TO anon;`);
+        await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO authenticated;`);
+        await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO service_role;`);
+        
         await client.query(`CREATE POLICY "Allow all access to ${tableName}" ON public."${tableName}" FOR ALL TO public USING (true) WITH CHECK (true);`);
         
-        console.log(`✅ Auto-Schema Sync: Table ${tableName} created successfully!`);
+        console.log(`✅ Auto-Schema Sync: Table ${tableName} created and permissions granted successfully!`);
       } else {
         // Table exists, check columns
         const colCheck = await client.query(`

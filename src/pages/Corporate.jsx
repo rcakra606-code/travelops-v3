@@ -291,6 +291,10 @@ const Corporate = () => {
   const handleImportSales = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert('Harap unggah file dengan format .csv yang valid.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
