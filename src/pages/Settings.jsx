@@ -1072,7 +1072,7 @@ const Settings = () => {
 
                   {/* Automated Reminders Checkbox & Schedule Description */}
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule</h3>
+                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule (2 Jalur Email)</h3>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
                       <input 
                         type="checkbox" 
@@ -1080,21 +1080,26 @@ const Settings = () => {
                         onChange={e => setFormData({...formData, enableReminders: e.target.checked})} 
                         style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
                       />
-                      Enable automated email reminders for Tours & Cruises
+                      Aktifkan 2 jalur email reminder otomatis (Operasional &amp; Administrasi)
                     </label>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.65rem', marginLeft: '1.9rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b', fontWeight: '600' }}>
-                        <span>⚠️</span> Reminder Tour Belum Di-Invoicing:
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.65rem', marginLeft: '1.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ background: 'rgba(6, 182, 212, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '700' }}>
+                          <span>✈️</span> Email 1: Reminder Operasional Tour &amp; Cruise
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
+                          Notifikasi jadwal keberangkatan dan kepulangan pada H-30, H-15, H-7, H-5, H-3, H-2, H-1, serta Hari-H keberangkatan/kepulangan.
+                        </p>
                       </div>
-                      <p style={{ margin: 0, paddingLeft: '1.4rem', color: 'var(--text-main)' }}>
-                        Otomatis mengirimkan email peringatan untuk tour yang <strong>belum memiliki Invoice</strong> pada tempo <strong>30, 20, 15, dan 10 hari</strong> sebelum tanggal keberangkatan.
-                      </p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '600', marginTop: '0.25rem' }}>
-                        <span>📅</span> Milestone Operasional Umum:
+
+                      <div style={{ background: 'rgba(239, 68, 68, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f87171', fontWeight: '700' }}>
+                          <span>🧾</span> Email 2: Reminder Administrasi (Invoice &amp; Form Claim MDR)
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
+                          Notifikasi peringatan khusus untuk tour dengan <strong>Nomor Invoice belum diterbitkan</strong> dan tour dengan <strong>Form Claim MDR belum dicentang</strong>.
+                        </p>
                       </div>
-                      <p style={{ margin: 0, paddingLeft: '1.4rem' }}>
-                        Reminder otomatis pada H-30, H-15, H-7, H-5, H-3, H-2, H-1, hari keberangkatan, dan hari kepulangan.
-                      </p>
                     </div>
                   </div>
 

@@ -944,17 +944,18 @@ app.post('/api/send-email', requireAuth, emailLimiter, async (req, res) => {
     return res.status(400).json({ success: false, error: 'Recipient email (to) is required.' });
   }
 
-  // Idempotency guard: prevent duplicate automated daily reminder emails per calendar day
+  // Idempotency guard: prevent duplicate automated daily reminder emails per calendar day per category
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const dispatchKey = `${to.toLowerCase().trim()}_${todayStr}`;
+  const catKey = category || 'general';
+  const dispatchKey = `${catKey}_${to.toLowerCase().trim()}_${todayStr}`;
 
-  if (category === 'daily_reminder' && dailyRemindersDispatched.has(dispatchKey)) {
-    console.log(`[EMAIL DISPATCH] Daily reminder already sent to ${to} today (${todayStr}). Skipping duplicate.`);
+  if ((category === 'daily_reminder' || category === 'daily_operational_reminder' || category === 'daily_admin_reminder') && dailyRemindersDispatched.has(dispatchKey)) {
+    console.log(`[EMAIL DISPATCH] Daily reminder (${category}) already sent to ${to} today (${todayStr}). Skipping duplicate.`);
     return res.status(200).json({ 
       success: true, 
       skipped: true, 
-      message: `Daily reminder already delivered to ${to} today (${todayStr}). Skipped to prevent spam.` 
+      message: `Daily reminder (${category}) already delivered to ${to} today (${todayStr}). Skipped to prevent spam.` 
     });
   }
 
@@ -988,7 +989,7 @@ app.post('/api/send-email', requireAuth, emailLimiter, async (req, res) => {
       html: html || '<b>This is a test email from TravelOps.</b>'
     });
 
-    if (category === 'daily_reminder') {
+    if (category === 'daily_reminder' || category === 'daily_operational_reminder' || category === 'daily_admin_reminder') {
       dailyRemindersDispatched.set(dispatchKey, Date.now());
     }
 
