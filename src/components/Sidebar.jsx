@@ -106,18 +106,19 @@ const Sidebar = ({ isOpen, closeMobile }) => {
       <div className="sidebar-header" style={{ padding: '1.15rem 1.15rem', height: '64px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #06b6d4 0%, #6366f1 100%)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '12px',
+            background: 'var(--sage-light, #e6efe7)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#ffffff',
-            boxShadow: '0 0 14px rgba(6, 182, 212, 0.3)',
+            color: 'var(--primary, #476b52)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(71, 107, 82, 0.08)',
             flexShrink: 0
           }}>
-            <Plane size={18} strokeWidth={2.5} />
+            <Compass size={19} strokeWidth={2.2} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -127,17 +128,17 @@ const Sidebar = ({ isOpen, closeMobile }) => {
               <span style={{
                 fontSize: '0.6rem',
                 fontWeight: '700',
-                padding: '0.08rem 0.3rem',
-                borderRadius: '4px',
-                background: 'rgba(6, 182, 212, 0.15)',
-                color: 'var(--primary)',
-                letterSpacing: '0.03em'
+                padding: '0.08rem 0.35rem',
+                borderRadius: '9999px',
+                background: 'var(--sage-subtle, #edf2eb)',
+                color: 'var(--primary, #476b52)',
+                letterSpacing: '0.04em'
               }}>
-                v3 PRO
+                PRO
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: '0.675rem', color: 'var(--text-subtle)', fontWeight: '500' }}>
-              Operations Suite
+            <p style={{ margin: 0, fontSize: '0.675rem', color: 'var(--text-subtle)', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              OPERASIONAL
             </p>
           </div>
         </div>
@@ -245,24 +246,29 @@ const Sidebar = ({ isOpen, closeMobile }) => {
 
       {/* Clean Footer Status */}
       <div style={{
-        padding: '0.65rem 0.85rem',
+        padding: '0.75rem 0.85rem',
         margin: '0.5rem',
-        borderRadius: '8px',
-        background: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: '12px',
+        background: 'var(--bg-surface)',
         border: '1px solid var(--border)',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
+        gap: '0.4rem',
         fontSize: '0.725rem',
         color: 'var(--text-subtle)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          <span 
-            style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }}
-          />
-          <span>System Active</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span 
+              style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--success, #5d8465)', display: 'inline-block' }}
+            />
+            <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>Sistem Operasional</span>
+          </div>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.675rem' }}>v3.4</span>
         </div>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.675rem' }}>v3.4</span>
+        <p style={{ margin: 0, fontSize: '0.68rem', lineHeight: '1.4', color: 'var(--text-subtle)' }}>
+          Ruang kerja yang lebih tenang untuk perjalanan yang lebih lancar.
+        </p>
       </div>
     </aside>
   );

@@ -186,8 +186,8 @@ const Dashboard = () => {
       icon: <DollarSign size={20} />, 
       isUp: true, 
       trendText: '+18.4% vs last month',
-      color: '#10b981',
-      glowColor: '#10b981'
+      color: '#5d8465',
+      glowColor: '#5d8465'
     },
     { 
       title: 'Active Bookings', 
@@ -196,8 +196,8 @@ const Dashboard = () => {
       icon: <Map size={20} />, 
       isUp: true, 
       trendText: 'Across all operations',
-      color: '#06b6d4',
-      glowColor: '#06b6d4'
+      color: '#a29160',
+      glowColor: '#a29160'
     },
     { 
       title: 'Documents in Process', 
@@ -206,8 +206,8 @@ const Dashboard = () => {
       icon: <FileText size={20} />, 
       isUp: false, 
       trendText: `${activeDocs} awaiting release`,
-      color: '#f59e0b',
-      glowColor: '#f59e0b'
+      color: '#688a91',
+      glowColor: '#688a91'
     },
     { 
       title: 'Active Telecom & SIMs', 
@@ -216,8 +216,8 @@ const Dashboard = () => {
       icon: <Phone size={20} />, 
       isUp: true, 
       trendText: 'Live cellular connections',
-      color: '#a855f7',
-      glowColor: '#a855f7'
+      color: '#ae886e',
+      glowColor: '#ae886e'
     },
   ];
 
@@ -358,34 +358,69 @@ const Dashboard = () => {
 
     if (widget.id === 'welcome') {
       return (
-        <div key="welcome" className="card bento-card-glass bento-col-12" style={{
-          padding: '1.15rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          borderRadius: '12px'
+        <div key="welcome" className="bento-col-12 reveal surface relative overflow-hidden rounded-[22px] min-h-[190px] flex items-center justify-between p-6 sm:p-8" style={{
+          position: 'relative',
+          borderRadius: '20px',
+          background: 'linear-gradient(135deg, #213d35 0%, #29483e 100%)',
+          border: '1px solid var(--border)',
+          overflow: 'hidden'
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
-                Welcome back, {user?.name || user?.email?.split('@')[0] || 'Operator'}
-              </h2>
-              <span className="badge badge-primary font-mono" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>PRO</span>
+          <img 
+            src="https://images.pexels.com/photos/1174732/pexels-photo-1174732.jpeg?auto=compress&cs=tinysrgb&w=1280" 
+            alt="Pemandangan resort pantai yang tenang"
+            className="hero-photo"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.38, pointerEvents: 'none' }}
+          />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(33, 61, 53, 0.95) 0%, rgba(33, 61, 53, 0.72) 60%, rgba(33, 61, 53, 0.35) 100%)', pointerEvents: 'none' }} />
+          
+          <div style={{ position: 'relative', zIndex: 2, maxWidth: '640px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
+              <p style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.18em', fontSize: '0.725rem', fontWeight: '700', color: '#dcebdc' }}>
+                PUSAT OPERASIONAL · PERJALANAN TERENCANA
+              </p>
             </div>
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-              Operations pulse: {tourStats.activeBookings + activeCruises + activeHotels} active bookings, {activeDocs} pending documents, and {tourStats.confirmedPax} confirmed travelers.
+            <h1 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.75rem', fontWeight: '600', color: '#ffffff', lineHeight: '1.25' }}>
+              Setiap perjalanan, tertata dengan baik.
+            </h1>
+            <p style={{ margin: '0.65rem 0 0 0', fontSize: '0.875rem', color: '#edf3eb', lineHeight: '1.5' }}>
+              Selamat datang kembali, <strong>{user?.name || user?.email?.split('@')[0] || 'Operator'}</strong>. Pantau {tourStats.activeBookings + activeCruises + activeHotels} perjalanan aktif, {activeDocs} dokumen pending, dan {tourStats.confirmedPax} peserta tour dalam satu ruang kerja yang tenang.
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '0.45rem', 
+              padding: '0.35rem 0.85rem', 
+              borderRadius: '9999px', 
+              background: 'rgba(238, 244, 237, 0.18)', 
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(220, 235, 220, 0.3)', 
+              color: '#dcebdc', 
+              fontSize: '0.75rem', 
+              fontWeight: '600' 
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#79a483' }} />
+              Data & Operasional Aktif
+            </span>
             <button 
               onClick={() => setIsCustomizing(true)}
-              className="btn btn-secondary"
-              style={{ fontSize: '0.775rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderRadius: '8px' }}
+              className="btn"
+              style={{ 
+                fontSize: '0.775rem', 
+                padding: '0.45rem 0.85rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.45rem', 
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                backdropFilter: 'blur(8px)'
+              }}
             >
-              <Settings2 size={14} /> Customize Layout
+              <Settings2 size={14} /> Atur Tata Letak
             </button>
           </div>
         </div>

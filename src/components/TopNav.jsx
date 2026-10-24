@@ -516,7 +516,7 @@ const TopNav = ({ toggleSidebar }) => {
           }}
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
-          {theme === 'dark' ? <Sun size={17} color="#fbbf24" /> : <Moon size={17} color="#6366f1" />}
+          {theme === 'dark' ? <Sun size={17} color="#e5ba64" /> : <Moon size={17} color="var(--primary, #476b52)" />}
         </button>
 
         {/* Consolidated User Profile Menu */}

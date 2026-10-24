@@ -1455,7 +1455,7 @@ const Settings = () => {
                               padding: '0.75rem',
                               borderRadius: '8px',
                               border: theme === 'dark' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                              background: theme === 'dark' ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                              background: theme === 'dark' ? 'var(--primary-glow)' : 'transparent',
                               color: theme === 'dark' ? 'var(--text-main)' : 'var(--text-muted)',
                               cursor: 'pointer',
                               fontWeight: '600',
@@ -1463,7 +1463,7 @@ const Settings = () => {
                               transition: 'all 0.2s'
                             }}
                           >
-                            <Moon size={16} color={theme === 'dark' ? 'var(--primary)' : 'var(--text-muted)'} /> Obsidian Dark
+                            <Moon size={16} color={theme === 'dark' ? 'var(--primary)' : 'var(--text-muted)'} /> Soft Forest Dark
                           </button>
 
                           <button
@@ -1478,7 +1478,7 @@ const Settings = () => {
                               padding: '0.75rem',
                               borderRadius: '8px',
                               border: theme === 'light' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                              background: theme === 'light' ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                              background: theme === 'light' ? 'var(--primary-glow)' : 'transparent',
                               color: theme === 'light' ? 'var(--text-main)' : 'var(--text-muted)',
                               cursor: 'pointer',
                               fontWeight: '600',
@@ -1486,7 +1486,7 @@ const Settings = () => {
                               transition: 'all 0.2s'
                             }}
                           >
-                            <Sun size={16} color={theme === 'light' ? 'var(--primary)' : 'var(--text-muted)'} /> Studio Light
+                            <Sun size={16} color={theme === 'light' ? 'var(--primary)' : 'var(--text-muted)'} /> Soft Sage Studio
                           </button>
                         </div>
                       </div>
@@ -1494,11 +1494,11 @@ const Settings = () => {
                       {/* Primary Accent Color Presets */}
                       <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--text-main)', fontWeight: '600', fontSize: '0.875rem' }}>
-                          Primary Accent Glow
+                          Primary Accent Theme
                         </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.5rem' }}>
                           {ACCENT_PRESETS.map(preset => {
-                            const isSelected = (accent || 'cyan') === preset.id;
+                            const isSelected = (accent || 'sage') === preset.id;
                             return (
                               <button
                                 key={preset.id}

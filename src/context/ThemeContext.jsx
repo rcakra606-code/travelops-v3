@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ACCENT_PRESETS = [
+  { id: 'sage', name: 'Soft Sage', color: '#708d78' },
   { id: 'cyan', name: 'Electric Cyan', color: '#06b6d4' },
   { id: 'indigo', name: 'Royal Indigo', color: '#6366f1' },
   { id: 'emerald', name: 'Emerald Matrix', color: '#10b981' },
@@ -15,11 +16,11 @@ export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('travelops_theme');
     if (saved) return saved;
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'light';
   });
 
   const [accent, setAccent] = useState(() => {
-    return localStorage.getItem('travelops_accent') || 'cyan';
+    return localStorage.getItem('travelops_accent') || 'sage';
   });
 
   useEffect(() => {
