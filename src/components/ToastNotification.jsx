@@ -1,4 +1,3 @@
-import React from 'react';
 import { useToast } from '../context/ToastContext';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 
@@ -6,14 +5,14 @@ const TOAST_ICONS = {
   success: <CheckCircle2 size={18} color="#10b981" />,
   error: <AlertCircle size={18} color="#ef4444" />,
   warning: <AlertTriangle size={18} color="#f59e0b" />,
-  info: <Info size={18} color="#06b6d4" />
+  info: <Info size={18} color="#38bdf8" />
 };
 
 const TOAST_BORDERS = {
-  success: 'rgba(16, 185, 129, 0.4)',
-  error: 'rgba(239, 68, 68, 0.4)',
-  warning: 'rgba(245, 158, 11, 0.4)',
-  info: 'rgba(6, 182, 212, 0.4)'
+  success: 'rgba(16, 185, 129, 0.45)',
+  error: 'rgba(239, 68, 68, 0.45)',
+  warning: 'rgba(245, 158, 11, 0.45)',
+  info: 'rgba(56, 189, 248, 0.5)'
 };
 
 const ToastNotification = () => {

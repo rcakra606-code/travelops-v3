@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useOvertimes } from '../context/OvertimeContext';
@@ -20,15 +21,16 @@ const Overtime = () => {
   const { user } = useAuth();
   const activeStaff = users.filter(u => u.status === 'Active');
   
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(() => Boolean(location.state?.openNew));
   const [editingOT, setEditingOT] = useState(null);
   
   const initialFormData = {
     staff: '',
     eventName: '',
-    date: '',
+    date: location.state?.prefillDate || '',
     hours: '',
     status: 'Pending',
     remarks: ''

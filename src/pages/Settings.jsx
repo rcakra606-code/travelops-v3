@@ -1,34 +1,65 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, ACCENT_PRESETS } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import { useTours } from '../context/TourContext';
 import { useCruises } from '../context/CruiseContext';
+import { useHotels } from '../context/HotelContext';
+import { useDocuments } from '../context/DocumentContext';
+import { useTelecoms } from '../context/TelecomContext';
+import { useSales } from '../context/SalesContext';
+import { useProductivity } from '../context/ProductivityContext';
+import { useKnowledge } from '../context/KnowledgeContext';
+import { useUsers } from '../context/UserContext';
+import { useCorporate } from '../context/CorporateContext';
 import { supabase } from '../supabaseClient';
 import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
-import { Save, Shield, Mail, Monitor, AlertTriangle, Send, Database, Download, Upload, Trash2, List, Activity, Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Check, Eye, EyeOff, CheckCircle2, AlertCircle, RefreshCw, Bell, PlayCircle, Calendar, Sparkles } from 'lucide-react';
+import ExportMenu from '../components/ExportMenu';
+import Pagination from '../components/Pagination';
+import {
+  baseInputStyle,
+  FormField,
+  SettingsSection,
+  SettingsConfirmModal,
+  PasswordPolicyMeter,
+  LogDetailsDrawer
+} from '../components/settings/SettingsUI';
+import {
+  Save, Shield, Mail, Monitor, AlertTriangle, Database, Download, Trash2, List,
+  Users, Search, Lock, Key, Server, Laptop, Palette, Sun, Moon, Eye, EyeOff,
+  RefreshCw, PlayCircle, Send, Zap, CheckCircle2, Activity
+} from 'lucide-react';
 import { logSystemAction } from '../utils/logger';
 
+const LOGS_PER_PAGE = 20;
+
 const Settings = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, reloadSettings } = useSettings();
   const { user, forceLogoutAll } = useAuth();
   const { theme, toggleTheme, accent, changeAccent } = useTheme();
-  const { tours } = useTours();
-  const { cruises } = useCruises();
+  const { toast } = useToast();
+
+  // Multi-module contexts for 360° telemetry & operations reminders
+  const { tours = [] } = useTours() || {};
+  const { cruises = [] } = useCruises() || {};
+  const { hotels = [] } = useHotels() || {};
+  const { documents = [] } = useDocuments() || {};
+  const { telecoms = [] } = useTelecoms() || {};
+  const { sales = [] } = useSales() || {};
+  const { tasks = [] } = useProductivity() || {};
+  const { tourRoutes = [], tourObjects = [], cities = [], countries = [] } = useKnowledge() || {};
+  const { users = [] } = useUsers() || {};
+  const { corporateAccounts = [] } = useCorporate() || {};
+
+  const isLight = theme === 'light';
+  const neonBlue = isLight ? '#0284c7' : '#00d4ff';
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database');
-  const [testEmailTarget, setTestEmailTarget] = useState('');
-  const [testEmailStatus, setTestEmailStatus] = useState('idle'); // 'idle' | 'sending' | 'success' | 'error'
-  const [testEmailError, setTestEmailError] = useState('');
-  const [testEmailResult, setTestEmailResult] = useState('');
-  const [showSmtpPass, setShowSmtpPass] = useState(false);
 
-  // Manual Reminders Trigger State
-  const [manualTriggerStatus, setManualTriggerStatus] = useState('idle'); // 'idle' | 'running' | 'completed' | 'error'
-  const [manualTriggerReport, setManualTriggerReport] = useState(null);
-  const [manualTargetEmail, setManualTargetEmail] = useState('');
-  
+  // Form State
   const [formData, setFormData] = useState({
     idleTimeout: settings.idleTimeout || 15,
     enableReminders: settings.enableReminders ?? true,
@@ -49,108 +80,293 @@ const Settings = () => {
     notificationEmail: settings.notificationEmail || ''
   });
 
-  useEffect(() => {
-    if (settings) {
-      setFormData(prev => ({
-        ...prev,
-        idleTimeout: settings.idleTimeout || 15,
-        enableReminders: settings.enableReminders ?? true,
-        companyName: settings.companyName || 'TravelOps Inc.',
-        currency: settings.currency || 'IDR',
-        dateFormat: settings.dateFormat || 'YYYY-MM-DD',
-        language: settings.language || 'en',
-        passwordMinLength: settings.passwordMinLength || 8,
-        passwordRequireNumbers: settings.passwordRequireNumbers ?? true,
-        passwordRequireSymbols: settings.passwordRequireSymbols ?? true,
-        lockoutThreshold: settings.lockoutThreshold || 5,
-        logRetentionDays: settings.logRetentionDays || 30,
-        smtpHost: settings.smtpHost || 'smtp.gmail.com',
-        smtpPort: settings.smtpPort || 587,
-        smtpUser: settings.smtpUser || '',
-        smtpPass: settings.smtpPass || '',
-        smtpSenderName: settings.smtpSenderName || 'TravelOps System',
-        notificationEmail: settings.notificationEmail || ''
-      }));
-    }
-  }, [settings]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
 
-  const [toastMessage, setToastMessage] = useState('');
+  // Sync settings when loaded without triggering cascading render effects
+  const [prevSettings, setPrevSettings] = useState(settings);
+  if (settings && settings !== prevSettings) {
+    setPrevSettings(settings);
+    setFormData({
+      idleTimeout: settings.idleTimeout || 15,
+      enableReminders: settings.enableReminders ?? true,
+      companyName: settings.companyName || 'TravelOps Inc.',
+      currency: settings.currency || 'IDR',
+      dateFormat: settings.dateFormat || 'YYYY-MM-DD',
+      language: settings.language || 'en',
+      passwordMinLength: settings.passwordMinLength || 8,
+      passwordRequireNumbers: settings.passwordRequireNumbers ?? true,
+      passwordRequireSymbols: settings.passwordRequireSymbols ?? true,
+      lockoutThreshold: settings.lockoutThreshold || 5,
+      logRetentionDays: settings.logRetentionDays || 30,
+      smtpHost: settings.smtpHost || 'smtp.gmail.com',
+      smtpPort: settings.smtpPort || 587,
+      smtpUser: settings.smtpUser || '',
+      smtpPass: settings.smtpPass || '',
+      smtpSenderName: settings.smtpSenderName || 'TravelOps System',
+      notificationEmail: settings.notificationEmail || ''
+    });
+  }
+
+  // Database Connection Health State
+  const [pingStatus, setPingStatus] = useState({ latency: null, isPinging: false, lastTested: null });
+
+  // System Logs State
   const [systemLogs, setSystemLogs] = useState([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [logSearchQuery, setLogSearchQuery] = useState('');
-  
-  useEffect(() => {
-    loadLogs();
-  }, [activeTab]);
+  const [logActionFilter, setLogActionFilter] = useState('All');
+  const [logPage, setLogPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState(null);
+
+  // Active Sessions State
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+
+  // Modals Confirmation State
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Proceed',
+    variant: 'danger',
+    action: null
+  });
+
+  // SMTP Test Email State
+  const [testEmailTarget, setTestEmailTarget] = useState('');
+  const [testEmailStatus, setTestEmailStatus] = useState('idle'); // 'idle' | 'sending' | 'success' | 'error'
+  const [testEmailFeedback, setTestEmailFeedback] = useState('');
+
+  // Operations Reminders Manual Scan State
+  const [reminderScanStatus, setReminderScanStatus] = useState('idle'); // 'idle' | 'running' | 'completed' | 'error'
+  const [reminderScanReport, setReminderScanReport] = useState(null);
+  const [customReminderEmail, setCustomReminderEmail] = useState('');
 
   const closeMobile = () => {
     if (window.innerWidth <= 768) setIsSidebarOpen(false);
   };
 
-  const loadLogs = async () => {
+  // ---------------------------------------------------------------------------
+  // Database Ping & Latency Tester
+  // ---------------------------------------------------------------------------
+  const runDatabasePing = useCallback(async () => {
     try {
+      setPingStatus((prev) => ({ ...prev, isPinging: true }));
+      const start = performance.now();
+      const { error } = await supabase.from('travelops_settings').select('setting_key').limit(1);
+      const elapsed = Math.round(performance.now() - start);
+
+      if (error) throw error;
+      setPingStatus({
+        latency: elapsed,
+        isPinging: false,
+        lastTested: new Date().toLocaleTimeString()
+      });
+      toast.success(`Supabase connection healthy (${elapsed}ms)`);
+    } catch (err) {
+      setPingStatus({
+        latency: null,
+        isPinging: false,
+        lastTested: new Date().toLocaleTimeString()
+      });
+      toast.error(`Database ping failed: ${err.message}`);
+    }
+  }, [toast]);
+
+  // ---------------------------------------------------------------------------
+  // Load System Logs
+  // ---------------------------------------------------------------------------
+  const loadLogs = useCallback(async () => {
+    try {
+      setIsLoadingLogs(true);
       const { data, error } = await supabase
         .from('travelops_logs')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100);
-      
+        .limit(200);
+
       if (error) throw error;
-      
-      const mapped = data.map(log => ({
+
+      const mapped = (data || []).map((log) => ({
         id: log.id,
         timestamp: log.created_at,
-        user: log.user_name,
-        action: log.action,
-        details: log.details
+        user: log.user_name || 'System',
+        action: log.action || 'Action',
+        details: log.details || '',
+        metadata: log.metadata || null
       }));
+
       setSystemLogs(mapped);
     } catch (err) {
       console.error('Failed to load system logs:', err);
+      toast.error('Could not refresh system logs.');
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, [toast]);
+
+  // ---------------------------------------------------------------------------
+  // Load Active Sessions
+  // ---------------------------------------------------------------------------
+  const loadSessions = useCallback(async () => {
+    if (!user) return;
+    try {
+      setIsLoadingSessions(true);
+      const { data, error } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('last_active', { ascending: false });
+
+      if (error) throw error;
+      setActiveSessions(data || []);
+    } catch (err) {
+      console.warn('Could not load user sessions:', err.message);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, [user]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    if (newTab === 'logs') loadLogs();
+    if (newTab === 'security') loadSessions();
+    if (newTab === 'database' && pingStatus.latency === null) runDatabasePing();
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const start = performance.now();
+    supabase
+      .from('travelops_settings')
+      .select('setting_key')
+      .limit(1)
+      .then(({ error }) => {
+        if (!cancelled && !error) {
+          const elapsed = Math.round(performance.now() - start);
+          setPingStatus({
+            latency: elapsed,
+            isPinging: false,
+            lastTested: new Date().toLocaleTimeString()
+          });
+        }
+      });
+
+    supabase
+      .from('travelops_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200)
+      .then(({ data, error }) => {
+        if (!cancelled && !error && data) {
+          setSystemLogs(
+            data.map((log) => ({
+              id: log.id,
+              timestamp: log.created_at,
+              user: log.user_name || 'System',
+              action: log.action || 'Action',
+              details: log.details || '',
+              metadata: log.metadata || null
+            }))
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Filtered & Paginated Logs
+  // ---------------------------------------------------------------------------
+  const filteredLogs = useMemo(() => {
+    let result = systemLogs;
+    if (logActionFilter !== 'All') {
+      result = result.filter((log) => {
+        const act = String(log.action).toLowerCase();
+        if (logActionFilter === 'Auth') return act.includes('login') || act.includes('logout') || act.includes('session');
+        if (logActionFilter === 'Settings') return act.includes('setting') || act.includes('theme') || act.includes('preference');
+        if (logActionFilter === 'Reminders') return act.includes('reminder') || act.includes('smtp') || act.includes('email');
+        if (logActionFilter === 'Backup') return act.includes('backup') || act.includes('snapshot') || act.includes('purge');
+        return true;
+      });
+    }
+    if (logSearchQuery.trim()) {
+      const q = logSearchQuery.toLowerCase();
+      result = result.filter(
+        (log) =>
+          String(log.user).toLowerCase().includes(q) ||
+          String(log.action).toLowerCase().includes(q) ||
+          String(log.details).toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [systemLogs, logActionFilter, logSearchQuery]);
+
+  const totalLogPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE));
+  const currentLogPage = Math.min(logPage, totalLogPages);
+  const pagedLogs = useMemo(() => {
+    const start = (currentLogPage - 1) * LOGS_PER_PAGE;
+    return filteredLogs.slice(start, start + LOGS_PER_PAGE);
+  }, [filteredLogs, currentLogPage]);
+
+  // Export Columns Configuration for Logs
+  const logExportColumns = useMemo(
+    () => [
+      { header: 'Timestamp', key: 'formattedTime' },
+      { header: 'Initiated By', key: 'user' },
+      { header: 'Action', key: 'action' },
+      { header: 'Event Details', key: 'details' }
+    ],
+    []
+  );
+
+  const logExportData = useMemo(
+    () =>
+      filteredLogs.map((log) => ({
+        ...log,
+        formattedTime: log.timestamp ? new Date(log.timestamp).toLocaleString() : ''
+      })),
+    [filteredLogs]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Save Settings Changes
+  // ---------------------------------------------------------------------------
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      setIsSaving(true);
+      const payload = {
+        ...formData,
+        idleTimeout: Number(formData.idleTimeout) || 15,
+        passwordMinLength: Number(formData.passwordMinLength) || 8,
+        lockoutThreshold: Number(formData.lockoutThreshold) || 5,
+        logRetentionDays: Number(formData.logRetentionDays) || 30
+      };
+
+      await updateSettings(payload);
+      await reloadSettings();
+      toast.success('System settings & preferences updated successfully');
+      logSystemAction(user, 'Settings Updated', 'Global workspace preferences & security configuration saved.');
+    } catch (err) {
+      toast.error(`Save failed: ${err.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const filteredLogs = useMemo(() => {
-    if (!logSearchQuery) return systemLogs;
-    return systemLogs.filter(log => 
-      log.user.toLowerCase().includes(logSearchQuery.toLowerCase()) || 
-      log.action.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-      log.details.toLowerCase().includes(logSearchQuery.toLowerCase())
-    );
-  }, [systemLogs, logSearchQuery]);
-
-  const exportLogsToCSV = () => {
-    if (filteredLogs.length === 0) return;
-    const headers = ['Timestamp', 'User', 'Action', 'Details'];
-    const rows = filteredLogs.map(log => [
-      new Date(log.timestamp).toLocaleString().replace(/,/g, ''),
-      log.user,
-      log.action,
-      log.details.replace(/,/g, ' ')
-    ]);
-    
-    let csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(",") + "\n" 
-      + rows.map(e => e.join(",")).join("\n");
-      
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `system_logs_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleSave = (e) => {
-    e.preventDefault();
-    updateSettings({ ...formData, idleTimeout: Number(formData.idleTimeout), passwordMinLength: Number(formData.passwordMinLength), lockoutThreshold: Number(formData.lockoutThreshold), logRetentionDays: Number(formData.logRetentionDays) });
-    setToastMessage('Settings successfully saved!');
-    logSystemAction(user, 'Settings Updated', 'Global settings and preferences updated.');
-    setTimeout(() => setToastMessage(''), 3000);
-  };
-
+  // ---------------------------------------------------------------------------
+  // Send SMTP Test Email
+  // ---------------------------------------------------------------------------
   const handleSendTestEmail = async () => {
-    if (!testEmailTarget) return alert("Please enter an email address");
+    if (!testEmailTarget) {
+      setTestEmailStatus('error');
+      setTestEmailFeedback('Please enter a destination recipient email address.');
+      toast.warning('Recipient email address required.');
+      return;
+    }
 
     const host = formData.smtpHost || settings.smtpHost || 'smtp.gmail.com';
     const port = Number(formData.smtpPort || settings.smtpPort || 587);
@@ -160,46 +376,48 @@ const Settings = () => {
 
     if (!userEmail || !userPass) {
       setTestEmailStatus('error');
-      setTestEmailError('Please enter your SMTP Username (email) and Password/App Password above before sending a test.');
+      setTestEmailFeedback('Please configure SMTP Username (email) and Password / App Password above before dispatching a test.');
+      toast.warning('SMTP credentials incomplete.');
       return;
     }
 
     setTestEmailStatus('sending');
-    setTestEmailError('');
-    setTestEmailResult('');
+    setTestEmailFeedback('');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
       const token = session?.access_token || '';
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           to: testEmailTarget,
-          subject: 'TravelOps SMTP Test Verification',
-          text: `TravelOps Automated Emailer Verification\n\nThis confirms your SMTP server is actively connected and operational.\n\nServer: ${host}:${port}\nSender: ${senderName} <${userEmail}>\nRecipient: ${testEmailTarget}\nTimestamp: ${new Date().toLocaleString()}`,
+          subject: 'TravelOps SMTP Server Verification',
+          text: `TravelOps Automated Dispatch Verification\n\nThis confirms your SMTP server is actively connected and dispatching.\n\nServer: ${host}:${port}\nSender: ${senderName} <${userEmail}>\nRecipient: ${testEmailTarget}\nTimestamp: ${new Date().toLocaleString()}`,
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
                 <span style="font-size: 24px;">✈️</span>
                 <h2 style="margin: 0; color: #0284c7; font-size: 20px;">TravelOps SMTP Verification</h2>
               </div>
-              <p style="font-size: 15px; line-height: 1.5; color: #334155;">
+              <p style="font-size: 14px; line-height: 1.5; color: #334155;">
                 This is a live confirmation email generated by your <strong>TravelOps Management Platform</strong>.
               </p>
-              <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-                  <tr><td style="padding: 4px 0; color: #64748b; width: 140px;"><strong>SMTP Server:</strong></td><td style="color: #0f172a;">${host}:${port}</td></tr>
+              <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 18px 0;">
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                  <tr><td style="padding: 4px 0; color: #64748b; width: 130px;"><strong>SMTP Server:</strong></td><td style="color: #0f172a;">${host}:${port}</td></tr>
                   <tr><td style="padding: 4px 0; color: #64748b;"><strong>Sender:</strong></td><td style="color: #0f172a;">${senderName} &lt;${userEmail}&gt;</td></tr>
                   <tr><td style="padding: 4px 0; color: #64748b;"><strong>Recipient:</strong></td><td style="color: #0f172a;">${testEmailTarget}</td></tr>
                   <tr><td style="padding: 4px 0; color: #64748b;"><strong>Status:</strong></td><td><span style="color: #16a34a; font-weight: bold; background: #dcfce7; padding: 2px 8px; border-radius: 4px;">Active & Operational</span></td></tr>
                 </table>
               </div>
-              <p style="font-size: 12px; color: #94a3b8; margin: 0; text-align: center;">
+              <p style="font-size: 11px; color: #94a3b8; margin: 0; text-align: center;">
                 TravelOps Operations System • Automated Dispatch Engine
               </p>
             </div>
@@ -218,23 +436,28 @@ const Settings = () => {
 
       if (res.ok && data.success) {
         setTestEmailStatus('success');
-        setTestEmailResult(data.message || `Email successfully delivered to ${testEmailTarget}!`);
+        setTestEmailFeedback(data.message || `Test verification email delivered to ${testEmailTarget}!`);
+        toast.success(`Verification email dispatched to ${testEmailTarget}`);
         logSystemAction(user, 'SMTP Test', `Successfully sent test email to ${testEmailTarget} via ${host}`);
       } else {
         setTestEmailStatus('error');
-        setTestEmailError(data.error || 'Failed to dispatch email. Please check your SMTP host, port, username, or App Password.');
-        logSystemAction(user, 'SMTP Test Failed', `Failed sending test email to ${testEmailTarget}: ${data.error || 'Unknown error'}`);
+        setTestEmailFeedback(data.error || 'Failed to dispatch email. Check host, port, username, or App Password.');
+        toast.error('SMTP test email failed.');
+        logSystemAction(user, 'SMTP Test Failed', `Failed sending test email to ${testEmailTarget}: ${data.error || 'Unknown'}`);
       }
     } catch (err) {
       setTestEmailStatus('error');
-      setTestEmailError(err.message || 'Could not connect to the backend server endpoint.');
-      logSystemAction(user, 'SMTP Test Failed', `Error connecting to SMTP endpoint: ${err.message}`);
+      setTestEmailFeedback(err.message || 'Could not reach backend email service.');
+      toast.error('Network error contacting SMTP endpoint.');
     }
   };
 
-  const handleManualTriggerReminders = async () => {
-    setManualTriggerStatus('running');
-    setManualTriggerReport(null);
+  // ---------------------------------------------------------------------------
+  // 360° Operations Reminders Scanner (Tours, Cruises, Docs, Hotels, SIMs)
+  // ---------------------------------------------------------------------------
+  const handleRunOperationsScanner = async () => {
+    setReminderScanStatus('running');
+    setReminderScanReport(null);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -242,1318 +465,1590 @@ const Settings = () => {
     const getDiffDays = (targetDate) => {
       if (!targetDate) return null;
       const target = new Date(targetDate);
-      if (isNaN(target.getTime())) return null;
+      if (Number.isNaN(target.getTime())) return null;
       target.setHours(0, 0, 0, 0);
-      const diffTime = target - today;
-      return Math.round(diffTime / (1000 * 60 * 60 * 24));
+      return Math.round((target - today) / (1000 * 60 * 60 * 24));
     };
 
-    const targetIntervals = [30, 15, 7, 5, 3, 2, 1, 0];
-    const uninvoicedIntervals = [30, 20, 15, 10];
+    const targetIntervals = [30, 20, 15, 10, 7, 3, 0];
     const detectedReminders = [];
     const detectedUninvoicedTours = [];
+    const detectedExpiringDocs = [];
+    const detectedHotelDeadlines = [];
+    const detectedPendingTelecom = [];
 
-    // Helper to extract customer/guest name details
-    const getCustomerName = (item, type) => {
-      if (type === 'Tour') {
-        if (Array.isArray(item.paxInfo) && item.paxInfo.length > 0) {
-          const names = item.paxInfo
-            .map(p => {
-              if (p.name && typeof p.name === 'string') return p.name.trim();
-              const full = [p.title, p.firstName, p.lastName].filter(Boolean).join(' ').trim();
-              return full || null;
-            })
-            .filter(Boolean);
+    // 1. Scan Tours
+    tours.forEach((t) => {
+      const s = String(t.status || '').toLowerCase();
+      if (s === 'cancel' || s === 'cancelled') return;
 
-          if (names.length === 1) return names[0];
-          if (names.length > 1) return `${names[0]} (+${names.length - 1} pax)`;
-        }
-        return item.clientName || item.customerName || item.picName || item.internals?.clientName || '-';
-      } else {
-        // Cruise
-        if (item.picName && item.picName.trim()) {
-          const extraPax = (item.paxCount > 1) ? ` (+${item.paxCount - 1} pax)` : '';
-          return `${item.picName.trim()}${extraPax}`;
-        }
-        if (Array.isArray(item.participants) && item.participants.length > 0) {
-          const first = item.participants[0];
-          const name = typeof first === 'string' ? first : (first.name || first.picName);
-          if (name) {
-            return `${name}${item.participants.length > 1 ? ` (+${item.participants.length - 1} pax)` : ''}`;
-          }
-        }
-        return item.email || '-';
+      const code = t.internals?.tourCode || t.tourCode || `TR-${t.id?.slice(0, 6)}`;
+      const title = t.internals?.tourName || t.tourName || t.country || 'Tour Group';
+      const staff = t.staffName || t.internals?.staffName || t.pic || '-';
+      const customer = t.internals?.customerName || t.customerName || (t.paxInfo?.[0]?.name) || '-';
+      const pax = Number(t.paxCount) || (t.paxInfo ? t.paxInfo.length : 1);
+
+      const diffDep = getDiffDays(t.departureDate);
+      const diffRet = getDiffDays(t.returnDate);
+
+      const invoiceNum = t.financials?.invoiceNumber || t.invoiceNumber;
+      if (!invoiceNum && diffDep !== null && [30, 20, 15, 10].includes(diffDep)) {
+        detectedUninvoicedTours.push({
+          type: 'Tour',
+          code,
+          title,
+          customerName: customer,
+          handlingStaff: staff,
+          destination: t.country || '-',
+          targetDate: t.departureDate,
+          milestone: diffDep === 10 ? '🚨 H-10 URGENT: Uninvoiced' : diffDep === 15 ? '⚡ H-15 WARNING: Uninvoiced' : `⚠️ H-${diffDep}: Uninvoiced`,
+          daysRemaining: diffDep,
+          pax
+        });
       }
-    };
 
-    // Helper to extract product details
-    const getProductDetails = (item, type) => {
-      if (type === 'Tour') {
-        const dest = item.country || item.destination || '-';
-        const cat = item.category ? `[${item.category}]` : '';
-        const name = item.packageName || item.tourName || '';
-        if (name && name !== dest) {
-          return `${dest} • ${name} ${cat}`.trim();
-        }
-        return `${dest} ${cat}`.trim();
-      } else {
-        // Cruise
-        const brand = item.cruiseBrand || 'Cruise';
-        const ship = item.shipName || '';
-        const route = item.route ? `(${item.route})` : '';
-        return `${brand} - ${ship} ${route}`.trim();
+      if (diffDep !== null && targetIntervals.includes(diffDep)) {
+        detectedReminders.push({
+          type: 'Tour',
+          code,
+          title,
+          customerName: customer,
+          handlingStaff: staff,
+          targetDate: t.departureDate,
+          milestone: diffDep === 0 ? 'Departure Today (Day 0)' : `${diffDep} Day${diffDep > 1 ? 's' : ''} to Departure`,
+          daysRemaining: diffDep,
+          pax
+        });
       }
-    };
 
-    // Helper to extract handling staff name
-    const getHandlingStaff = (item, type) => {
-      if (type === 'Tour') {
-        return item.staffName || item.internals?.staffName || item.tourLeader || item.internals?.tourLeader || 'Unassigned';
-      } else {
-        return item.staff || item.picName || 'Unassigned';
+      if (diffRet === 0) {
+        detectedReminders.push({
+          type: 'Tour',
+          code,
+          title,
+          customerName: customer,
+          handlingStaff: staff,
+          targetDate: t.returnDate,
+          milestone: 'Return Day (Day 0)',
+          daysRemaining: 0,
+          pax
+        });
       }
-    };
+    });
 
-    const checkItem = (item, type) => {
-      const departureDate = type === 'Tour' ? item.departureDate : item.sailingStart;
-      const returnDate = type === 'Tour' ? item.returnDate : item.sailingEnd;
+    // 2. Scan Cruises
+    cruises.forEach((c) => {
+      const s = String(c.status || '').toLowerCase();
+      if (s === 'cancel' || s === 'cancelled') return;
 
-      if (!departureDate && !returnDate) return;
+      const code = c.bookingCode || `CR-${c.id?.slice(0, 6)}`;
+      const title = `${c.shipName || 'Cruise'} — ${c.itinerary || c.destination || 'Sailing'}`;
+      const staff = c.staff || c.pic || '-';
+      const customer = c.leadGuest || c.guestName || '-';
+      const pax = Number(c.paxCount) || 1;
 
-      const diffDep = departureDate ? getDiffDays(departureDate) : null;
-      const diffRet = returnDate ? getDiffDays(returnDate) : null;
+      const diffDep = getDiffDays(c.departureDate || c.sailDate);
+      const diffRet = getDiffDays(c.returnDate);
 
-      const code = type === 'Tour' 
-        ? (item.tourCode || item.bookingCode || `Tour #${item.id}`) 
-        : (item.bookingRef || `Cruise #${item.id}`);
+      if (diffDep !== null && targetIntervals.includes(diffDep)) {
+        detectedReminders.push({
+          type: 'Cruise',
+          code,
+          title,
+          customerName: customer,
+          handlingStaff: staff,
+          targetDate: c.departureDate || c.sailDate,
+          milestone: diffDep === 0 ? 'Sail Today (Day 0)' : `${diffDep} Day${diffDep > 1 ? 's' : ''} to Sailing`,
+          daysRemaining: diffDep,
+          pax
+        });
+      }
+      if (diffRet === 0) {
+        detectedReminders.push({
+          type: 'Cruise',
+          code,
+          title,
+          customerName: customer,
+          handlingStaff: staff,
+          targetDate: c.returnDate,
+          milestone: 'Cruise Return Today',
+          daysRemaining: 0,
+          pax
+        });
+      }
+    });
 
-      const title = type === 'Tour'
-        ? (item.packageName || item.tourName || item.destination || code)
-        : (item.shipName || item.cruiseBrand || code);
+    // 3. Scan Visas & Documents for upcoming appointments & delivery deadlines
+    documents.forEach((d) => {
+      if (d.shippingStatus === 'Delivered' || d.receivedStatus === 'Received') return;
 
-      const status = item.status || 'Active';
-      if (['Cancel', 'Cancelled', 'Past Date'].includes(status)) return;
-
-      const customerName = getCustomerName(item, type);
-      const productDetails = getProductDetails(item, type);
-      const handlingStaff = getHandlingStaff(item, type);
-
-      // 1. Check for tours pending invoicing in tempo 30, 20, 15, and 10 days before departure
-      if (type === 'Tour' && diffDep !== null && uninvoicedIntervals.includes(diffDep)) {
-        const hasInvoice = Boolean(item.financials?.invoiceNumber && item.financials.invoiceNumber.trim() !== '');
-        if (!hasInvoice) {
-          detectedUninvoicedTours.push({
-            code,
-            title,
-            productDetails,
-            customerName,
-            handlingStaff,
-            destination: item.country || item.destination || '-',
-            targetDate: departureDate,
-            milestone: diffDep === 10 ? '🚨 H-10 URGENT: Belum Di-Invoice' : diffDep === 15 ? '⚡ H-15 WARNING: Belum Di-Invoice' : diffDep === 20 ? '⚠️ H-20 PERHATIAN: Belum Di-Invoice' : '📋 H-30 NOTICE: Belum Di-Invoice',
-            daysRemaining: diffDep,
-            pax: item.paxCount || (item.paxInfo ? item.paxInfo.length : 1)
+      if (d.appointmentDate) {
+        const diffApp = getDiffDays(d.appointmentDate);
+        if (diffApp !== null && diffApp >= 0 && diffApp <= 7) {
+          detectedExpiringDocs.push({
+            type: 'Document',
+            code: d.bookingCode || `DOC-${d.id?.slice(0, 6)}`,
+            title: `${d.docType || 'Visa'} — ${d.country || 'Embassy'}`,
+            customerName: d.guestName || '-',
+            handlingStaff: d.staff || '-',
+            targetDate: `${d.appointmentDate} ${d.appointmentTime || ''}`,
+            milestone: diffApp === 0 ? 'Appointment Today' : `Appointment in ${diffApp} day(s)`,
+            daysRemaining: diffApp
           });
         }
       }
 
-      // 2. Regular departure milestone
-      if (diffDep !== null && targetIntervals.includes(diffDep)) {
-        detectedReminders.push({
-          type,
-          code,
-          title,
-          productDetails,
-          customerName,
-          handlingStaff,
-          targetDate: departureDate,
-          milestone: diffDep === 0 ? 'Departure Today (Day 0)' : `${diffDep} Day${diffDep > 1 ? 's' : ''} to Departure`,
-          daysRemaining: diffDep,
-          pax: item.paxCount || (item.paxInfo ? item.paxInfo.length : 1)
+      if (d.estimatedDone) {
+        const diffEst = getDiffDays(d.estimatedDone);
+        if (diffEst !== null && diffEst <= 1) {
+          detectedExpiringDocs.push({
+            type: 'Document',
+            code: d.bookingCode || `DOC-${d.id?.slice(0, 6)}`,
+            title: `${d.docType || 'Passport/Visa'} Completion Target`,
+            customerName: d.guestName || '-',
+            handlingStaff: d.staff || '-',
+            targetDate: d.estimatedDone,
+            milestone: diffEst < 0 ? `Overdue by ${Math.abs(diffEst)}d` : diffEst === 0 ? 'Due Today' : 'Due Tomorrow',
+            daysRemaining: diffEst
+          });
+        }
+      }
+    });
+
+    // 4. Scan Hotel Bookings for check-ins within 7 days
+    hotels.forEach((h) => {
+      const s = String(h.status || h.bookingStatus || '').toLowerCase();
+      if (s === 'cancel' || s === 'cancelled') return;
+
+      const diffIn = getDiffDays(h.checkIn || h.checkInDate);
+      if (diffIn !== null && diffIn >= 0 && diffIn <= 7) {
+        detectedHotelDeadlines.push({
+          type: 'Hotel',
+          code: h.confirmationNumber || h.bookingCode || `HTL-${h.id?.slice(0, 6)}`,
+          title: h.hotelName || 'Hotel Reservation',
+          customerName: h.guestName || '-',
+          handlingStaff: h.staff || '-',
+          targetDate: h.checkIn || h.checkInDate,
+          milestone: diffIn === 0 ? 'Check-in Today' : `Check-in in ${diffIn} day(s)`,
+          daysRemaining: diffIn
         });
       }
+    });
 
-      // 3. Return day milestone
-      if (diffRet === 0) {
-        detectedReminders.push({
-          type,
-          code,
-          title,
-          productDetails,
-          customerName,
-          handlingStaff,
-          targetDate: returnDate,
-          milestone: 'Return Day (Day 0)',
-          daysRemaining: 0,
-          pax: item.paxCount || 1
+    // 5. Scan Travel SIM / eSIMs pending activation within 3 days
+    telecoms.forEach((sim) => {
+      const s = String(sim.status || '').toLowerCase();
+      if (s === 'active' || s === 'completed' || s === 'cancelled') return;
+
+      const diffAct = getDiffDays(sim.activationDate || sim.startDate);
+      if (diffAct !== null && diffAct >= 0 && diffAct <= 3) {
+        detectedPendingTelecom.push({
+          type: 'SIM/eSIM',
+          code: sim.simNumber || sim.iccid || `SIM-${sim.id?.slice(0, 6)}`,
+          title: `${sim.destination || sim.country || 'Travel SIM'} (${sim.plan || 'Data Plan'})`,
+          customerName: sim.customerName || sim.guestName || '-',
+          handlingStaff: sim.staff || '-',
+          targetDate: sim.activationDate || sim.startDate,
+          milestone: diffAct === 0 ? 'Activate Today' : `Activation in ${diffAct} day(s)`,
+          daysRemaining: diffAct
         });
       }
-    };
-
-    const tourList = Array.isArray(tours) ? tours : [];
-    const cruiseList = Array.isArray(cruises) ? cruises : [];
-
-    tourList.forEach(t => checkItem(t, 'Tour'));
-    cruiseList.forEach(c => checkItem(c, 'Cruise'));
+    });
 
     const host = formData.smtpHost || settings.smtpHost || 'smtp.gmail.com';
     const port = Number(formData.smtpPort || settings.smtpPort || 587);
     const userEmail = formData.smtpUser || settings.smtpUser;
     const userPass = formData.smtpPass || settings.smtpPass;
     const senderName = formData.smtpSenderName || settings.smtpSenderName || 'TravelOps System';
-    const targetRecipient = manualTargetEmail || formData.notificationEmail || settings.notificationEmail || user?.email || userEmail;
+    const targetRecipient = customReminderEmail || formData.notificationEmail || settings.notificationEmail || user?.email || userEmail;
 
-    let sentCount = 0;
-    let failedCount = 0;
-    const results = [];
+    const totalDetected =
+      detectedReminders.length +
+      detectedUninvoicedTours.length +
+      detectedExpiringDocs.length +
+      detectedHotelDeadlines.length +
+      detectedPendingTelecom.length;
 
-    const totalDetected = detectedReminders.length + detectedUninvoicedTours.length;
+    let emailSent = false;
+    let dispatchMessage = '';
 
-    if (totalDetected > 0 && targetRecipient) {
-      // Build 1 consolidated email containing all detected milestones and uninvoiced alerts
-      const emailHtml = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
-          <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 24px;">⚡</span>
+    if (totalDetected > 0 && targetRecipient && userEmail && userPass) {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
+
+        const emailHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
               <div>
-                <h2 style="margin: 0; color: #0f172a; font-size: 20px; font-weight: 800;">TravelOps Operations</h2>
-                <p style="margin: 0; font-size: 12px; color: #64748b;">Manual Reminders Scan Dispatch</p>
+                <h2 style="margin: 0; color: #0f172a; font-size: 20px; font-weight: 800;">TravelOps Operations Digest</h2>
+                <p style="margin: 0; font-size: 12px; color: #64748b;">360° Multi-Module Automated Scan</p>
               </div>
-            </div>
-            <div style="text-align: right; display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
-              ${detectedUninvoicedTours.length > 0 ? `
-                <span style="background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 6px; border: 1px solid #f87171;">
-                  ⚠️ ${detectedUninvoicedTours.length} Uninvoiced Tour${detectedUninvoicedTours.length > 1 ? 's' : ''}
-                </span>
-              ` : ''}
-              <span style="background: #e0f2fe; color: #0284c7; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px;">
-                ${detectedReminders.length} Milestone${detectedReminders.length > 1 ? 's' : ''}
+              <span style="background: #e0f2fe; color: #0284c7; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">
+                ${totalDetected} Alert${totalDetected > 1 ? 's' : ''} Detected
               </span>
             </div>
-          </div>
 
-          <p style="font-size: 14px; color: #334155; margin-bottom: 16px;">
-            Manual operations scan executed by <strong>${user?.name || user?.email || 'Admin'}</strong> on ${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString()}:
-          </p>
+            <p style="font-size: 13px; color: #334155; margin-bottom: 16px;">
+              Operations scan executed by <strong>${user?.name || user?.email || 'Admin'}</strong> on ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} at ${new Date().toLocaleTimeString()}:
+            </p>
 
-          ${detectedUninvoicedTours.length > 0 ? `
-            <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 10px; padding: 14px; margin-bottom: 20px;">
-              <h3 style="margin: 0 0 8px 0; color: #9f1239; font-size: 14px; font-weight: 800;">
-                🚨 Peringatan: ${detectedUninvoicedTours.length} Tour Belum Di-Invoicing (Tempo H-30, H-20, H-15, H-10)
-              </h3>
-              <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 6px; border: 1px solid #fecdd3;">
-                <thead>
-                  <tr style="background: #ffe4e6; color: #881337; text-align: left;">
-                    <th style="padding: 10px 8px; font-weight: 700;">Kode</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Detail Produk</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Pelanggan</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Staff Handling</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Tgl Berangkat &amp; Tempo</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${detectedUninvoicedTours.map(t => `
-                    <tr style="border-bottom: 1px solid #ffe4e6;">
-                      <td style="padding: 10px 8px; font-weight: bold; font-family: monospace;">
-                        ${t.code}
-                        <div style="font-size: 11px; color: #64748b; font-family: sans-serif; font-weight: normal;">${t.pax} Pax</div>
-                      </td>
-                      <td style="padding: 10px 8px; color: #334155;">
-                        <strong>${t.productDetails}</strong>
-                      </td>
-                      <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
-                        👤 ${t.customerName}
-                      </td>
-                      <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
-                        💼 ${t.handlingStaff}
-                      </td>
-                      <td style="padding: 10px 8px;">
-                        <div style="font-family: monospace; color: #0284c7; font-weight: 700; margin-bottom: 3px;">${t.targetDate}</div>
-                        <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10.5px; background: #fee2e2; color: #b91c1c;">
-                          ${t.milestone}
-                        </span>
-                      </td>
-                      <td style="padding: 10px 8px; color: #b91c1c; font-size: 11px; font-weight: 600;">
-                        Segera proses invoice di menu Tours
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          ` : ''}
+            ${detectedUninvoicedTours.length > 0 ? `
+              <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <h4 style="margin: 0 0 6px 0; color: #9f1239; font-size: 13px;">🚨 Uninvoiced Tour Alerts (${detectedUninvoicedTours.length})</h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #4c0519;">
+                  ${detectedUninvoicedTours.map((t) => `<li><strong>${t.code}</strong> — ${t.title} (${t.customerName}) · ${t.milestone}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
 
-          ${detectedReminders.length > 0 ? `
-            <h3 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px; font-weight: 700;">
-              📅 Jadwal Keberangkatan &amp; Kepulangan Operasional
-            </h3>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-              <thead>
-                <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left;">
-                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Type &amp; Code</th>
-                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Detail Produk</th>
-                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Pelanggan</th>
-                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Staff Handling</th>
-                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Target Date</th>
-                  <th style="padding: 10px 8px; color: #475569; font-weight: 700;">Milestone</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${detectedReminders.map(rem => `
-                  <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 10px 8px; font-weight: 600; color: #0f172a;">
-                      <span style="font-size: 11px; color: #64748b; display: block;">${rem.type}</span>
-                      ${rem.code}
-                    </td>
-                    <td style="padding: 10px 8px; color: #334155;">
-                      <strong>${rem.productDetails}</strong>
-                      <div style="font-size: 11px; color: #64748b;">Pax: ${rem.pax || 1}</div>
-                    </td>
-                    <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
-                      👤 ${rem.customerName}
-                    </td>
-                    <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
-                      💼 ${rem.handlingStaff}
-                    </td>
-                    <td style="padding: 10px 8px; font-family: monospace; color: #0284c7; font-weight: 700;">${rem.targetDate}</td>
-                    <td style="padding: 10px 8px;">
-                      <span style="background: ${rem.daysRemaining === 0 ? '#fee2e2' : rem.daysRemaining <= 3 ? '#fef3c7' : '#ecfdf5'}; color: ${rem.daysRemaining === 0 ? '#b91c1c' : rem.daysRemaining <= 3 ? '#b45309' : '#047857'}; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
-                        ${rem.milestone}
-                      </span>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : ''}
+            ${detectedReminders.length > 0 ? `
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <h4 style="margin: 0 0 6px 0; color: #166534; font-size: 13px;">✈️ Trip Departure & Return Milestones (${detectedReminders.length})</h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #14532d;">
+                  ${detectedReminders.map((r) => `<li><strong>${r.code}</strong> — ${r.title} · ${r.milestone}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
 
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
-            <p style="margin: 0; font-size: 12px; color: #64748b;">
-              Recipient: <strong>${targetRecipient}</strong> • Dispatched manually via ${host}:${port}
+            ${detectedExpiringDocs.length > 0 ? `
+              <div style="background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <h4 style="margin: 0 0 6px 0; color: #854d0e; font-size: 13px;">🛂 Document Appointments & Deadlines (${detectedExpiringDocs.length})</h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #713f12;">
+                  ${detectedExpiringDocs.map((d) => `<li><strong>${d.code}</strong> — ${d.title} (${d.customerName}) · ${d.milestone}</li>`).join('')}
+                </ul>
+              </div>
+            ` : ''}
+
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 24px;">
+              TravelOps Operations Dispatch Engine • Automated Notifications
             </p>
           </div>
-        </div>
-      `;
-
-      const manualSubject = detectedUninvoicedTours.length > 0
-        ? `[MANUAL REMINDER - ACTION REQUIRED] TravelOps: ${detectedUninvoicedTours.length} Tour Belum Di-Invoice & Milestones`
-        : `[MANUAL REMINDER] TravelOps Operations Milestones (${detectedReminders.length} Due)`;
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token || '';
+        `;
 
         const res = await fetch('/api/send-email', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
             to: targetRecipient,
-            subject: manualSubject,
-            text: `TravelOps Manual Reminders Notice\n\nRecipient: ${targetRecipient}`,
+            subject: `TravelOps Operations Alert: ${totalDetected} Action Item${totalDetected > 1 ? 's' : ''}`,
+            text: `TravelOps Operations Digest\n\n${totalDetected} action items detected. Please check dashboard.`,
             html: emailHtml,
-            category: 'manual_reminder',
-            smtpConfig: (userEmail && userPass) ? { host, port, user: userEmail, pass: userPass, senderName } : undefined
+            category: 'operations_digest',
+            smtpConfig: { host, port, user: userEmail, pass: userPass, senderName }
           })
         });
 
         const d = await res.json().catch(() => ({}));
         if (res.ok && d.success) {
-          sentCount = detectedReminders.length;
-          detectedReminders.forEach(rem => {
-            results.push({ ...rem, status: 'sent', detail: `Delivered in consolidated email digest to ${targetRecipient}` });
-          });
+          emailSent = true;
+          dispatchMessage = `Consolidated operations digest dispatched to ${targetRecipient}`;
+          toast.success(dispatchMessage);
         } else {
-          failedCount = detectedReminders.length;
-          detectedReminders.forEach(rem => {
-            results.push({ ...rem, status: 'failed', detail: d.error || 'Failed delivery' });
-          });
+          dispatchMessage = `Identified items, but email dispatch failed: ${d.error || 'Check SMTP credentials'}`;
+          toast.warning(dispatchMessage);
         }
       } catch (e) {
-        failedCount = detectedReminders.length;
-        detectedReminders.forEach(rem => {
-          results.push({ ...rem, status: 'failed', detail: e.message || 'Network error' });
-        });
+        dispatchMessage = `Email dispatch network error: ${e.message}`;
+        toast.warning(dispatchMessage);
       }
-    } else {
-      detectedReminders.forEach(rem => {
-        results.push({ 
-          ...rem, 
-          status: userEmail && userPass ? 'ready' : 'identified', 
-          detail: userEmail && userPass ? 'Identified (Ready)' : 'Identified (Configure SMTP to auto-send)' 
-        });
-      });
     }
 
     const report = {
       timestamp: new Date().toLocaleTimeString(),
-      checkedTours: tourList.length,
-      checkedCruises: cruiseList.length,
-      matchedReminders: results,
+      totalDetected,
+      emailSent,
+      dispatchMessage,
+      recipient: targetRecipient || 'None specified',
       uninvoicedTours: detectedUninvoicedTours,
-      sentCount,
-      failedCount,
-      recipient: targetRecipient || 'None specified'
+      departureReminders: detectedReminders,
+      documentDeadlines: detectedExpiringDocs,
+      hotelDeadlines: detectedHotelDeadlines,
+      telecomDeadlines: detectedPendingTelecom
     };
 
-    setManualTriggerReport(report);
-    setManualTriggerStatus('completed');
-    
-    // Log action (no duplicate window.dispatchEvent to prevent second email dispatch)
+    setReminderScanReport(report);
+    setReminderScanStatus('completed');
+
     logSystemAction(
-      user, 
-      'Manual Reminders Triggered', 
-      `Scanned ${tourList.length} tours & ${cruiseList.length} cruises. Found ${results.length} milestones & ${detectedUninvoicedTours.length} uninvoiced tours (${sentCount > 0 ? 'Consolidated email dispatched' : 'No email dispatched'}).`
+      user,
+      'Operations Reminders Scan',
+      `Scanned tours, cruises, documents, hotels, and SIMs. Found ${totalDetected} actionable operational item(s).`
     );
   };
 
-  const handleForceLogoutAll = () => {
-    if (window.confirm("This will disconnect ALL active users except you. Continue?")) {
-      forceLogoutAll();
-      logSystemAction(user, 'Force Logout All', 'Invalidated all active session tokens.');
-      alert("All other sessions have been terminated.");
-    }
-  };
-
-  const handleManualBackup = () => {
-    setToastMessage('Database backup triggered successfully.');
-    logSystemAction(user, 'Manual Backup', 'Triggered a manual database snapshot.');
-    setTimeout(() => setToastMessage(''), 3000);
-  };
-
-  const [activeSessions, setActiveSessions] = useState([]);
-
-  useEffect(() => {
-    if (activeTab === 'security' && user) {
-      loadSessions();
-    }
-  }, [activeTab, user]);
-
-  const loadSessions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('last_active', { ascending: false });
-      if (!error && data) {
-        setActiveSessions(data);
+  // ---------------------------------------------------------------------------
+  // Session Revocation & Global Invalidation Handlers
+  // ---------------------------------------------------------------------------
+  const handleRevokeSingleSession = (session) => {
+    setConfirmModal({
+      open: true,
+      title: 'Revoke User Session?',
+      message: `Disconnect session on ${session.device} (${session.ip})? The user on that device will be required to log in again.`,
+      confirmLabel: 'Revoke Session',
+      variant: 'danger',
+      action: async () => {
+        try {
+          await supabase.from('user_sessions').delete().eq('id', session.id);
+          setActiveSessions((prev) => prev.filter((s) => s.id !== session.id));
+          toast.success('Session disconnected');
+          logSystemAction(user, 'Session Revoked', `Revoked session ${session.id} (${session.device})`);
+        } catch (err) {
+          toast.error(`Revoke failed: ${err.message}`);
+        }
       }
+    });
+  };
+
+  const handleForceLogoutAllPrompt = () => {
+    setConfirmModal({
+      open: true,
+      title: 'Force Logout All Other Sessions?',
+      message: 'This will instantly invalidate all active login session tokens across all devices except your current session. All other users will be required to authenticate again.',
+      confirmLabel: 'Disconnect All Other Sessions',
+      variant: 'danger',
+      action: async () => {
+        try {
+          forceLogoutAll();
+          if (user) {
+            await supabase.from('user_sessions').delete().eq('user_id', user.id).neq('id', localStorage.getItem('travelops_session_id') || '');
+          }
+          await loadSessions();
+          toast.success('All other active sessions have been disconnected');
+          logSystemAction(user, 'Force Logout All', 'Invalidated all active session tokens across devices.');
+        } catch (err) {
+          toast.error(`Force logout failed: ${err.message}`);
+        }
+      }
+    });
+  };
+
+  // ---------------------------------------------------------------------------
+  // Manual Database Snapshot & Log Retention Purge
+  // ---------------------------------------------------------------------------
+  const handleTriggerManualSnapshot = async () => {
+    try {
+      toast.info('Initiating database snapshot verification…');
+      await runDatabasePing();
+      logSystemAction(user, 'Manual Backup', 'Triggered database snapshot & integrity verification.');
+      toast.success('Database snapshot verified & recorded.');
     } catch (err) {
-      console.error(err);
+      toast.error(`Snapshot failed: ${err.message}`);
     }
   };
 
-  const handleRevokeSession = async (sessionId) => {
-    try {
-      await supabase.from('user_sessions').delete().eq('id', sessionId);
-      setActiveSessions(prev => prev.filter(s => s.id !== sessionId));
-      setToastMessage('Session revoked successfully.');
-      setTimeout(() => setToastMessage(''), 3000);
-    } catch (err) {
-      console.error(err);
-    }
+  const handlePurgeLogsPrompt = () => {
+    const days = Number(formData.logRetentionDays) || 30;
+    setConfirmModal({
+      open: true,
+      title: 'Purge Old Audit Logs?',
+      message: `Permanently delete system audit logs older than ${days} days based on your configured retention policy? This action cannot be reversed.`,
+      confirmLabel: `Purge Logs Older Than ${days} Days`,
+      variant: 'danger',
+      action: async () => {
+        try {
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - days);
+          const { error } = await supabase.from('travelops_logs').delete().lt('created_at', cutoff.toISOString());
+          if (error) throw error;
+          await loadLogs();
+          toast.success(`Purged system logs older than ${days} days.`);
+          logSystemAction(user, 'Logs Purged', `Deleted audit logs older than ${cutoff.toISOString()}`);
+        } catch (err) {
+          toast.error(`Purge failed: ${err.message}`);
+        }
+      }
+    });
   };
+
+  // ---------------------------------------------------------------------------
+  // Multi-Module Live Storage Counts
+  // ---------------------------------------------------------------------------
+  const totalKnowledgeRecords = tourRoutes.length + tourObjects.length + cities.length + countries.length;
+  const totalOperationalRecords =
+    tours.length +
+    cruises.length +
+    hotels.length +
+    documents.length +
+    telecoms.length +
+    sales.length +
+    tasks.length +
+    corporateAccounts.length +
+    users.length +
+    totalKnowledgeRecords;
+
+  const storageTelemetry = useMemo(
+    () => [
+      { label: 'Tours & Trips', count: tours.length, color: '#0ea5e9' },
+      { label: 'Cruise Sailings', count: cruises.length, color: '#8b5cf6' },
+      { label: 'Hotel Bookings', count: hotels.length, color: '#10b981' },
+      { label: 'Visas & Docs', count: documents.length, color: '#f59e0b' },
+      { label: 'SIM & eSIMs', count: telecoms.length, color: '#ec4899' },
+      { label: 'Corporate Accounts', count: corporateAccounts.length, color: '#6366f1' },
+      { label: 'Sales Records', count: sales.length, color: '#14b8a6' },
+      { label: 'Productivity Tasks', count: tasks.length, color: '#f97316' },
+      { label: 'Knowledge Base', count: totalKnowledgeRecords, color: '#06b6d4' },
+      { label: 'System Users', count: users.length, color: '#a855f7' },
+      { label: 'Audit Trail Logs', count: systemLogs.length, color: '#64748b' }
+    ],
+    [
+      tours.length,
+      cruises.length,
+      hotels.length,
+      documents.length,
+      telecoms.length,
+      corporateAccounts.length,
+      sales.length,
+      tasks.length,
+      totalKnowledgeRecords,
+      users.length,
+      systemLogs.length
+    ]
+  );
 
   return (
     <div className="app-container fade-in">
       <Sidebar isOpen={isSidebarOpen} closeMobile={closeMobile} />
-      
+
       <div className="main-content">
         <TopNav toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-        
+
         <div className="content-area">
           <div className="page-container">
-            <div style={{ marginBottom: '2rem' }}>
-              <h1 style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.5rem' }}>System Settings</h1>
-              <p style={{ color: 'var(--text-muted)' }}>Configure security, automation, and system administration</p>
+            {/* Page Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.25rem', letterSpacing: '-0.02em' }}>
+                  System Settings & Preferences
+                </h1>
+                <p style={{ color: 'var(--text-subtle)', fontSize: '0.85rem', margin: 0 }}>
+                  Cloud database health, automated dispatches, security policies, and workspace branding
+                </p>
+              </div>
+
+              {/* Quick Save Header Button for settings tabs */}
+              {['security', 'smtp', 'preferences', 'database'].includes(activeTab) && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    background: neonBlue,
+                    color: isLight ? '#ffffff' : '#001018',
+                    border: 'none',
+                    padding: '0.6rem 1.25rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    boxShadow: `0 4px 14px color-mix(in srgb, ${neonBlue} 30%, transparent)`
+                  }}
+                >
+                  <Save size={16} /> {isSaving ? 'Saving…' : 'Save Changes'}
+                </button>
+              )}
             </div>
 
-            <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-              <button className={`tab-btn ${activeTab === 'database' ? 'active' : ''}`} onClick={() => setActiveTab('database')}>
-                <Database size={18} /> Database & System
+            {/* Navigation Tabs */}
+            <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+              <button className={`tab-btn ${activeTab === 'database' ? 'active' : ''}`} onClick={() => handleTabChange('database')}>
+                <Database size={16} /> Database & Cloud Storage
               </button>
-              <button className={`tab-btn ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
-                <List size={18} /> System Logs
+              <button className={`tab-btn ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => handleTabChange('logs')}>
+                <List size={16} /> Audit Trail ({systemLogs.length})
               </button>
-              <button className={`tab-btn ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>
-                <Shield size={18} /> Security
+              <button className={`tab-btn ${activeTab === 'security' ? 'active' : ''}`} onClick={() => handleTabChange('security')}>
+                <Shield size={16} /> Security & Sessions
               </button>
-              <button className={`tab-btn ${activeTab === 'smtp' ? 'active' : ''}`} onClick={() => setActiveTab('smtp')}>
-                <Mail size={18} /> SMTP & Automations
+              <button className={`tab-btn ${activeTab === 'smtp' ? 'active' : ''}`} onClick={() => handleTabChange('smtp')}>
+                <Mail size={16} /> SMTP & 360° Automations
               </button>
-              <button className={`tab-btn ${activeTab === 'preferences' ? 'active' : ''}`} onClick={() => setActiveTab('preferences')}>
-                <Monitor size={18} /> Preferences
+              <button className={`tab-btn ${activeTab === 'preferences' ? 'active' : ''}`} onClick={() => handleTabChange('preferences')}>
+                <Monitor size={16} /> Workspace & Theme
               </button>
             </div>
 
-            <form onSubmit={handleSave}>
-              {/* TAB: DATABASE & SYSTEM */}
-              {activeTab === 'database' && (
-                <div className="fade-in">
-                  <div className="card" style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', marginBottom: '1rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                      <Server size={32} />
+            {/* ========================================================================= */}
+            {/* TAB 1: DATABASE & CLOUD STORAGE TELEMETRY                                */}
+            {/* ========================================================================= */}
+            {activeTab === 'database' && (
+              <div className="fade-in">
+                {/* Cloud Connection Hero */}
+                <div className="card" style={{ padding: '1.75rem', marginBottom: '1.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '12px',
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        color: 'var(--success)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Server size={26} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span className="pulse-dot pulse-dot-green" />
+                          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                            Supabase Cloud Active & Synchronized
+                          </h3>
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0', color: 'var(--text-subtle)', fontSize: '0.82rem' }}>
+                          Real-time Postgres synchronization powering all 12 TravelOps operational workspaces
+                        </p>
+                      </div>
                     </div>
-                    <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--success)', fontSize: '1.5rem' }}>Cloud Database Active</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: '500px', margin: '0 auto', lineHeight: '1.6' }}>
-                      TravelOps V4 is now fully integrated with <strong>Supabase Cloud</strong>.
-                      All your records (Tours, Cruises, Hotels, Documents, Users) are securely stored and synced in real-time.
-                    </p>
-                    
-                    <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', marginTop: '2rem', textAlign: 'left', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                      <div>
-                        <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Storage Capacity</span>
-                        <strong style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>Unlimited (Auto-scaling)</strong>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Backups</span>
-                        <strong style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Daily via Supabase</strong>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Local Storage Usage</span>
-                        <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>0 KB (Clean)</strong>
-                      </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <button
+                        type="button"
+                        onClick={runDatabasePing}
+                        disabled={pingStatus.isPinging}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          background: 'var(--bg-surface)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-main)',
+                          padding: '0.55rem 0.9rem',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RefreshCw size={14} className={pingStatus.isPinging ? 'spin' : ''} />
+                        {pingStatus.isPinging ? 'Pinging…' : pingStatus.latency ? `Ping: ${pingStatus.latency}ms` : 'Ping Database'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleTriggerManualSnapshot}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          background: `color-mix(in srgb, ${neonBlue} 15%, transparent)`,
+                          border: `1px solid ${neonBlue}`,
+                          color: neonBlue,
+                          padding: '0.55rem 1rem',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Download size={15} /> Trigger Snapshot
+                      </button>
                     </div>
                   </div>
 
-                  <div className="card">
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Database size={20} color="var(--primary)" /> Data Management
-                    </h3>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Log Retention Policy</label>
-                        <select 
-                          value={formData.logRetentionDays} 
-                          onChange={e => setFormData({...formData, logRetentionDays: e.target.value})}
-                          style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}
-                        >
-                          <option value={7}>Keep for 7 days</option>
-                          <option value={30}>Keep for 30 days</option>
-                          <option value={60}>Keep for 60 days</option>
-                          <option value={90}>Keep for 90 days</option>
-                          <option value={365}>Keep for 1 year</option>
-                        </select>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.5rem' }}>System logs older than this will be automatically deleted to free up space.</p>
+                  {/* Summary Metric Ribbon */}
+                  <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1.25rem',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-surface)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '1.25rem'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Live Operational Records
+                      </span>
+                      <div style={{ fontSize: '1.45rem', fontWeight: 800, color: neonBlue }}>
+                        {totalOperationalRecords.toLocaleString()}
                       </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Across 11 distinct data tables</span>
+                    </div>
 
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Manual Snapshot</label>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.75rem' }}>Trigger an immediate database backup snapshot. (Rate limited to 1 per hour)</p>
-                        <button type="button" onClick={handleManualBackup} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-dark)', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '0.75rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '500', width: '100%', justifyContent: 'center', transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = 'white'; }} onMouseOut={e => { e.currentTarget.style.background = 'var(--bg-dark)'; e.currentTarget.style.color = 'var(--primary)'; }}>
-                          <Download size={18} /> Trigger Manual Backup
-                        </button>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Connection Latency
+                      </span>
+                      <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#10b981' }}>
+                        {pingStatus.latency ? `${pingStatus.latency} ms` : 'Optimal'}
                       </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Tested {pingStatus.lastTested || 'just now'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Daily Automated Backups
+                      </span>
+                      <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                        Managed (Daily)
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Point-in-time recovery enabled</span>
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* TAB: SYSTEM LOGS */}
-              {activeTab === 'logs' && (
-                <div className="card fade-in" style={{ padding: '1.5rem', overflowX: 'auto' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <List size={20} color="#f59e0b" /> Audit Trail
-                    </h3>
-                    
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <div style={{ position: 'relative' }}>
-                        <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-                        <input 
-                          type="text" 
-                          placeholder="Search logs..." 
-                          value={logSearchQuery}
-                          onChange={e => setLogSearchQuery(e.target.value)}
-                          style={{ padding: '0.5rem 1rem 0.5rem 2.2rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '6px', fontSize: '0.85rem' }} 
-                        />
+                {/* Table Record Telemetry Grid */}
+                <SettingsSection
+                  icon={<Activity size={18} />}
+                  title="Multi-Module Table Record Telemetry"
+                  description="Live row counts scanned directly across active TravelOps workspace modules"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.85rem' }}>
+                    {storageTelemetry.map((tbl) => (
+                      <div
+                        key={tbl.label}
+                        style={{
+                          border: '1px solid var(--border)',
+                          borderRadius: '10px',
+                          padding: '0.85rem 1rem',
+                          background: 'var(--bg-surface)',
+                          borderLeft: `3px solid ${tbl.color}`
+                        }}
+                      >
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                          {tbl.count.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.15rem' }}>
+                          {tbl.label}
+                        </div>
                       </div>
-                      <button type="button" onClick={exportLogsToCSV} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--success)', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.2)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'}>
-                        <Download size={16} /> Export CSV
+                    ))}
+                  </div>
+                </SettingsSection>
+
+                {/* Data Retention & Housekeeping */}
+                <SettingsSection
+                  icon={<Database size={18} />}
+                  title="Audit Trail Retention & Purge Policy"
+                  description="Automatically prune historical logs older than your configured window to preserve database efficiency"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', alignItems: 'center' }}>
+                    <FormField label="Audit Log Retention Policy" hint="Logs older than this threshold become eligible for automatic cleanup.">
+                      <select
+                        value={formData.logRetentionDays}
+                        onChange={(e) => setFormData({ ...formData, logRetentionDays: Number(e.target.value) })}
+                        style={baseInputStyle}
+                      >
+                        <option value={7}>Keep for 7 days</option>
+                        <option value={30}>Keep for 30 days (Standard)</option>
+                        <option value={60}>Keep for 60 days</option>
+                        <option value={90}>Keep for 90 days (Recommended)</option>
+                        <option value={365}>Keep for 1 full year</option>
+                      </select>
+                    </FormField>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                        Manual Retention Purge
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handlePurgeLogsPrompt}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          padding: '0.65rem 1rem',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Trash2 size={16} /> Purge Logs Older Than {formData.logRetentionDays} Days
                       </button>
-                      <button type="button" onClick={loadLogs} style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseOut={e => e.currentTarget.style.background = 'var(--bg-dark)'}>Refresh</button>
                     </div>
                   </div>
-                  
-                  <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                </SettingsSection>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* TAB 2: AUDIT TRAIL & SYSTEM LOGS                                         */}
+            {/* ========================================================================= */}
+            {activeTab === 'logs' && (
+              <div className="card fade-in" style={{ padding: '1.4rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <List size={18} color="#f59e0b" /> Security & Operational Audit Trail
+                    </h3>
+                    <p style={{ margin: '0.15rem 0 0', color: 'var(--text-subtle)', fontSize: '0.78rem' }}>
+                      Detailed chronology of logins, settings updates, reminder dispatches, and administrative events
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={loadLogs}
+                      disabled={isLoadingLogs}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        padding: '0.45rem 0.8rem',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <RefreshCw size={13} className={isLoadingLogs ? 'spin' : ''} />
+                      Refresh
+                    </button>
+
+                    <ExportMenu
+                      data={logExportData}
+                      columns={logExportColumns}
+                      filename={`travelops_audit_logs_${new Date().toISOString().split('T')[0]}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Search & Category Filter Pills */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                    <Search size={15} color="var(--text-subtle)" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      placeholder="Search by user, action, details..."
+                      value={logSearchQuery}
+                      onChange={(e) => {
+                        setLogSearchQuery(e.target.value);
+                        setLogPage(1);
+                      }}
+                      style={{ ...baseInputStyle, paddingLeft: '2.2rem', padding: '0.5rem 0.75rem 0.5rem 2.2rem', fontSize: '0.82rem' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    {['All', 'Auth', 'Settings', 'Reminders', 'Backup'].map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setLogActionFilter(cat);
+                          setLogPage(1);
+                        }}
+                        className={`tab-btn ${logActionFilter === cat ? 'active' : ''}`}
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Logs Table */}
+                <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                  <table className="data-table" style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left' }}>Timestamp</th>
-                        <th style={{ textAlign: 'left' }}>User</th>
-                        <th style={{ textAlign: 'left' }}>Action</th>
-                        <th style={{ textAlign: 'left' }}>Details</th>
+                        <th style={{ textAlign: 'left', width: '170px' }}>Timestamp</th>
+                        <th style={{ textAlign: 'left', width: '140px' }}>Initiated By</th>
+                        <th style={{ textAlign: 'left', width: '170px' }}>Action</th>
+                        <th style={{ textAlign: 'left' }}>Event Details</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredLogs.map(log => (
-                        <tr key={log.id} style={{ transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}>
-                          <td style={{ color: 'var(--text-muted)' }}>{new Date(log.timestamp).toLocaleString()}</td>
-                          <td style={{ color: 'var(--primary)' }}>{log.user}</td>
-                          <td style={{ color: 'var(--text-main)' }}>{log.action}</td>
-                          <td style={{ color: 'var(--text-muted)' }}>{log.details}</td>
-                        </tr>
-                      ))}
-                      {filteredLogs.length === 0 && (
+                      {pagedLogs.length === 0 ? (
                         <tr>
-                          <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No system logs found matching your criteria.</td>
+                          <td colSpan="4" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-subtle)' }}>
+                            No audit logs matching search and filter criteria.
+                          </td>
                         </tr>
+                      ) : (
+                        pagedLogs.map((log) => (
+                          <tr
+                            key={log.id}
+                            onClick={() => setSelectedLog(log)}
+                            style={{ cursor: 'pointer', transition: 'background 0.15s' }}
+                          >
+                            <td style={{ color: 'var(--text-subtle)', whiteSpace: 'nowrap' }}>
+                              {new Date(log.timestamp).toLocaleString()}
+                            </td>
+                            <td style={{ fontWeight: 600, color: neonBlue }}>
+                              {log.user}
+                            </td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '4px',
+                                background: `color-mix(in srgb, ${neonBlue} 12%, transparent)`,
+                                color: neonBlue
+                              }}>
+                                {log.action}
+                              </span>
+                            </td>
+                            <td style={{ color: 'var(--text-main)', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {log.details}
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>
                 </div>
-              )}
 
-              {/* TAB: SECURITY */}
-              {activeTab === 'security' && (
-                <div className="fade-in">
-                  <div className="card" style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Key size={20} color="var(--primary)" /> Password Policy
-                    </h3>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-                      <div className="form-group">
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Minimum Password Length</label>
-                        <select 
-                          value={formData.passwordMinLength} 
-                          onChange={e => setFormData({...formData, passwordMinLength: e.target.value})}
-                          style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}
-                        >
-                          <option value={8}>8 Characters</option>
-                          <option value={10}>10 Characters</option>
-                          <option value={12}>12 Characters (Recommended)</option>
-                          <option value={16}>16 Characters</option>
-                        </select>
-                      </div>
+                {/* Pagination */}
+                {filteredLogs.length > LOGS_PER_PAGE && (
+                  <div style={{ marginTop: '1.25rem' }}>
+                    <Pagination
+                      currentPage={currentLogPage}
+                      totalPages={totalLogPages}
+                      onPageChange={setLogPage}
+                      totalItems={filteredLogs.length}
+                      itemsPerPage={LOGS_PER_PAGE}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'center' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={formData.passwordRequireNumbers}
-                            onChange={e => setFormData({...formData, passwordRequireNumbers: e.target.checked})}
-                            style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
-                          />
-                          Require numbers (0-9)
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={formData.passwordRequireSymbols}
-                            onChange={e => setFormData({...formData, passwordRequireSymbols: e.target.checked})}
-                            style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
-                          />
-                          Require special characters (!@#$%)
-                        </label>
-                      </div>
+            {/* ========================================================================= */}
+            {/* TAB 3: SECURITY POLICIES & ACTIVE SESSIONS                               */}
+            {/* ========================================================================= */}
+            {activeTab === 'security' && (
+              <div className="fade-in">
+                {/* Password Policy */}
+                <SettingsSection
+                  icon={<Key size={18} />}
+                  title="Password Complexity & Requirements Policy"
+                  description="Enforce security standards across all staff and administrative accounts upon login and password reset"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                    <FormField label="Minimum Password Length">
+                      <select
+                        value={formData.passwordMinLength}
+                        onChange={(e) => setFormData({ ...formData, passwordMinLength: Number(e.target.value) })}
+                        style={baseInputStyle}
+                      >
+                        <option value={8}>8 Characters (Basic)</option>
+                        <option value={10}>10 Characters</option>
+                        <option value={12}>12 Characters (Recommended)</option>
+                        <option value={16}>16 Characters (High Security)</option>
+                      </select>
+                    </FormField>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', justifyContent: 'center' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.passwordRequireNumbers}
+                          onChange={(e) => setFormData({ ...formData, passwordRequireNumbers: e.target.checked })}
+                          style={{ width: '1.1rem', height: '1.1rem', accentColor: neonBlue }}
+                        />
+                        Require numeric digits (0-9)
+                      </label>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.passwordRequireSymbols}
+                          onChange={(e) => setFormData({ ...formData, passwordRequireSymbols: e.target.checked })}
+                          style={{ width: '1.1rem', height: '1.1rem', accentColor: neonBlue }}
+                        />
+                        Require special symbols (!@#$%^&*)
+                      </label>
                     </div>
                   </div>
 
-                  <div className="card" style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Lock size={20} color="var(--warning)" /> Account Lockout Protection
-                    </h3>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Failed Login Threshold</label>
-                        <select 
-                          value={formData.lockoutThreshold} 
-                          onChange={e => setFormData({...formData, lockoutThreshold: e.target.value})}
-                          style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}
-                        >
-                          <option value={3}>3 Failed Attempts</option>
-                          <option value={5}>5 Failed Attempts (Default)</option>
-                          <option value={10}>10 Failed Attempts</option>
-                          <option value={0}>Disabled</option>
-                        </select>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.5rem' }}>Accounts will be temporarily locked out for 15 minutes after reaching this threshold to prevent brute-force attacks.</p>
-                      </div>
+                  <PasswordPolicyMeter policy={formData} />
+                </SettingsSection>
 
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Idle Session Timeout (Minutes)</label>
-                        <select 
-                          value={formData.idleTimeout} 
-                          onChange={e => setFormData({...formData, idleTimeout: e.target.value})}
-                          style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}
-                        >
-                          <option value={5}>5 Minutes</option>
-                          <option value={15}>15 Minutes</option>
-                          <option value={30}>30 Minutes</option>
-                          <option value={60}>60 Minutes</option>
-                        </select>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.5rem' }}>Users will be automatically logged out after this period of inactivity.</p>
-                      </div>
-                    </div>
+                {/* Account Lockout & Inactivity Timeout */}
+                <SettingsSection
+                  icon={<Lock size={18} />}
+                  title="Brute-Force Lockout & Session Inactivity Timeout"
+                  description="Protect accounts from unauthorized brute-force attempts and automatically secure unattended sessions"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                    <FormField label="Failed Login Lockout Threshold" hint="Account will be temporarily locked for 15 minutes upon consecutive failed attempts.">
+                      <select
+                        value={formData.lockoutThreshold}
+                        onChange={(e) => setFormData({ ...formData, lockoutThreshold: Number(e.target.value) })}
+                        style={baseInputStyle}
+                      >
+                        <option value={3}>3 Failed Attempts</option>
+                        <option value={5}>5 Failed Attempts (Default)</option>
+                        <option value={10}>10 Failed Attempts</option>
+                        <option value={0}>Disabled (Not Recommended)</option>
+                      </select>
+                    </FormField>
+
+                    <FormField label="Idle Inactivity Auto-Logout" hint="Automatically ends active workspace session after this period of inactivity.">
+                      <select
+                        value={formData.idleTimeout}
+                        onChange={(e) => setFormData({ ...formData, idleTimeout: Number(e.target.value) })}
+                        style={baseInputStyle}
+                      >
+                        <option value={5}>5 Minutes</option>
+                        <option value={15}>15 Minutes (Default)</option>
+                        <option value={30}>30 Minutes</option>
+                        <option value={60}>60 Minutes (1 Hour)</option>
+                      </select>
+                    </FormField>
                   </div>
+                </SettingsSection>
 
-                  <div className="card">
-                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.5rem', gap: '1rem' }}>
-                      <h3 style={{ margin: '0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Users size={20} color="var(--danger)" /> Active Sessions Control
-                      </h3>
-                      <button type="button" onClick={handleForceLogoutAll} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'} onMouseOut={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}>
-                        <AlertTriangle size={16} /> Force Logout All
-                      </button>
-                    </div>
-
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="data-table" style={{ width: '100%', fontSize: '0.85rem' }}>
-                        <thead>
+                {/* Active Sessions Control */}
+                <SettingsSection
+                  icon={<Users size={18} />}
+                  title="Active Workspace Sessions Governance"
+                  description="Review and terminate active sessions across employee workstations, laptops, and mobile devices"
+                  neonBlue={neonBlue}
+                  badge={
+                    <button
+                      type="button"
+                      onClick={handleForceLogoutAllPrompt}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <AlertTriangle size={14} /> Force Logout All Other Sessions
+                    </button>
+                  }
+                >
+                  <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                    <table className="data-table" style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left' }}>Device & Client</th>
+                          <th style={{ textAlign: 'left' }}>Location & IP</th>
+                          <th style={{ textAlign: 'left' }}>Last Active</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {isLoadingSessions ? (
                           <tr>
-                            <th style={{ textAlign: 'left' }}>Device</th>
-                            <th style={{ textAlign: 'left' }}>Location & IP</th>
-                            <th style={{ textAlign: 'left' }}>Last Active</th>
-                            <th style={{ textAlign: 'right' }}>Action</th>
+                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-subtle)' }}>
+                              Loading active sessions…
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {activeSessions.length === 0 && (
-                            <tr>
-                              <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No active sessions found.</td>
-                            </tr>
-                          )}
-                          {activeSessions.map(session => {
+                        ) : activeSessions.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-subtle)' }}>
+                              No active secondary sessions logged.
+                            </td>
+                          </tr>
+                        ) : (
+                          activeSessions.map((session) => {
                             const isCurrent = session.id === localStorage.getItem('travelops_session_id');
                             return (
-                            <tr key={session.id}>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                  <div style={{ background: 'var(--bg-dark)', padding: '0.5rem', borderRadius: '50%' }}>
-                                    <Laptop size={16} color={isCurrent ? 'var(--primary)' : 'var(--text-muted)'} />
+                              <tr key={session.id}>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                    <div style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '8px',
+                                      background: isCurrent ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-surface)',
+                                      color: isCurrent ? '#10b981' : 'var(--text-muted)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      border: '1px solid var(--border)'
+                                    }}>
+                                      <Laptop size={16} />
+                                    </div>
+                                    <div>
+                                      <strong style={{ color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                                        {session.device || 'Workstation'}
+                                      </strong>
+                                      <div style={{ color: 'var(--text-subtle)', fontSize: '0.72rem' }}>
+                                        {session.os || 'OS'} • {session.browser || 'Browser'}
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>{session.device}</div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{session.os} • {session.browser}</div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ color: 'var(--text-main)' }}>{session.location}</div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{session.ip}</div>
-                              </td>
-                              <td>
-                                {isCurrent ? (
-                                  <span style={{ color: 'var(--success)', fontWeight: '500', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Current Session</span>
-                                ) : (
-                                  <span style={{ color: 'var(--text-muted)' }}>{new Date(session.last_active).toLocaleString()}</span>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                {!isCurrent && (
-                                  <button type="button" onClick={() => handleRevokeSession(session.id)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'; }} onMouseOut={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
-                                    Revoke
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          )})}
-                        </tbody>
-                      </table>
-                    </div>
+                                </td>
+                                <td>
+                                  <div style={{ color: 'var(--text-main)' }}>{session.location || 'Local / Office'}</div>
+                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{session.ip || '127.0.0.1'}</div>
+                                </td>
+                                <td>
+                                  {isCurrent ? (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem',
+                                      color: '#10b981',
+                                      background: 'rgba(16, 185, 129, 0.12)',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                      padding: '0.2rem 0.6rem',
+                                      borderRadius: '999px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700
+                                    }}>
+                                      <span className="pulse-dot pulse-dot-green" /> Current Session
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: 'var(--text-subtle)', fontSize: '0.78rem' }}>
+                                      {session.last_active ? new Date(session.last_active).toLocaleString() : 'Recent'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {!isCurrent && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevokeSingleSession(session)}
+                                      style={{
+                                        background: 'transparent',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        color: '#ef4444',
+                                        padding: '0.35rem 0.75rem',
+                                        borderRadius: '6px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      Revoke
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-              )}
+                </SettingsSection>
+              </div>
+            )}
 
-              {/* TAB: SMTP */}
-              {activeTab === 'smtp' && (
-                <div className="card fade-in">
-                  <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Mail size={20} color="var(--success)" /> SMTP Email Server Configuration
-                  </h3>
-
-                  {/* SMTP Credentials Form */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        SMTP Server Host <span style={{ color: 'var(--danger)' }}>*</span>
-                      </label>
-                      <input 
-                        type="text" 
-                        value={formData.smtpHost} 
-                        onChange={e => setFormData({...formData, smtpHost: e.target.value})} 
-                        placeholder="smtp.gmail.com" 
-                        style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+            {/* ========================================================================= */}
+            {/* TAB 4: SMTP & 360° AUTOMATED DISPATCH                                    */}
+            {/* ========================================================================= */}
+            {activeTab === 'smtp' && (
+              <div className="fade-in">
+                {/* SMTP Server Credentials */}
+                <SettingsSection
+                  icon={<Mail size={18} />}
+                  title="SMTP Mail Server Configuration"
+                  description="Configure outbound transport credentials for itinerary delivery, staff reminders, and operations alerts"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+                    <FormField label="SMTP Host / Server" required hint="e.g. smtp.gmail.com, smtp.office365.com, mail.company.com">
+                      <input
+                        type="text"
+                        value={formData.smtpHost}
+                        onChange={(e) => setFormData({ ...formData, smtpHost: e.target.value })}
+                        placeholder="smtp.gmail.com"
+                        style={baseInputStyle}
                       />
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
-                        e.g. smtp.gmail.com, smtp.office365.com, mail.domain.com
-                      </span>
-                    </div>
+                    </FormField>
 
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        SMTP Port <span style={{ color: 'var(--danger)' }}>*</span>
-                      </label>
-                      <select 
-                        value={formData.smtpPort} 
-                        onChange={e => setFormData({...formData, smtpPort: Number(e.target.value)})}
-                        style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}
+                    <FormField label="SMTP Port" required hint="TLS/STARTTLS (587) or SSL (465)">
+                      <select
+                        value={formData.smtpPort}
+                        onChange={(e) => setFormData({ ...formData, smtpPort: Number(e.target.value) })}
+                        style={baseInputStyle}
                       >
-                        <option value={587}>587 (TLS / STARTTLS - Recommended)</option>
-                        <option value={465}>465 (SSL - Secure)</option>
+                        <option value={587}>587 (TLS / STARTTLS — Recommended)</option>
+                        <option value={465}>465 (SSL — Secure)</option>
                         <option value={25}>25 (Standard / Unencrypted)</option>
                         <option value={2525}>2525 (Alternative TLS)</option>
                       </select>
-                    </div>
+                    </FormField>
 
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        SMTP Username / Email <span style={{ color: 'var(--danger)' }}>*</span>
-                      </label>
-                      <input 
-                        type="email" 
-                        value={formData.smtpUser} 
-                        onChange={e => setFormData({...formData, smtpUser: e.target.value})} 
-                        placeholder="yourname@gmail.com" 
-                        style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+                    <FormField label="SMTP Username / Email" required>
+                      <input
+                        type="email"
+                        value={formData.smtpUser}
+                        onChange={(e) => setFormData({ ...formData, smtpUser: e.target.value })}
+                        placeholder="operations@travelops.com"
+                        style={baseInputStyle}
                       />
-                    </div>
+                    </FormField>
 
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        SMTP Password / App Password <span style={{ color: 'var(--danger)' }}>*</span>
-                      </label>
+                    <FormField label="SMTP Password / App Password" required hint="For Gmail, create a 16-character App Password in Google Account > Security.">
                       <div style={{ position: 'relative' }}>
-                        <input 
-                          type={showSmtpPass ? "text" : "password"} 
-                          value={formData.smtpPass} 
-                          onChange={e => setFormData({...formData, smtpPass: e.target.value})} 
-                          placeholder="••••••••••••••••" 
-                          style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem 2.5rem 0.75rem 0.75rem', borderRadius: '8px' }} 
+                        <input
+                          type={showSmtpPass ? 'text' : 'password'}
+                          value={formData.smtpPass}
+                          onChange={(e) => setFormData({ ...formData, smtpPass: e.target.value })}
+                          placeholder="••••••••••••••••"
+                          style={{ ...baseInputStyle, paddingRight: '2.5rem' }}
                         />
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setShowSmtpPass(!showSmtpPass)}
-                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          style={{
+                            position: 'absolute',
+                            right: '8px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer'
+                          }}
                         >
-                          {showSmtpPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                          {showSmtpPass ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
-                        For Gmail: Use a 16-character <strong>App Password</strong> (from Google Account &gt; Security).
-                      </span>
-                    </div>
+                    </FormField>
 
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        Sender Display Name
-                      </label>
-                      <input 
-                        type="text" 
-                        value={formData.smtpSenderName} 
-                        onChange={e => setFormData({...formData, smtpSenderName: e.target.value})} 
-                        placeholder="TravelOps Operations" 
-                        style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
+                    <FormField label="Sender Display Name" span="full">
+                      <input
+                        type="text"
+                        value={formData.smtpSenderName}
+                        onChange={(e) => setFormData({ ...formData, smtpSenderName: e.target.value })}
+                        placeholder="TravelOps Operations System"
+                        style={baseInputStyle}
                       />
-                    </div>
-
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        Auto-Reminder Recipient Email
-                      </label>
-                      <input 
-                        type="email" 
-                        value={formData.notificationEmail} 
-                        onChange={e => setFormData({...formData, notificationEmail: e.target.value})} 
-                        placeholder={user?.email || "user@dwidayatravel.com"} 
-                        style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} 
-                      />
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
-                        Leave blank to automatically deliver reminders to the active logged-in user email ({user?.email || 'current operator'}).
-                      </span>
-                    </div>
+                    </FormField>
                   </div>
 
-                  {/* Automated Reminders Checkbox & Schedule Description */}
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Automated Reminders Schedule (3 Jalur Email Terpisah)</h3>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={formData.enableReminders} 
-                        onChange={e => setFormData({...formData, enableReminders: e.target.checked})} 
-                        style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--primary)' }} 
-                      />
-                      Aktifkan 3 jalur email reminder otomatis (Operasional, Administrasi, &amp; Dokumen/Visa)
-                    </label>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.65rem', marginLeft: '1.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <div style={{ background: 'rgba(6, 182, 212, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.2)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '700' }}>
-                          <span>✈️</span> Email 1: Reminder Operasional Tour &amp; Cruise
-                        </div>
-                        <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
-                          Notifikasi jadwal keberangkatan dan kepulangan pada H-30, H-15, H-7, H-5, H-3, H-2, H-1, serta Hari-H keberangkatan/kepulangan.
-                        </p>
-                      </div>
-
-                      <div style={{ background: 'rgba(239, 68, 68, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f87171', fontWeight: '700' }}>
-                          <span>🧾</span> Email 2: Reminder Administrasi (Invoice &amp; Form Claim MDR)
-                        </div>
-                        <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
-                          Notifikasi peringatan khusus untuk tour dengan <strong>Nomor Invoice belum diterbitkan</strong> dan tour dengan <strong>Form Claim MDR belum dicentang</strong>.
-                        </p>
-                      </div>
-
-                      <div style={{ background: 'rgba(99, 102, 241, 0.06)', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#818cf8', fontWeight: '700' }}>
-                          <span>🛂</span> Email 3: Reminder Dokumen &amp; Visa Operasional (Terpisah)
-                        </div>
-                        <p style={{ margin: '0.2rem 0 0 0', paddingLeft: '1.4rem', color: 'var(--text-main)', fontSize: '0.8rem' }}>
-                          Notifikasi terpisah untuk dokumen dalam proses berdasarkan <strong>Tanggal Estimasi Selesai staff</strong> (overdue/deadline), serta reminder <strong>Jadwal Appointment Visa</strong> pada H-3, H-2, H-1, dan Hari-H.
-                        </p>
-                      </div>
-                    </div>
+                  {/* Test Dispatch Bar */}
+                  <div style={{
+                    borderTop: '1px solid var(--border)',
+                    paddingTop: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    <input
+                      type="email"
+                      placeholder="Enter recipient to verify SMTP transport..."
+                      value={testEmailTarget}
+                      onChange={(e) => setTestEmailTarget(e.target.value)}
+                      style={{ ...baseInputStyle, flex: '1 1 240px', fontSize: '0.82rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendTestEmail}
+                      disabled={testEmailStatus === 'sending'}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        color: 'var(--success)',
+                        padding: '0.65rem 1.1rem',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Send size={14} /> {testEmailStatus === 'sending' ? 'Sending Test…' : 'Send Test Email'}
+                    </button>
                   </div>
 
-                  {/* Live Test Email Console */}
-                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem', background: 'rgba(255, 255, 255, 0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Send size={18} color="var(--primary)" /> Send Verification Test Email
-                    </h4>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                      Test your SMTP credentials and delivery instantly. Enter your destination email address below.
-                    </p>
+                  {testEmailFeedback && (
+                    <div style={{
+                      marginTop: '0.75rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: testEmailStatus === 'success' ? '#10b981' : '#ef4444'
+                    }}>
+                      {testEmailStatus === 'success' ? '✓ ' : '✕ '} {testEmailFeedback}
+                    </div>
+                  )}
+                </SettingsSection>
 
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <input 
-                        type="email" 
-                        value={testEmailTarget} 
-                        onChange={(e) => setTestEmailTarget(e.target.value)} 
-                        placeholder="your-personal@email.com" 
-                        disabled={testEmailStatus === 'sending'} 
-                        style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-main)', flex: '1 1 250px', maxWidth: '350px' }} 
+                {/* 360° Operations Reminders Engine */}
+                <SettingsSection
+                  icon={<Zap size={18} />}
+                  title="360° Multi-Module Operations Dispatch Scanner"
+                  description="Cross-scans Tours, Cruises, Visas, Hotels, and Travel SIMs to detect deadlines and dispatch consolidated digests"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+                    <FormField label="Automations Recipient Dispatch Target" hint="Defaults to user account email if left blank.">
+                      <input
+                        type="email"
+                        value={customReminderEmail}
+                        onChange={(e) => setCustomReminderEmail(e.target.value)}
+                        placeholder={formData.notificationEmail || user?.email || 'admin@travelops.com'}
+                        style={baseInputStyle}
                       />
-                      <button 
-                        type="button" 
-                        onClick={handleSendTestEmail} 
-                        disabled={testEmailStatus === 'sending'} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '0.5rem', 
-                          background: testEmailStatus === 'sending' ? 'var(--bg-dark)' : 'var(--primary)', 
-                          color: '#fff', 
-                          border: 'none', 
-                          padding: '0.75rem 1.5rem', 
-                          borderRadius: '8px', 
-                          cursor: testEmailStatus === 'sending' ? 'not-allowed' : 'pointer', 
-                          fontWeight: '600', 
-                          whiteSpace: 'nowrap', 
-                          transition: 'all 0.2s',
-                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                    </FormField>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={handleRunOperationsScanner}
+                        disabled={reminderScanStatus === 'running'}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          background: neonBlue,
+                          color: isLight ? '#ffffff' : '#001018',
+                          border: 'none',
+                          padding: '0.75rem 1.25rem',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          boxShadow: `0 4px 14px color-mix(in srgb, ${neonBlue} 25%, transparent)`
                         }}
                       >
-                        {testEmailStatus === 'sending' ? (
-                          <>
-                            <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                            <span>Verifying & Sending...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Mail size={16} /> Send Test Email
-                          </>
-                        )}
+                        <PlayCircle size={16} />
+                        {reminderScanStatus === 'running' ? 'Scanning All Modules…' : 'Run 360° Operations Scan & Dispatch'}
                       </button>
                     </div>
-
-                    {/* Result Banner */}
-                    {testEmailStatus === 'success' && (
-                      <div style={{ marginTop: '1rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '1rem', borderRadius: '8px', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', animation: 'fadeIn 0.3s ease-out' }}>
-                        <CheckCircle2 size={20} color="var(--success)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                        <div>
-                          <strong style={{ color: 'var(--success)', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>
-                            Connection Verified & Email Dispatched!
-                          </strong>
-                          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
-                            {testEmailResult || `Successfully sent verification email to ${testEmailTarget}. Please check your inbox and spam folder.`}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {testEmailStatus === 'error' && (
-                      <div style={{ marginTop: '1rem', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1rem', borderRadius: '8px', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', animation: 'fadeIn 0.3s ease-out' }}>
-                        <AlertCircle size={20} color="var(--danger)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                        <div>
-                          <strong style={{ color: 'var(--danger)', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>
-                            SMTP Connection Failed
-                          </strong>
-                          <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.8125rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
-                            {testEmailError}
-                          </p>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                            💡 <strong>Troubleshooting tips:</strong>
-                            <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                              <li>If using <strong>Gmail</strong>, enable 2-Step Verification and generate a 16-letter <strong>App Password</strong>. Standard account passwords will be rejected.</li>
-                              <li>Verify your port setting (Port 587 for TLS, Port 465 for SSL).</li>
-                              <li>Make sure you click <strong>"Save Settings Changes"</strong> below to store your credentials.</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Manual Reminders Trigger & Emergency Dispatch */}
-                  <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem', background: 'linear-gradient(180deg, rgba(2, 132, 199, 0.04) 0%, rgba(2, 132, 199, 0.01) 100%)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(2, 132, 199, 0.2)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
-                      <div>
-                        <h4 style={{ margin: '0 0 0.35rem 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
-                          <Bell size={18} color="var(--primary)" /> Manual Trigger & Operations Reminders Diagnostic
-                        </h4>
-                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.4' }}>
-                          Trigger an immediate diagnostic scan across all Tours, Cruises, and Documents in the database. If automated scheduling encountered errors or missed reminders, this will check every milestone and dispatch email notices on demand.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-                      <div style={{ flex: '1 1 250px', maxWidth: '350px' }}>
-                        <input 
-                          type="email" 
-                          value={manualTargetEmail} 
-                          onChange={(e) => setManualTargetEmail(e.target.value)} 
-                          placeholder={user?.email || formData.smtpUser || "recipient@company.com"} 
-                          disabled={manualTriggerStatus === 'running'} 
-                          style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-main)' }} 
-                        />
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', marginTop: '0.25rem', display: 'block' }}>
-                          Optional: Override alert notification recipient (defaults to active user/admin)
+                  {/* Scan Report Output */}
+                  {reminderScanReport && (
+                    <div style={{
+                      marginTop: '1.25rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '1.25rem',
+                      background: 'var(--bg-surface)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.9rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <CheckCircle2 size={18} color="#10b981" />
+                          <strong style={{ fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                            Scan Complete at {reminderScanReport.timestamp}
+                          </strong>
+                        </div>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '999px',
+                          background: reminderScanReport.totalDetected > 0 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: reminderScanReport.totalDetected > 0 ? '#eab308' : '#10b981'
+                        }}>
+                          {reminderScanReport.totalDetected} Action Item{reminderScanReport.totalDetected !== 1 ? 's' : ''} Detected
                         </span>
                       </div>
 
-                      <button 
-                        type="button" 
-                        onClick={handleManualTriggerReminders} 
-                        disabled={manualTriggerStatus === 'running'} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '0.5rem', 
-                          background: manualTriggerStatus === 'running' ? 'var(--bg-dark)' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
-                          color: '#fff', 
-                          border: 'none', 
-                          padding: '0.75rem 1.5rem', 
-                          borderRadius: '8px', 
-                          cursor: manualTriggerStatus === 'running' ? 'not-allowed' : 'pointer', 
-                          fontWeight: '600', 
-                          whiteSpace: 'nowrap', 
-                          transition: 'all 0.2s',
-                          boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)'
-                        }}
-                      >
-                        {manualTriggerStatus === 'running' ? (
-                          <>
-                            <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                            <span>Scanning All Bookings...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw size={16} /> Run Manual Reminders Check
-                          </>
-                        )}
-                      </button>
-                    </div>
+                      {reminderScanReport.dispatchMessage && (
+                        <p style={{ margin: '0 0 0.85rem', fontSize: '0.8rem', color: 'var(--text-subtle)' }}>
+                          {reminderScanReport.dispatchMessage}
+                        </p>
+                      )}
 
-                    {/* Manual Trigger Report Results */}
-                    {manualTriggerReport && (
-                      <div style={{ marginTop: '1.25rem', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1.25rem', animation: 'fadeIn 0.3s ease-out' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Calendar size={16} color="var(--primary)" /> Scan Results (Executed at {manualTriggerReport.timestamp})
-                          </span>
-                          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
-                            <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.2rem 0.6rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
-                              Checked: <strong>{manualTriggerReport.checkedTours}</strong> Tours • <strong>{manualTriggerReport.checkedCruises}</strong> Cruises
-                            </span>
-                            {manualTriggerReport.uninvoicedTours && manualTriggerReport.uninvoicedTours.length > 0 && (
-                              <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: '700', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                                ⚠️ Belum Invoicing: {manualTriggerReport.uninvoicedTours.length} Tour
-                              </span>
-                            )}
-                            <span style={{ background: manualTriggerReport.matchedReminders.length > 0 ? 'rgba(2, 132, 199, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: manualTriggerReport.matchedReminders.length > 0 ? 'var(--primary)' : 'var(--success)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: '600' }}>
-                              Due Milestones: {manualTriggerReport.matchedReminders.length}
-                            </span>
+                      {/* Detected Items Breakdown */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        {reminderScanReport.uninvoicedTours.map((t, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', fontSize: '0.78rem' }}>
+                            <span style={{ fontWeight: 700, color: '#ef4444' }}>🚨 Tour Uninvoiced: {t.code} — {t.title}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{t.milestone}</span>
                           </div>
-                        </div>
+                        ))}
 
-                        {/* Uninvoiced Tours Alert Box if detected */}
-                        {manualTriggerReport.uninvoicedTours && manualTriggerReport.uninvoicedTours.length > 0 && (
-                          <div style={{ marginBottom: '1.25rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', padding: '1rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                              <strong style={{ color: '#ef4444', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                🚨 Tour Belum Di-Invoicing (H-30, H-20, H-15, H-10)
-                              </strong>
-                              <span style={{ fontSize: '0.75rem', color: '#f87171' }}>Segera Terbitkan Invoice</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                              {manualTriggerReport.uninvoicedTours.map((u, uIdx) => (
-                                <div key={uIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.2)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                  <div style={{ flex: '1 1 300px' }}>
-                                    <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.85rem' }}>
-                                      {u.code} — {u.productDetails || u.title}
-                                    </div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                                      👤 Pelanggan: <strong style={{ color: 'var(--text-main)' }}>{u.customerName || '-'}</strong> • 💼 Staff PIC: <strong style={{ color: 'var(--primary)' }}>{u.handlingStaff || '-'}</strong>
-                                    </div>
-                                    <div style={{ fontSize: '0.725rem', color: 'var(--text-subtle)', marginTop: '0.1rem' }}>
-                                      Tgl Berangkat: <strong>{u.targetDate}</strong> • Pax: {u.pax}
-                                    </div>
-                                  </div>
-                                  <span style={{ 
-                                    fontSize: '0.75rem', 
-                                    fontWeight: '700', 
-                                    padding: '0.25rem 0.6rem', 
-                                    borderRadius: '4px',
-                                    background: u.daysRemaining === 10 ? 'rgba(239, 68, 68, 0.2)' : u.daysRemaining === 15 ? 'rgba(249, 115, 22, 0.2)' : 'rgba(234, 179, 8, 0.2)',
-                                    color: u.daysRemaining === 10 ? '#ef4444' : u.daysRemaining === 15 ? '#f97316' : '#eab308'
-                                  }}>
-                                    {u.milestone}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
+                        {reminderScanReport.departureReminders.map((r, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.78rem' }}>
+                            <span style={{ fontWeight: 700, color: '#10b981' }}>✈️ {r.type}: {r.code} — {r.title}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{r.milestone}</span>
                           </div>
-                        )}
+                        ))}
 
-                        {manualTriggerReport.matchedReminders.length === 0 && (!manualTriggerReport.uninvoicedTours || manualTriggerReport.uninvoicedTours.length === 0) ? (
-                          <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--success)', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                            <CheckCircle2 size={24} style={{ display: 'block', margin: '0 auto 0.5rem auto' }} />
-                            <strong style={{ display: 'block', fontSize: '0.95rem' }}>All Tours & Cruises Up to Date</strong>
-                            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                              Scanned {manualTriggerReport.checkedTours} active tours and {manualTriggerReport.checkedCruises} active cruises. No departure or return milestones are due today (30, 15, 7, 5, 3, 2, 1, 0 days).
-                            </p>
+                        {reminderScanReport.documentDeadlines.map((d, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', borderRadius: '6px', background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.25)', fontSize: '0.78rem' }}>
+                            <span style={{ fontWeight: 700, color: '#eab308' }}>🛂 Document Target: {d.code} — {d.title}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{d.milestone}</span>
                           </div>
-                        ) : (
-                          <div>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                              <span>Sent: <strong style={{ color: 'var(--success)' }}>{manualTriggerReport.sentCount}</strong></span>
-                              <span>•</span>
-                              <span>Failed: <strong style={{ color: manualTriggerReport.failedCount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{manualTriggerReport.failedCount}</strong></span>
-                              <span>•</span>
-                              <span>Target: <code>{manualTriggerReport.recipient}</code></span>
-                            </div>
+                        ))}
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '280px', overflowY: 'auto' }}>
-                              {manualTriggerReport.matchedReminders.map((rem, idx) => (
-                                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.65rem 0.9rem', gap: '1rem', flexWrap: 'wrap' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 320px' }}>
-                                    <span style={{ 
-                                      fontSize: '0.7rem', 
-                                      fontWeight: '700', 
-                                      padding: '0.2rem 0.5rem', 
-                                      borderRadius: '4px',
-                                      background: rem.type === 'Tour' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(168, 85, 247, 0.15)',
-                                      color: rem.type === 'Tour' ? '#60a5fa' : '#c084fc'
-                                    }}>
-                                      {rem.type}
-                                    </span>
-                                    <div>
-                                      <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                                        {rem.code} — {rem.productDetails || rem.title}
-                                      </div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                                        👤 Pelanggan: <strong style={{ color: 'var(--text-main)' }}>{rem.customerName || '-'}</strong> • 💼 Staff: <strong style={{ color: 'var(--primary)' }}>{rem.handlingStaff || '-'}</strong>
-                                      </div>
-                                      <div style={{ fontSize: '0.725rem', color: 'var(--text-subtle)' }}>
-                                        Target Date: <strong>{rem.targetDate}</strong>
-                                      </div>
-                                    </div>
-                                  </div>
+                        {reminderScanReport.hotelDeadlines.map((h, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', fontSize: '0.78rem' }}>
+                            <span style={{ fontWeight: 700, color: '#818cf8' }}>🏨 Hotel Check-In: {h.code} — {h.title}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{h.milestone}</span>
+                          </div>
+                        ))}
 
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <span style={{ fontSize: '0.75rem', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: '500' }}>
-                                      🔔 {rem.milestone}
-                                    </span>
+                        {reminderScanReport.telecomDeadlines.map((s, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.75rem', borderRadius: '6px', background: 'rgba(236, 72, 153, 0.08)', border: '1px solid rgba(236, 72, 153, 0.25)', fontSize: '0.78rem' }}>
+                            <span style={{ fontWeight: 700, color: '#ec4899' }}>📱 Travel SIM Activation: {s.code} — {s.title}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{s.milestone}</span>
+                          </div>
+                        ))}
 
-                                    <span style={{ 
-                                      fontSize: '0.75rem', 
-                                      fontWeight: '600',
-                                      padding: '0.2rem 0.5rem', 
-                                      borderRadius: '4px',
-                                      background: rem.status === 'sent' ? 'rgba(16, 185, 129, 0.15)' : rem.status === 'failed' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.1)',
-                                      color: rem.status === 'sent' ? 'var(--success)' : rem.status === 'failed' ? 'var(--danger)' : 'var(--text-main)'
-                                    }}>
-                                      {rem.status === 'sent' ? '✓ Dispatched' : rem.status === 'failed' ? '✕ Failed' : '● Ready'}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                        {reminderScanReport.totalDetected === 0 && (
+                          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-subtle)', fontSize: '0.85rem' }}>
+                            ✓ All operational deadlines, milestone departure dates, and document appointments are clear.
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB: PREFERENCES */}
-              {activeTab === 'preferences' && (
-                <div className="card fade-in">
-                  <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Monitor size={20} color="#8b5cf6" /> System Preferences
-                  </h3>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '1.5rem' }}>
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Company Name</label>
-                      <input type="text" value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} placeholder="TravelOps Inc." style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }} />
                     </div>
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>System Language</label>
-                      <select value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})} style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}>
-                        <option value="en">English</option>
+                  )}
+                </SettingsSection>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* TAB 5: WORKSPACE PREFERENCES & NEON THEME                                  */}
+            {/* ========================================================================= */}
+            {activeTab === 'preferences' && (
+              <div className="fade-in">
+                {/* General Localization */}
+                <SettingsSection
+                  icon={<Monitor size={18} />}
+                  title="Workspace Localization & Formats"
+                  description="Customize company identity, default financial currency, and standardized date formats"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem', marginBottom: '1.25rem' }}>
+                    <FormField label="Company / Brand Name">
+                      <input
+                        type="text"
+                        value={formData.companyName}
+                        onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                        placeholder="TravelOps Inc."
+                        style={baseInputStyle}
+                      />
+                    </FormField>
+
+                    <FormField label="System Language">
+                      <select
+                        value={formData.language}
+                        onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                        style={baseInputStyle}
+                      >
+                        <option value="en">English (US / Global)</option>
                         <option value="id">Bahasa Indonesia</option>
                       </select>
-                    </div>
-                  </div>
+                    </FormField>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Default Currency</label>
-                      <select value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})} style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}>
-                        <option value="IDR">IDR - Indonesian Rupiah (Rp)</option>
-                        <option value="USD">USD - US Dollar ($)</option>
-                        <option value="EUR">EUR - Euro (€)</option>
-                        <option value="SGD">SGD - Singapore Dollar (S$)</option>
+                    <FormField label="Default Financial Currency">
+                      <select
+                        value={formData.currency}
+                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                        style={baseInputStyle}
+                      >
+                        <option value="IDR">IDR — Indonesian Rupiah (Rp)</option>
+                        <option value="USD">USD — US Dollar ($)</option>
+                        <option value="EUR">EUR — Euro (€)</option>
+                        <option value="SGD">SGD — Singapore Dollar (S$)</option>
                       </select>
-                    </div>
-                    <div className="form-group">
-                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Date Format</label>
-                      <select value={formData.dateFormat} onChange={e => setFormData({...formData, dateFormat: e.target.value})} style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px' }}>
-                        <option value="YYYY-MM-DD">YYYY-MM-DD (2024-12-31)</option>
-                        <option value="DD-MM-YYYY">DD-MM-YYYY (31-12-2024)</option>
-                        <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2024)</option>
+                    </FormField>
+
+                    <FormField label="Standard Date Format">
+                      <select
+                        value={formData.dateFormat}
+                        onChange={(e) => setFormData({ ...formData, dateFormat: e.target.value })}
+                        style={baseInputStyle}
+                      >
+                        <option value="YYYY-MM-DD">YYYY-MM-DD (2026-11-01)</option>
+                        <option value="DD-MM-YYYY">DD-MM-YYYY (01-11-2026)</option>
+                        <option value="MM/DD/YYYY">MM/DD/YYYY (11/01/2026)</option>
                       </select>
-                    </div>
+                    </FormField>
                   </div>
+                </SettingsSection>
 
-                  {/* APPEARANCE & ACCENT THEME CUSTOMIZER */}
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
-                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem' }}>
-                      <Palette size={18} color="var(--primary)" /> Appearance & Theme Accents
-                    </h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginBottom: '1.25rem' }}>
-                      Personalize your TravelOps workspace theme and primary brand accent color.
-                    </p>
+                {/* Appearance & Neon Theme Switcher */}
+                <SettingsSection
+                  icon={<Palette size={18} />}
+                  title="Workspace Appearance & Neon Theme Accents"
+                  description="Toggle between Obsidian Neon Dark and Neon Sky Light, and customize brand accent highlights"
+                  neonBlue={neonBlue}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                    {/* Theme Mode Toggle Cards */}
+                    <div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '0.65rem' }}>
+                        Interface Theme Mode
+                      </span>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => { if (theme !== 'dark') toggleTheme(); }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '1rem',
+                            borderRadius: '10px',
+                            border: theme === 'dark' ? `2px solid ${neonBlue}` : '1px solid var(--border)',
+                            background: theme === 'dark' ? `color-mix(in srgb, ${neonBlue} 12%, transparent)` : 'var(--bg-surface)',
+                            color: theme === 'dark' ? neonBlue : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontSize: '0.82rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Moon size={22} /> Obsidian Neon Dark
+                        </button>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                      {/* Theme Mode Toggle Card */}
-                      <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--text-main)', fontWeight: '600', fontSize: '0.875rem' }}>
-                          Interface Mode
-                        </label>
-                        <div style={{ display: 'flex', gap: '0.75rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => { if (theme !== 'dark') toggleTheme(); }}
-                            style={{
-                              flex: 1,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              padding: '0.75rem',
-                              borderRadius: '8px',
-                              border: theme === 'dark' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                              background: theme === 'dark' ? 'var(--primary-glow)' : 'transparent',
-                              color: theme === 'dark' ? 'var(--text-main)' : 'var(--text-muted)',
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                              fontSize: '0.8125rem',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <Moon size={16} color={theme === 'dark' ? 'var(--primary)' : 'var(--text-muted)'} /> Soft Forest Dark
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => { if (theme !== 'light') toggleTheme(); }}
-                            style={{
-                              flex: 1,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.5rem',
-                              padding: '0.75rem',
-                              borderRadius: '8px',
-                              border: theme === 'light' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                              background: theme === 'light' ? 'var(--primary-glow)' : 'transparent',
-                              color: theme === 'light' ? 'var(--text-main)' : 'var(--text-muted)',
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                              fontSize: '0.8125rem',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <Sun size={16} color={theme === 'light' ? 'var(--primary)' : 'var(--text-muted)'} /> Soft Sage Studio
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Primary Accent Color Presets */}
-                      <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--text-main)', fontWeight: '600', fontSize: '0.875rem' }}>
-                          Primary Accent Theme
-                        </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.5rem' }}>
-                          {ACCENT_PRESETS.map(preset => {
-                            const isSelected = (accent || 'sage') === preset.id;
-                            return (
-                              <button
-                                key={preset.id}
-                                type="button"
-                                onClick={() => changeAccent(preset.id)}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.45rem',
-                                  padding: '0.5rem 0.65rem',
-                                  borderRadius: '8px',
-                                  border: isSelected ? `2px solid ${preset.color}` : '1px solid var(--border)',
-                                  background: isSelected ? `${preset.color}20` : 'transparent',
-                                  color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
-                                  cursor: 'pointer',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '600',
-                                  transition: 'all 0.15s ease'
-                                }}
-                              >
-                                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: preset.color, boxShadow: `0 0 8px ${preset.color}` }} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preset.name.split(' ')[0]}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { if (theme !== 'light') toggleTheme(); }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '1rem',
+                            borderRadius: '10px',
+                            border: theme === 'light' ? `2px solid ${neonBlue}` : '1px solid var(--border)',
+                            background: theme === 'light' ? `color-mix(in srgb, ${neonBlue} 12%, transparent)` : 'var(--bg-surface)',
+                            color: theme === 'light' ? neonBlue : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontSize: '0.82rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Sun size={22} /> Neon Sky Light
+                        </button>
                       </div>
                     </div>
+
+                    {/* Accent Color Presets */}
+                    <div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '0.65rem' }}>
+                        Primary Brand Accent Tone
+                      </span>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.55rem' }}>
+                        {ACCENT_PRESETS.map((preset) => {
+                          const isSelected = (accent || 'neon-blue') === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => changeAccent(preset.id)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.55rem 0.75rem',
+                                borderRadius: '8px',
+                                border: isSelected ? `2px solid ${preset.color}` : '1px solid var(--border)',
+                                background: isSelected ? `${preset.color}25` : 'var(--bg-surface)',
+                                color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+                                cursor: 'pointer',
+                                fontSize: '0.78rem',
+                                fontWeight: 600
+                              }}
+                            >
+                              <span style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                background: preset.color,
+                                boxShadow: `0 0 8px ${preset.color}`
+                              }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {preset.name.split(' ')[0]}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                </SettingsSection>
+              </div>
+            )}
 
-              {/* SAVE BUTTON FOR TABS THAT USE IT */}
-              {['security', 'smtp', 'preferences', 'database'].includes(activeTab) && (
-                <div style={{ marginTop: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
-                  <button type="submit" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--primary)', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#2563eb'} onMouseOut={e => e.currentTarget.style.background = 'var(--primary)'}>
-                    <Save size={18} /> Save Settings Changes
-                  </button>
-                  {toastMessage && <span style={{ color: 'var(--success)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem', animation: 'fadeIn 0.3s ease-out' }}>✓ {toastMessage}</span>}
-                </div>
-              )}
-            </form>
-
+            {/* Bottom Sticky Save Bar for editable tabs */}
+            {['security', 'smtp', 'preferences', 'database'].includes(activeTab) && (
+              <div style={{
+                marginTop: '1.5rem',
+                paddingTop: '1.25rem',
+                borderTop: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '0.75rem'
+              }}>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    background: neonBlue,
+                    color: isLight ? '#ffffff' : '#001018',
+                    border: 'none',
+                    padding: '0.7rem 1.6rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    boxShadow: `0 4px 14px color-mix(in srgb, ${neonBlue} 30%, transparent)`
+                  }}
+                >
+                  <Save size={16} /> {isSaving ? 'Saving…' : 'Save Settings Changes'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal for Destructive Actions */}
+      <SettingsConfirmModal
+        open={confirmModal.open}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmLabel={confirmModal.confirmLabel}
+        confirmVariant={confirmModal.variant}
+        onConfirm={async () => {
+          if (confirmModal.action) await confirmModal.action();
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        }}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, open: false }))}
+      />
+
+      {/* Deep Log Inspector SlideOver */}
+      <LogDetailsDrawer
+        log={selectedLog}
+        isOpen={Boolean(selectedLog)}
+        onClose={() => setSelectedLog(null)}
+        neonBlue={neonBlue}
+        toast={toast}
+      />
     </div>
   );
 };

@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, X, Send, Bot, Copy, Check, 
   RefreshCw, Minimize2, Maximize2, MessageCircle,
-  Database, MapPin, Compass
+  Database, Compass
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../supabaseClient';
 
 // Module context detector
@@ -208,6 +210,9 @@ const renderFormattedContent = (text) => {
 
 const AiCopilot = () => {
   const { user, loading: authLoading } = useAuth();
+  const { theme } = useTheme();
+  const { toast } = useToast();
+  const isLight = theme === 'light';
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -276,7 +281,7 @@ const AiCopilot = () => {
 
   const handleSendMessage = async (textToSend) => {
     if (!user) {
-      alert('Sesi Anda tidak valid. Silakan login untuk menggunakan AI Copilot.');
+      toast.warning('Your session has expired. Please sign in again to use AI Copilot.');
       return;
     }
 
@@ -395,12 +400,12 @@ const AiCopilot = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            padding: '0.45rem 0.85rem',
+            padding: '0.5rem 0.95rem',
             borderRadius: '9999px',
-            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.95) 0%, rgba(99, 102, 241, 0.95) 100%)',
+            background: 'linear-gradient(135deg, #38bdf8 0%, #0077ff 100%)',
             color: '#ffffff',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.45)',
+            border: '1px solid rgba(186, 230, 253, 0.45)',
+            boxShadow: '0 6px 22px rgba(0, 168, 255, 0.4)',
             cursor: 'pointer',
             fontWeight: '600',
             fontSize: '0.785rem',
@@ -452,7 +457,9 @@ const AiCopilot = () => {
           {/* Header */}
           <div style={{
             padding: '0.75rem 1rem',
-            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+            background: isLight
+              ? 'linear-gradient(135deg, #f0f8ff 0%, #e0f2fe 100%)'
+              : 'linear-gradient(135deg, rgba(0, 168, 255, 0.16) 0%, rgba(10, 16, 32, 0.9) 100%)',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -461,9 +468,9 @@ const AiCopilot = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
               <div style={{
                 width: '32px', height: '32px', borderRadius: '10px',
-                background: 'linear-gradient(135deg, #06b6d4 0%, #6366f1 100%)',
+                background: 'linear-gradient(135deg, #38bdf8 0%, #0077ff 100%)',
                 color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 12px rgba(6, 182, 212, 0.4)'
+                boxShadow: '0 0 14px rgba(0, 168, 255, 0.45)'
               }}>
                 <Sparkles size={17} />
               </div>
@@ -472,7 +479,7 @@ const AiCopilot = () => {
                   <span>TravelOps AI Copilot</span>
                   <span style={{
                     fontSize: '0.625rem', padding: '1px 6px', borderRadius: '4px',
-                    background: 'rgba(6, 182, 212, 0.2)', color: 'var(--primary)', fontWeight: '700'
+                    background: 'rgba(0, 168, 255, 0.16)', color: 'var(--primary)', fontWeight: '700'
                   }}>
                     Gemini Live
                   </span>
@@ -573,13 +580,13 @@ const AiCopilot = () => {
                     <div style={{
                       padding: '0.75rem 0.95rem',
                       borderRadius: isAssistant ? '4px 14px 14px 14px' : '14px 4px 14px 14px',
-                      background: isAssistant ? 'rgba(255, 255, 255, 0.05)' : 'var(--primary)',
+                      background: isAssistant ? (isLight ? '#f4f9ff' : 'rgba(255, 255, 255, 0.05)') : 'linear-gradient(135deg, #00a8ff 0%, #0077ff 100%)',
                       border: isAssistant ? '1px solid var(--border)' : 'none',
                       color: isAssistant ? 'var(--text-main)' : '#ffffff',
                       fontSize: '0.825rem',
                       lineHeight: '1.5',
                       wordBreak: 'break-word',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                      boxShadow: isLight ? '0 2px 10px rgba(0, 149, 255, 0.08)' : '0 2px 8px rgba(0, 0, 0, 0.15)',
                       position: 'relative'
                     }}>
                       {/* Formatted Content */}
@@ -677,11 +684,11 @@ const AiCopilot = () => {
           {/* Quick Prompts Carousel (Dynamically customized per module) */}
           <div style={{
             padding: '0.5rem 0.75rem',
-            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+            borderTop: '1px solid var(--border)',
             display: 'flex',
             gap: '0.4rem',
             overflowX: 'auto',
-            background: 'rgba(0, 0, 0, 0.18)'
+            background: isLight ? '#f8fbff' : 'rgba(0, 0, 0, 0.18)'
           }}>
             {quickPrompts.map((qp, idx) => (
               <button
@@ -692,10 +699,10 @@ const AiCopilot = () => {
                   whiteSpace: 'nowrap',
                   padding: '0.3rem 0.65rem',
                   borderRadius: '16px',
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: isLight ? '#ffffff' : 'rgba(255, 255, 255, 0.04)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-muted)',
-                  fontSize: '0.7rem',
+                  fontSize: '0.72rem',
                   fontWeight: '600',
                   cursor: 'pointer',
                   display: 'flex',
@@ -704,11 +711,11 @@ const AiCopilot = () => {
                   transition: 'all 0.15s'
                 }}
                 onMouseOver={e => {
-                  e.currentTarget.style.background = 'rgba(6, 182, 212, 0.15)';
+                  e.currentTarget.style.background = 'rgba(0, 168, 255, 0.14)';
                   e.currentTarget.style.color = 'var(--primary)';
                 }}
                 onMouseOut={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                  e.currentTarget.style.background = isLight ? '#ffffff' : 'rgba(255, 255, 255, 0.04)';
                   e.currentTarget.style.color = 'var(--text-muted)';
                 }}
               >

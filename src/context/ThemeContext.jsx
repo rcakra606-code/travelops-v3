@@ -3,13 +3,14 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ACCENT_PRESETS = [
-  { id: 'sage', name: 'Soft Sage', color: '#708d78' },
+  { id: 'neon-blue', name: 'Neon Sky Blue', color: '#00a8ff' },
   { id: 'cyan', name: 'Electric Cyan', color: '#06b6d4' },
   { id: 'indigo', name: 'Royal Indigo', color: '#6366f1' },
-  { id: 'emerald', name: 'Emerald Matrix', color: '#10b981' },
+  { id: 'emerald', name: 'Emerald Glow', color: '#10b981' },
   { id: 'amber', name: 'Sunset Amber', color: '#f59e0b' },
   { id: 'rose', name: 'Crimson Rose', color: '#f43f5e' },
   { id: 'purple', name: 'Neon Purple', color: '#a855f7' },
+  { id: 'sage', name: 'Soft Sage', color: '#416b52' },
 ];
 
 export const ThemeProvider = ({ children }) => {
@@ -20,7 +21,7 @@ export const ThemeProvider = ({ children }) => {
   });
 
   const [accent, setAccent] = useState(() => {
-    return localStorage.getItem('travelops_accent') || 'sage';
+    return localStorage.getItem('travelops_accent_v3') || 'neon-blue';
   });
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export const ThemeProvider = ({ children }) => {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('travelops_accent', accent);
+    localStorage.setItem('travelops_accent_v3', accent);
     document.documentElement.setAttribute('data-accent', accent);
   }, [accent]);
 

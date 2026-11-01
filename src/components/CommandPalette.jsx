@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor, Briefcase, Clock, Target, Building, CreditCard, Activity, ArrowRight, Compass, Calendar, Sparkles } from 'lucide-react';
+import { Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor, Briefcase, Clock, Target, Building, Activity, ArrowRight, Compass, Calendar, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTours } from '../context/TourContext';
 import { useCorporate } from '../context/CorporateContext';
@@ -8,22 +8,23 @@ import { useCruises } from '../context/CruiseContext';
 import { useHotels } from '../context/HotelContext';
 
 const staticCommands = [
-  { id: 'dashboard', name: 'Dashboard', icon: <Home size={18} />, path: '/' },
-  { id: 'calendar', name: 'Master Operations Calendar', icon: <Calendar size={18} />, path: '/calendar' },
-  { id: 'ai-copilot', name: 'TravelOps AI Copilot (Gemini Live Assistant)', icon: <Sparkles size={18} />, isAi: true },
-  { id: 'tours', name: 'Tours Manager', icon: <Map size={18} />, path: '/tours' },
-  { id: 'knowledge', name: 'Destination Intelligence & Knowledge Base', icon: <Compass size={18} />, path: '/knowledge' },
-  { id: 'users', name: 'User Manager', icon: <Users size={18} />, path: '/users' },
-  { id: 'sales', name: 'Sales Input', icon: <DollarSign size={18} />, path: '/sales' },
-  { id: 'documents', name: 'Documents', icon: <FileText size={18} />, path: '/documents' },
-  { id: 'telecom', name: 'Telecom & Utilities', icon: <Phone size={18} />, path: '/telecom' },
-  { id: 'cruise', name: 'Cruise Manager', icon: <Anchor size={18} />, path: '/cruise' },
-  { id: 'hotel', name: 'Hotel Manager', icon: <Briefcase size={18} />, path: '/hotel' },
+  { id: 'dashboard', name: 'Home Overview', icon: <Home size={18} />, path: '/' },
+  { id: 'calendar', name: 'Trip Calendar', icon: <Calendar size={18} />, path: '/calendar' },
+  { id: 'ai-copilot', name: 'TravelOps AI Copilot (Live Assistant)', icon: <Sparkles size={18} />, isAi: true },
+  { id: 'tours', name: 'Tours & Trips', icon: <Map size={18} />, path: '/tours' },
+  { id: 'documents', name: 'Documents & Visa', icon: <FileText size={18} />, path: '/documents' },
+  { id: 'hotel', name: 'Hotel Stays', icon: <Briefcase size={18} />, path: '/hotel' },
+  { id: 'cruise', name: 'Cruises', icon: <Anchor size={18} />, path: '/cruise' },
+  { id: 'telecom', name: 'WiFi & SIM Rental', icon: <Phone size={18} />, path: '/telecom' },
+  { id: 'knowledge', name: 'Travel Guides & Tips', icon: <Compass size={18} />, path: '/knowledge' },
+  { id: 'corporate', name: 'Corporate Accounts', icon: <Building size={18} />, path: '/corporate' },
+  { id: 'sales', name: 'Sales & Revenue', icon: <DollarSign size={18} />, path: '/sales' },
+  { id: 'productivity', name: 'Team Goals', icon: <Target size={18} />, path: '/productivity' },
   { id: 'overtime', name: 'Overtime Logs', icon: <Clock size={18} />, path: '/overtime' },
-  { id: 'productivity', name: 'Productivity', icon: <Target size={18} />, path: '/productivity' },
-  { id: 'corporate', name: 'Corporate Clients', icon: <Building size={18} />, path: '/corporate' },
-  { id: 'staff', name: 'Staff Performance', icon: <Activity size={18} />, path: '/staff-performance' },
-  { id: 'settings', name: 'Settings', icon: <Settings size={18} />, path: '/settings' },
+  { id: 'staff', name: 'Team Insights', icon: <Activity size={18} />, path: '/staff-performance' },
+  { id: 'users', name: 'Team & Access', icon: <Users size={18} />, path: '/users' },
+  { id: 'settings', name: 'Workspace Settings', icon: <Settings size={18} />, path: '/settings' },
+  { id: 'tracker', name: 'Guest Status Tracker (Public Portal)', icon: <Compass size={18} />, path: '/track' },
 ];
 
 const CommandPalette = () => {
@@ -119,17 +120,26 @@ const CommandPalette = () => {
       type: 'Hotel Booking'
     }));
 
+    // Cruises
+    const filteredCruises = (cruises || []).filter(c =>
+      c.shipName?.toLowerCase().includes(q) ||
+      c.cruiseBrand?.toLowerCase().includes(q) ||
+      c.bookingRef?.toLowerCase().includes(q)
+    ).map(c => ({
+      id: `cruise-${c.id}`,
+      name: `${c.shipName || c.cruiseBrand || 'Cruise'} - ${c.bookingRef || 'No Ref'}`,
+      icon: <Anchor size={18} />,
+      path: '/cruise',
+      type: 'Cruise Booking'
+    }));
+
     // Combine and limit results
     if (!q) return staticCommands.map(cmd => ({ ...cmd, type: 'Page' }));
     
-    return [...filteredPages, ...filteredTours, ...filteredCorporate, ...filteredHotels].slice(0, 15);
+    return [...filteredPages, ...filteredTours, ...filteredCorporate, ...filteredHotels, ...filteredCruises].slice(0, 15);
   };
 
   const results = getSearchResults();
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
 
   const executeCommand = (cmd) => {
     if (cmd.isAi) {
@@ -180,12 +190,15 @@ const CommandPalette = () => {
           <input
             ref={inputRef}
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => {
+              setQuery(e.target.value);
+              setSelectedIndex(0);
+            }}
             onKeyDown={handleKeyDown}
-            placeholder="Omni-Search: Pages, Tours, Hotels, Corporate..."
+            placeholder="Quick jump to pages, tours, hotels, cruises, or clients..."
             style={{
               width: '100%', background: 'transparent', border: 'none',
-              color: 'var(--text-main)', fontSize: '1.2rem', outline: 'none'
+              color: 'var(--text-main)', fontSize: '1.1rem', outline: 'none'
             }}
           />
           <div style={{ 
@@ -211,7 +224,7 @@ const CommandPalette = () => {
                 style={{
                   display: 'flex', alignItems: 'center', padding: '0.75rem 1rem',
                   cursor: 'pointer', borderRadius: '8px',
-                  background: index === selectedIndex ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                  background: index === selectedIndex ? 'rgba(0, 168, 255, 0.14)' : 'transparent',
                   color: 'var(--text-main)',
                   borderLeft: index === selectedIndex ? '3px solid var(--primary)' : '3px solid transparent',
                   transition: 'background 0.1s'

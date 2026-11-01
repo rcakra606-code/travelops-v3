@@ -1,29 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  Search, ShieldCheck, CheckCircle2, Clock, Truck, MapPin, 
-  Calendar, FileText, Ship, Building, Plane, ArrowRight, 
-  ExternalLink, Copy, Check, AlertCircle, Phone, Share2, Sparkles, RefreshCw
+import {
+  Search, CheckCircle2, Truck, MapPin,
+  Calendar, FileText, Ship, Building, Plane, ArrowRight,
+  Copy, Check, AlertCircle, Share2, RefreshCw, Sun, Moon,
+  HelpCircle, MessageCircle, Compass
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
+
+const formatFriendlyDate = (dateStr) => {
+  if (!dateStr || dateStr === '-') return 'To be announced';
+  const parsed = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dateStr;
+  return parsed.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 const PublicTracker = () => {
   const { code: paramCode } = useParams();
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
+
+  const isLight = theme === 'light';
 
   const [inputCode, setInputCode] = useState(paramCode || '');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(paramCode));
   const [record, setRecord] = useState(null);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedResi, setCopiedResi] = useState(false);
 
-  useEffect(() => {
-    if (paramCode) {
-      fetchTrackingData(paramCode);
-    }
-  }, [paramCode]);
-
-  const fetchTrackingData = async (codeToTrack) => {
+  const fetchTrackingData = useCallback(async (codeToTrack) => {
     if (!codeToTrack || !codeToTrack.trim()) return;
 
     setLoading(true);
@@ -44,12 +53,11 @@ const PublicTracker = () => {
             return;
           }
         }
-      } catch (apiErr) {
-        // Backend API might not be running or proxied in some environments, fallback to Supabase query
+      } catch {
+        // Fallback to direct Supabase query below
       }
 
       // 2. Fallback: Query Supabase directly
-      // Check Documents
       const { data: docs } = await supabase
         .from('travelops_documents')
         .select('*')
@@ -64,13 +72,13 @@ const PublicTracker = () => {
           docType: d.doc_type || 'Visa / Passport',
           guestName: d.guest_name,
           country: d.country,
-          processType: d.process_type || 'Normal',
+          processType: d.process_type || 'Standard',
           receiveDate: d.receive_date,
           estimatedDone: d.estimated_done,
           sendDate: d.send_date,
           bookingCode: d.booking_code,
           invoiceNumber: d.invoice_number,
-          shippingStatus: d.shipping_status || 'Processing',
+          shippingStatus: d.shipping_status || 'In Progress',
           shippingMethod: d.shipping_method,
           shippingCourier: d.shipping_courier,
           shippingResi: d.shipping_resi,
@@ -84,7 +92,6 @@ const PublicTracker = () => {
         return;
       }
 
-      // Check Tours
       const { data: tours } = await supabase
         .from('travelops_tours')
         .select('*')
@@ -110,7 +117,6 @@ const PublicTracker = () => {
         return;
       }
 
-      // Check Hotels
       const { data: hotels } = await supabase
         .from('travelops_hotels')
         .select('*')
@@ -134,7 +140,6 @@ const PublicTracker = () => {
         return;
       }
 
-      // Check Cruises
       const { data: cruises } = await supabase
         .from('travelops_cruises')
         .select('*')
@@ -158,15 +163,27 @@ const PublicTracker = () => {
         return;
       }
 
-      // Not found
-      setError(`No travel record found for code "${cleanCode}". Please verify your booking reference or resi number.`);
+      setError(cleanCode);
     } catch (err) {
       console.error('Tracking fetch error:', err);
-      setError('Unable to fetch live tracking details at the moment. Please try again.');
+      setError('CONNECTION_ERROR');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!paramCode) return undefined;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        fetchTrackingData(paramCode);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [paramCode, fetchTrackingData]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -178,295 +195,438 @@ const PublicTracker = () => {
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    setCopiedLink(true);
+    toast.success('Tracking link copied to clipboard!');
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleCopyResi = (resi) => {
+    navigator.clipboard.writeText(resi);
+    setCopiedResi(true);
+    toast.success(`Courier tracking number "${resi}" copied!`);
+    setTimeout(() => setCopiedResi(false), 2500);
   };
 
   const handleWhatsAppShare = () => {
-    const text = `Halo, berikut link update status perjalanan & dokumen saya di TravelOps:\n${window.location.href}`;
+    const text = `Hi! Here is my live trip & document tracking link on TravelOps:\n${window.location.href}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  // Determine Stepper Stage for Documents
+  const handleWhatsAppHelpdesk = () => {
+    const query = inputCode.trim() ? ` regarding reference code "${inputCode.trim()}"` : '';
+    const text = `Hi TravelOps team, I'd like help checking my booking/document status${query}.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   const getDocumentProgressStage = (doc) => {
     if (doc.shippingStatus === 'Delivered' || doc.receivedStatus === 'Final' || doc.sendDate) {
-      return 4; // Complete / Delivered
+      return 4;
     }
     if (doc.shippingResi || doc.shippingStatus === 'Sent' || doc.shippingStatus === 'In Transit') {
-      return 3; // Dispatched / In Delivery
+      return 3;
     }
     if (doc.estimatedDone) {
       const est = new Date(doc.estimatedDone);
       const now = new Date();
       if (now >= est) return 3;
-      return 2; // Embassy Processing
+      return 2;
     }
     if (doc.receiveDate) {
-      return 1; // Document Verification
+      return 1;
     }
-    return 0; // Received
+    return 0;
   };
 
-  // Days Countdown Helper
   const getDaysCountdown = (targetDateStr) => {
     if (!targetDateStr) return null;
-    const target = new Date(targetDateStr);
+    const target = new Date(targetDateStr.includes('T') ? targetDateStr : `${targetDateStr}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return null;
     const now = new Date();
     target.setHours(0, 0, 0, 0);
     now.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-    return diff;
+    return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
   };
 
+  const subSurfaceStyle = {
+    background: isLight ? '#f4f9ff' : 'rgba(5, 10, 22, 0.55)',
+    border: '1px solid var(--border)',
+    borderRadius: '14px',
+    padding: '1.15rem'
+  };
+
+  const shareActions = (
+    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <button
+        type="button"
+        onClick={handleCopyLink}
+        className="btn btn-secondary"
+        style={{ padding: '0.45rem 0.85rem', fontSize: '0.775rem', borderRadius: '9px' }}
+      >
+        {copiedLink ? <Check size={14} color="var(--success)" /> : <Copy size={14} color="var(--primary)" />}
+        <span>{copiedLink ? 'Link Copied!' : 'Copy Link'}</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={handleWhatsAppShare}
+        className="btn"
+        style={{
+          padding: '0.45rem 0.85rem',
+          borderRadius: '9px',
+          background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.14)',
+          border: `1px solid ${isLight ? '#a7f3d0' : 'rgba(16, 185, 129, 0.32)'}`,
+          color: isLight ? '#047857' : '#34d399',
+          fontSize: '0.775rem'
+        }}
+      >
+        <Share2 size={14} />
+        <span>Share via WhatsApp</span>
+      </button>
+    </div>
+  );
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg-dark, #f5f7f2)',
-      color: 'var(--text-main, #263a34)',
-      fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-      padding: '1.5rem 1rem'
-    }}>
-      {/* Brand Top Header */}
-      <div style={{
-        maxWidth: '840px',
-        margin: '0 auto 1.75rem auto',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '1px solid var(--border, #e7ebe4)',
-        paddingBottom: '1rem'
-      }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg-dark)',
+        color: 'var(--text-main)',
+        padding: '1.5rem 1rem 3rem'
+      }}
+    >
+      {/* Friendly Brand Top Header */}
+      <header
+        style={{
+          maxWidth: '860px',
+          margin: '0 auto 1.75rem auto',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '1rem',
+          gap: '0.75rem',
+          flexWrap: 'wrap'
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            width: '36px', height: '36px', borderRadius: '12px',
-            background: 'var(--sage-light, #e6efe7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--primary, #476b52)', border: '1px solid var(--border, #e7ebe4)',
-            boxShadow: '0 2px 8px rgba(71, 107, 82, 0.1)'
-          }}>
-            <Plane size={20} strokeWidth={2.2} />
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #00b4ff 0%, #0066ff 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 4px 16px rgba(0, 168, 255, 0.35)'
+            }}
+          >
+            <Compass size={21} strokeWidth={2.3} />
           </div>
           <div>
-            <div style={{ fontWeight: '800', fontSize: '1.15rem', letterSpacing: '-0.02em', color: 'var(--text-main, #263a34)' }}>
+            <div style={{ fontWeight: '800', fontSize: '1.2rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
               TravelOps
             </div>
-            <div style={{ fontSize: '0.675rem', color: 'var(--text-subtle, #9aa89d)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>
-              Client Live Tracking Hub
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+              Guest Trip &amp; Visa Status Concierge
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.35rem',
-            padding: '0.25rem 0.65rem', borderRadius: '20px',
-            background: '#ebf4ec', border: '1px solid #d4e7d7',
-            fontSize: '0.7rem', color: '#537f5f', fontWeight: '600'
-          }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#537f5f' }} />
-            <span>Live Sync</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          <span className="badge badge-primary">
+            <span className="pulse-dot pulse-dot-cyan" />
+            Live Updates
+          </span>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="btn btn-secondary"
+            title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            aria-label="Toggle color theme"
+            style={{ width: '36px', height: '36px', padding: 0, borderRadius: '10px' }}
+          >
+            {isLight ? <Moon size={16} color="var(--primary)" /> : <Sun size={16} color="#38bdf8" />}
+          </button>
+
+          <Link
+            to="/login"
+            className="btn btn-secondary"
+            style={{ padding: '0.45rem 0.85rem', fontSize: '0.775rem', borderRadius: '10px' }}
+          >
+            Staff Sign In
+          </Link>
         </div>
-      </div>
+      </header>
 
-      {/* Main Container */}
-      <div style={{ maxWidth: '840px', margin: '0 auto' }}>
-
-        {/* Tracking Search Card */}
-        <div style={{
-          background: 'var(--bg-card, #ffffff)',
-          border: '1px solid var(--border, #e7ebe4)',
-          borderRadius: '18px',
-          padding: '1.75rem',
-          marginBottom: '1.5rem',
-          boxShadow: 'var(--shadow-card, 0 5px 25px rgba(39, 65, 46, 0.035))'
-        }}>
-          <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.35rem', fontWeight: '700', color: 'var(--text-main, #263a34)', fontFamily: "'Fraunces', serif" }}>
-            Track Your Travel & Document Status
-          </h2>
-          <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted, #78877e)' }}>
-            Enter your Booking Code, Courier Resi Number, or Confirmation Reference to check live progress.
+      {/* Main Content Container */}
+      <main style={{ maxWidth: '860px', margin: '0 auto' }}>
+        {/* Welcoming Search Hero Card */}
+        <div
+          className="card"
+          style={{
+            borderRadius: '20px',
+            padding: '2rem',
+            marginBottom: '1.5rem'
+          }}
+        >
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+            <span className="badge badge-primary">Easy Self-Service Check</span>
+          </div>
+          <h1 style={{ margin: '0 0 0.45rem 0', fontSize: '1.55rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+            Check Your Trip, Hotel, Cruise, or Visa Status
+          </h1>
+          <p style={{ margin: '0 0 1.35rem 0', fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.55' }}>
+            Pop in your booking code, confirmation number, or courier tracking receipt below for an instant live update.
           </p>
 
-          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.95rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #9aa89d)' }} />
+              <Search
+                size={17}
+                style={{
+                  position: 'absolute',
+                  left: '1rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--primary)',
+                  pointerEvents: 'none'
+                }}
+              />
               <input
                 type="text"
-                placeholder="e.g. BOOK-12345, JNE98213..."
+                placeholder="e.g. BOOK-12345, JNE98213, or Hotel Confirmation..."
                 value={inputCode}
-                onChange={e => setInputCode(e.target.value)}
+                onChange={(e) => setInputCode(e.target.value)}
+                aria-label="Booking or tracking reference code"
                 style={{
                   width: '100%',
-                  padding: '0.75rem 1rem 0.75rem 2.6rem',
+                  padding: '0.82rem 1rem 0.82rem 2.75rem',
                   borderRadius: '12px',
-                  background: 'var(--bg-surface, #fafbf8)',
-                  border: '1px solid var(--border, #e3e9e1)',
-                  color: 'var(--text-main, #263a34)',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                  boxSizing: 'border-box'
+                  fontSize: '0.925rem'
                 }}
               />
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !inputCode.trim()}
               className="btn btn-primary"
               style={{
-                padding: '0.75rem 1.6rem',
+                padding: '0.82rem 1.65rem',
                 borderRadius: '12px',
-                background: 'var(--primary, #416b52)',
-                color: '#ffffff',
-                border: 'none',
-                fontWeight: '700',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 4px 14px rgba(65, 107, 82, 0.22)'
+                fontSize: '0.925rem',
+                opacity: !inputCode.trim() ? 0.65 : 1
               }}
             >
               {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} />}
-              <span>Track Now</span>
+              <span>{loading ? 'Checking...' : 'Check Status'}</span>
             </button>
           </form>
+
+          {/* Friendly Helper Chips when idle */}
+          {!record && !loading && !error && (
+            <div
+              style={{
+                marginTop: '1.35rem',
+                paddingTop: '1.15rem',
+                borderTop: '1px solid var(--border)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '0.65rem',
+                alignItems: 'center'
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <HelpCircle size={14} color="var(--primary)" /> What codes work here?
+              </span>
+              {[
+                { icon: <FileText size={13} />, text: 'Visa / Document Receipt' },
+                { icon: <Plane size={13} />, text: 'Tour Booking ID' },
+                { icon: <Building size={13} />, text: 'Hotel Confirmation' },
+                { icon: <Ship size={13} />, text: 'Cruise Reference' },
+                { icon: <Truck size={13} />, text: 'Courier Resi Number' }
+              ].map((tip) => (
+                <span
+                  key={tip.text}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontSize: '0.76rem',
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '9999px',
+                    background: isLight ? '#f0f7ff' : 'rgba(56, 189, 248, 0.08)',
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--border)'
+                  }}
+                >
+                  <span style={{ color: 'var(--primary)', display: 'inline-flex' }}>{tip.icon}</span>
+                  {tip.text}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Loading Indicator */}
+        {/* Friendly Loading State */}
         {loading && (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#06b6d4' }}>
-            <div className="spinner" style={{ margin: '0 auto 1rem auto', width: '36px', height: '36px', border: '3px solid rgba(6, 182, 212, 0.2)', borderLeftColor: '#06b6d4', borderRadius: '50%' }} />
-            <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>Retrieving live operational status...</div>
+          <div className="card fade-in" style={{ padding: '3rem 1.5rem', textAlign: 'center', marginBottom: '1.5rem' }}>
+            <div
+              className="spin"
+              style={{
+                margin: '0 auto 1rem auto',
+                width: '38px',
+                height: '38px',
+                border: '3px solid var(--primary-glow)',
+                borderTopColor: 'var(--primary)',
+                borderRadius: '50%'
+              }}
+            />
+            <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>
+              Looking up your travel details...
+            </div>
+            <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              Just a moment while we fetch the latest status for you.
+            </div>
           </div>
         )}
 
-        {/* Error Notice */}
+        {/* Warm, Helpful Not-Found / Error Guidance */}
         {error && (
-          <div style={{
-            padding: '1.25rem',
-            borderRadius: '12px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            marginBottom: '1.5rem'
-          }}>
-            <AlertCircle size={20} />
-            <span style={{ fontSize: '0.875rem' }}>{error}</span>
-          </div>
-        )}
-
-        {/* RESULT: DOCUMENT / VISA DETAILS */}
-        {record && record.type === 'document' && (
-          <div style={{
-            background: 'rgba(30, 41, 59, 0.5)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '16px',
-            padding: '1.75rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 15px 35px rgba(0, 0, 0, 0.3)'
-          }}>
-            {/* Top Badge */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div>
-                <span style={{
-                  padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700',
-                  background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.35)'
-                }}>
-                  DOCUMENT / VISA TRACKING
-                </span>
-                <h3 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '1.5rem', fontWeight: '800', color: '#ffffff' }}>
-                  {record.docType} • {record.country || 'International'}
-                </h3>
-                <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-                  Passenger / Applicant: <strong style={{ color: '#f8fafc' }}>{record.guestName}</strong>
+          <div
+            className="card fade-in"
+            style={{
+              padding: '1.5rem',
+              borderRadius: '16px',
+              marginBottom: '1.5rem',
+              borderLeft: '4px solid var(--warning)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start', maxWidth: '540px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'rgba(245, 158, 11, 0.14)',
+                    color: 'var(--warning)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                    {error === 'CONNECTION_ERROR'
+                      ? "We couldn't reach the tracking service right now"
+                      : `We couldn't find a match for "${error}"`}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                    {error === 'CONNECTION_ERROR'
+                      ? 'Please check your internet connection and try again in a few seconds.'
+                      : 'Double-check for extra spaces or dashes on your receipt. If your booking was just created today, our team may still be registering it.'}
+                  </p>
                 </div>
               </div>
 
-              {/* Share & Copy Buttons */}
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={handleCopyLink}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.45rem 0.75rem', borderRadius: '8px',
-                    background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#ffffff', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer'
-                  }}
-                >
-                  {copied ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
-                  <span>{copied ? 'Copied!' : 'Share Link'}</span>
-                </button>
+              <button
+                type="button"
+                onClick={handleWhatsAppHelpdesk}
+                className="btn btn-primary"
+                style={{ fontSize: '0.825rem', padding: '0.6rem 1.1rem', flexShrink: 0 }}
+              >
+                <MessageCircle size={15} />
+                <span>Ask Helpdesk on WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        )}
 
-                <button
-                  onClick={handleWhatsAppShare}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.45rem 0.75rem', borderRadius: '8px',
-                    background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.3)',
-                    color: '#4ade80', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer'
-                  }}
-                >
-                  <Share2 size={14} />
-                  <span>WhatsApp</span>
-                </button>
+        {/* RESULT 1: DOCUMENT / VISA DETAILS */}
+        {record && record.type === 'document' && (
+          <div className="card fade-in" style={{ borderRadius: '20px', padding: '1.85rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
+              <div>
+                <span className="badge badge-primary" style={{ marginBottom: '0.5rem' }}>
+                  <FileText size={13} /> Visa &amp; Document Pass
+                </span>
+                <h2 style={{ margin: '0.2rem 0 0.3rem 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                  {record.docType} • {record.country || 'International'}
+                </h2>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  Traveler / Applicant: <strong style={{ color: 'var(--text-main)' }}>{record.guestName || 'Valued Guest'}</strong>
+                </div>
               </div>
+
+              {shareActions}
             </div>
 
-            {/* VISUAL STEPPER (5 STAGES) */}
-            <div style={{ marginBottom: '2rem' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' }}>
-                Processing Progress
+            {/* Responsive 5-Stage Visual Stepper */}
+            <div style={{ ...subSurfaceStyle, marginBottom: '1.5rem' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1.1rem', letterSpacing: '0.06em' }}>
+                Step-by-Step Progress
               </div>
 
               {(() => {
                 const currentStage = getDocumentProgressStage(record);
                 const steps = [
-                  { label: 'Received', desc: record.receiveDate || 'Documents In' },
-                  { label: 'Verification', desc: record.processType || 'Verified' },
-                  { label: 'Embassy / Process', desc: record.estimatedDone ? `Est. ${record.estimatedDone}` : 'In Progress' },
-                  { label: 'Delivery / Courier', desc: record.shippingCourier || 'Dispatched' },
-                  { label: 'Completed', desc: 'Ready / Delivered' }
+                  { label: 'Received', desc: record.receiveDate ? formatFriendlyDate(record.receiveDate) : 'Documents logged' },
+                  { label: 'Reviewed', desc: `${record.processType} service` },
+                  { label: 'Embassy / Process', desc: record.estimatedDone ? `Est. ${formatFriendlyDate(record.estimatedDone)}` : 'Being processed' },
+                  { label: 'On Delivery', desc: record.shippingCourier || 'Courier dispatch' },
+                  { label: 'Ready / Delivered', desc: record.sendDate ? formatFriendlyDate(record.sendDate) : 'Complete' }
                 ];
 
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.5rem', position: 'relative' }}>
+                  <div className="tracker-stepper-grid">
                     {steps.map((step, idx) => {
                       const isPast = idx < currentStage;
                       const isCurrent = idx === currentStage;
-                      const isUpcoming = idx > currentStage;
 
                       return (
-                        <div key={step.label} style={{ textAlign: 'center', position: 'relative' }}>
-                          {/* Step Circle */}
-                          <div style={{
-                            width: '34px', height: '34px', borderRadius: '50%',
-                            margin: '0 auto 0.5rem auto',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: isPast || isCurrent 
-                              ? 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)' 
-                              : 'rgba(255, 255, 255, 0.05)',
-                            border: `2px solid ${isCurrent ? '#38bdf8' : isPast ? '#06b6d4' : 'rgba(255, 255, 255, 0.15)'}`,
-                            color: isPast || isCurrent ? '#ffffff' : '#64748b',
-                            fontWeight: '700', fontSize: '0.8rem',
-                            boxShadow: isCurrent ? '0 0 15px rgba(6, 182, 212, 0.5)' : 'none'
-                          }}>
-                            {isPast ? <CheckCircle2 size={18} /> : (idx + 1)}
+                        <div key={step.label} className="tracker-stepper-item" style={{ textAlign: 'center', position: 'relative' }}>
+                          <div
+                            className="tracker-stepper-circle"
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              margin: '0 auto 0.55rem auto',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: isPast || isCurrent
+                                ? 'linear-gradient(135deg, #00b4ff 0%, #0072f5 100%)'
+                                : isLight ? '#e8f3ff' : 'rgba(255, 255, 255, 0.06)',
+                              border: `2px solid ${isCurrent ? '#38bdf8' : isPast ? '#0095ff' : 'var(--border)'}`,
+                              color: isPast || isCurrent ? '#ffffff' : 'var(--text-subtle)',
+                              fontWeight: '700',
+                              fontSize: '0.825rem',
+                              boxShadow: isCurrent ? '0 0 18px rgba(0, 180, 255, 0.45)' : 'none'
+                            }}
+                          >
+                            {isPast ? <CheckCircle2 size={18} /> : idx + 1}
                           </div>
-                          <div style={{
-                            fontSize: '0.75rem', fontWeight: isCurrent ? '800' : '600',
-                            color: isCurrent ? '#38bdf8' : isPast ? '#ffffff' : '#64748b',
-                            marginBottom: '2px'
-                          }}>
-                            {step.label}
-                          </div>
-                          <div style={{ fontSize: '0.675rem', color: '#94a3b8' }}>
-                            {step.desc}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: '0.8rem',
+                                fontWeight: isCurrent ? '800' : '600',
+                                color: isCurrent ? 'var(--primary)' : isPast ? 'var(--text-main)' : 'var(--text-subtle)',
+                                marginBottom: '2px'
+                              }}
+                            >
+                              {step.label}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                              {step.desc}
+                            </div>
                           </div>
                         </div>
                       );
@@ -476,288 +636,360 @@ const PublicTracker = () => {
               })()}
             </div>
 
-            {/* Visa Appointment Highlight Card in Public Tracker */}
+            {/* Visa Appointment Callout */}
             {record.appointmentDate && (
-              <div style={{
-                padding: '1.25rem',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.12) 0%, rgba(245, 158, 11, 0.05) 100%)',
-                border: '1.5px solid rgba(234, 179, 8, 0.35)',
-                marginBottom: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem'
-              }}>
+              <div
+                style={{
+                  padding: '1.25rem',
+                  borderRadius: '14px',
+                  background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.1)',
+                  border: `1.5px solid ${isLight ? '#fde68a' : 'rgba(245, 158, 11, 0.35)'}`,
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '10px',
-                      background: 'rgba(234, 179, 8, 0.2)', color: '#fbbf24',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '10px',
+                        background: 'rgba(245, 158, 11, 0.18)',
+                        color: 'var(--warning)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
                       <Calendar size={20} />
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.725rem', fontWeight: '800', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Jadwal Appointment Visa Anda
+                      <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--warning)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Your Visa Appointment
                       </div>
-                      <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#ffffff' }}>
-                        {record.appointmentDate} {record.appointmentTime ? `• Pukul ${record.appointmentTime}` : ''}
+                      <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                        {formatFriendlyDate(record.appointmentDate)} {record.appointmentTime ? `• ${record.appointmentTime}` : ''}
                       </div>
                     </div>
                   </div>
 
                   {(() => {
                     const days = getDaysCountdown(record.appointmentDate);
-                    if (days === 0) {
-                      return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', fontSize: '0.75rem', fontWeight: '800' }}>🔴 Hari Ini</span>;
-                    } else if (days === 1) {
-                      return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', fontSize: '0.75rem', fontWeight: '800' }}>🟡 Besok</span>;
-                    } else if (days > 1) {
-                      return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', fontSize: '0.75rem', fontWeight: '800' }}>🟢 {days} Hari Lagi</span>;
-                    }
-                    return <span style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(100, 116, 139, 0.2)', color: '#94a3b8', fontSize: '0.75rem', fontWeight: '600' }}>Telah Lewat</span>;
+                    if (days === 0) return <span className="badge badge-danger">Today</span>;
+                    if (days === 1) return <span className="badge badge-warning">Tomorrow</span>;
+                    if (days > 1) return <span className="badge badge-success">In {days} days</span>;
+                    return <span className="badge badge-primary">Completed</span>;
                   })()}
                 </div>
 
                 {record.appointmentLocation && (
-                  <div style={{
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontSize: '0.85rem'
-                  }}>
-                    <MapPin size={16} color="#f43f5e" style={{ flexShrink: 0 }} />
-                    <span style={{ color: '#cbd5e1' }}>
-                      <strong style={{ color: '#f8fafc' }}>Lokasi:</strong> {record.appointmentLocation}
+                  <div
+                    style={{
+                      background: isLight ? '#ffffff' : 'rgba(5, 10, 22, 0.5)',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <MapPin size={16} color="var(--danger)" style={{ flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      <strong style={{ color: 'var(--text-main)' }}>Location:</strong> {record.appointmentLocation}
                     </span>
                   </div>
                 )}
 
-                <div style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                  ℹ️ Mohon hadir minimal 15-20 menit sebelum jadwal dengan membawa paspor asli, pasfoto, dan dokumen pendukung asli.
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Friendly reminder: Please arrive 15–20 minutes early with your original passport, photos, and supporting documents.
                 </div>
               </div>
             )}
 
-            {/* Courier / Shipping Resi Callout Card */}
+            {/* Courier Resi Callout */}
             {record.shippingResi && (
-              <div style={{
-                padding: '1rem',
-                borderRadius: '12px',
-                background: 'rgba(6, 182, 212, 0.1)',
-                border: '1px solid rgba(6, 182, 212, 0.3)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-                marginBottom: '1.5rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '10px',
-                    background: 'rgba(6, 182, 212, 0.2)', color: '#06b6d4',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <Truck size={22} />
+              <div
+                style={{
+                  padding: '1.1rem 1.25rem',
+                  borderRadius: '14px',
+                  background: isLight ? '#eff8ff' : 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid var(--border-hover)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  marginBottom: '1.5rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '11px',
+                      background: 'var(--primary-glow)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Truck size={21} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.725rem', fontWeight: '700', color: '#06b6d4', textTransform: 'uppercase' }}>
-                      Courier Dispatch & Tracking Number
+                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--primary)', textTransform: 'uppercase' }}>
+                      Courier Tracking Number
                     </div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#ffffff' }}>
+                    <div className="font-mono" style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)' }}>
                       {record.shippingCourier ? `${record.shippingCourier}: ` : ''}{record.shippingResi}
                     </div>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(record.shippingResi);
-                    alert(`Courier Resi number "${record.shippingResi}" copied!`);
-                  }}
-                  style={{
-                    padding: '0.45rem 0.85rem', borderRadius: '8px',
-                    background: '#06b6d4', color: '#ffffff', border: 'none',
-                    fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer'
-                  }}
+                  type="button"
+                  onClick={() => handleCopyResi(record.shippingResi)}
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 0.95rem', fontSize: '0.8rem' }}
                 >
-                  Copy Resi
+                  {copiedResi ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{copiedResi ? 'Copied!' : 'Copy Number'}</span>
                 </button>
               </div>
             )}
 
-            {/* Information Grid */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '0.85rem',
-              background: 'rgba(0, 0, 0, 0.25)',
-              borderRadius: '12px',
-              padding: '1rem',
-              border: '1px solid rgba(255, 255, 255, 0.06)'
-            }}>
+            {/* Key Summary Grid */}
+            <div
+              style={{
+                ...subSurfaceStyle,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '1rem'
+              }}
+            >
               <div>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Booking Reference</span>
-                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#ffffff' }}>{record.bookingCode || '-'}</div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Booking Reference</span>
+                <div style={{ fontWeight: '700', fontSize: '0.925rem', color: 'var(--text-main)', marginTop: '2px' }}>
+                  {record.bookingCode || '-'}
+                </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Target Completion</span>
-                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#38bdf8' }}>{record.estimatedDone || '-'}</div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Estimated Ready Date</span>
+                <div style={{ fontWeight: '700', fontSize: '0.925rem', color: 'var(--primary)', marginTop: '2px' }}>
+                  {formatFriendlyDate(record.estimatedDone)}
+                </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Process Type</span>
-                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#ffffff' }}>{record.processType}</div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Service Tier</span>
+                <div style={{ fontWeight: '700', fontSize: '0.925rem', color: 'var(--text-main)', marginTop: '2px' }}>
+                  {record.processType}
+                </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Delivery Status</span>
-                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#34d399' }}>{record.shippingStatus}</div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Current Status</span>
+                <div style={{ fontWeight: '700', fontSize: '0.925rem', color: 'var(--success)', marginTop: '2px' }}>
+                  {record.shippingStatus}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* RESULT: TOUR DETAILS */}
+        {/* RESULT 2: TOUR DETAILS */}
         {record && record.type === 'tour' && (
-          <div style={{
-            background: 'rgba(30, 41, 59, 0.5)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '16px',
-            padding: '1.75rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 15px 35px rgba(0, 0, 0, 0.3)'
-          }}>
+          <div className="card fade-in" style={{ borderRadius: '20px', padding: '1.85rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
               <div>
-                <span style={{
-                  padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700',
-                  background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.35)'
-                }}>
-                  TOUR ITINERARY PASS
+                <span className="badge badge-primary" style={{ marginBottom: '0.5rem' }}>
+                  <Plane size={13} /> Tour Itinerary Pass
                 </span>
-                <h3 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '1.5rem', fontWeight: '800', color: '#ffffff' }}>
+                <h2 style={{ margin: '0.2rem 0 0.3rem 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>
                   {record.tourCode} • {record.country}
-                </h3>
-                <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-                  Category: <strong>{record.category || 'Leisure'}</strong> • {record.paxCount} Participant(s)
+                </h2>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  {record.category || 'Leisure'} Trip • <strong style={{ color: 'var(--text-main)' }}>{record.paxCount} Traveler(s)</strong>
                 </div>
               </div>
 
-              {/* Countdown Pill */}
-              {(() => {
-                const days = getDaysCountdown(record.departureDate);
-                if (days !== null) {
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.65rem' }}>
+                {shareActions}
+                {(() => {
+                  const days = getDaysCountdown(record.departureDate);
+                  if (days === null) return null;
                   return (
-                    <div style={{
-                      padding: '0.5rem 1rem', borderRadius: '12px',
-                      background: days > 0 ? 'rgba(6, 182, 212, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                      border: `1px solid ${days > 0 ? 'rgba(6, 182, 212, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: '700', color: days > 0 ? '#06b6d4' : '#34d399', textTransform: 'uppercase' }}>
-                        Departure Countdown
-                      </div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#ffffff' }}>
-                        {days > 0 ? `${days} Days Left` : days === 0 ? 'Departs TODAY!' : 'Tour Departed'}
-                      </div>
-                    </div>
+                    <span className={`badge ${days >= 0 ? 'badge-primary' : 'badge-success'}`} style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem' }}>
+                      {days > 0 ? `Departs in ${days} days` : days === 0 ? 'Departs Today!' : 'Trip Underway / Completed'}
+                    </span>
                   );
-                }
-                return null;
-              })()}
-            </div>
-
-            {/* Travel Dates Card */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem',
-              background: 'rgba(0, 0, 0, 0.25)', borderRadius: '12px',
-              padding: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.06)',
-              marginBottom: '1.5rem'
-            }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '4px' }}>Departure Date</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#38bdf8' }}>
-                  {record.departureDate ? new Date(record.departureDate + 'T00:00:00').toLocaleDateString('en-US', { dateStyle: 'full' }) : '-'}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '4px' }}>Return Date</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#ffffff' }}>
-                  {record.returnDate ? new Date(record.returnDate + 'T00:00:00').toLocaleDateString('en-US', { dateStyle: 'full' }) : '-'}
-                </div>
+                })()}
               </div>
             </div>
 
-            {/* Travel Advisory Note */}
-            <div style={{
-              padding: '1rem', borderRadius: '10px',
-              background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)',
-              color: '#fde047', fontSize: '0.8rem', lineHeight: '1.5'
-            }}>
-              <strong>💡 Tour Preparation Tip:</strong> Please ensure your passport is valid for at least 6 months beyond your return date. Arrive at the airport departure terminal 3 hours prior to international flights.
+            <div
+              style={{
+                ...subSurfaceStyle,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1.35rem'
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginBottom: '4px' }}>Departure Date</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--primary)' }}>
+                  {formatFriendlyDate(record.departureDate)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginBottom: '4px' }}>Return Date</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                  {formatFriendlyDate(record.returnDate)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginBottom: '4px' }}>Booking Status</div>
+                <div style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--success)' }}>
+                  {record.status || 'Confirmed'}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '1rem 1.15rem',
+                borderRadius: '12px',
+                background: isLight ? '#eff8ff' : 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
+                fontSize: '0.825rem',
+                lineHeight: '1.55'
+              }}
+            >
+              <strong style={{ color: 'var(--text-main)' }}>Helpful Travel Tip:</strong> Make sure your passport is valid for at least 6 months past your return date, and plan to arrive at the airport 3 hours before international flights.
             </div>
           </div>
         )}
 
-        {/* RESULT: HOTEL DETAILS */}
+        {/* RESULT 3: HOTEL DETAILS */}
         {record && record.type === 'hotel' && (
-          <div style={{
-            background: 'rgba(30, 41, 59, 0.5)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '16px',
-            padding: '1.75rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 15px 35px rgba(0, 0, 0, 0.3)'
-          }}>
-            <span style={{
-              padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700',
-              background: 'rgba(245, 158, 11, 0.2)', color: '#fcd34d', border: '1px solid rgba(245, 158, 11, 0.35)'
-            }}>
-              HOTEL VOUCHER PASS
-            </span>
-            <h3 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '1.5rem', fontWeight: '800', color: '#ffffff' }}>
-              {record.hotelName}
-            </h3>
-            <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Region: {record.region} • Room Type: {record.roomType || 'Standard'}
+          <div className="card fade-in" style={{ borderRadius: '20px', padding: '1.85rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.4rem' }}>
+              <div>
+                <span className="badge badge-primary" style={{ marginBottom: '0.5rem' }}>
+                  <Building size={13} /> Hotel Stay Voucher
+                </span>
+                <h2 style={{ margin: '0.2rem 0 0.3rem 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                  {record.hotelName}
+                </h2>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  {record.region || 'Destination'} • Room: <strong style={{ color: 'var(--text-main)' }}>{record.roomType || 'Standard'}</strong>
+                </div>
+              </div>
+              {shareActions}
             </div>
 
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem',
-              background: 'rgba(0, 0, 0, 0.25)', borderRadius: '12px', padding: '1.25rem'
-            }}>
+            <div
+              style={{
+                ...subSurfaceStyle,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                gap: '1rem'
+              }}
+            >
               <div>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Check-In</span>
-                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#f59e0b' }}>{record.checkIn}</div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Check-In</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--primary)', marginTop: '2px' }}>
+                  {formatFriendlyDate(record.checkIn)}
+                </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Check-Out</span>
-                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#ffffff' }}>{record.checkOut}</div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Check-Out</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
+                  {formatFriendlyDate(record.checkOut)}
+                </div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Confirmation No.</span>
+                <div className="font-mono" style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '2px' }}>
+                  {record.confirmationNumber || record.id}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Customer Care Footer */}
-        <div style={{
-          textAlign: 'center',
-          padding: '2rem 1rem',
-          color: '#64748b',
-          fontSize: '0.8rem'
-        }}>
-          <div>Protected by TravelOps Operations Suite • Verified Real-time Tracking</div>
-          <div style={{ marginTop: '0.5rem' }}>
-            Need help with your itinerary or documents? Please contact your travel consultant or agency helpdesk.
-          </div>
-        </div>
+        {/* RESULT 4: CRUISE DETAILS (Newly Rendered!) */}
+        {record && record.type === 'cruise' && (
+          <div className="card fade-in" style={{ borderRadius: '20px', padding: '1.85rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.4rem' }}>
+              <div>
+                <span className="badge badge-primary" style={{ marginBottom: '0.5rem' }}>
+                  <Ship size={13} /> Cruise Voyage Pass
+                </span>
+                <h2 style={{ margin: '0.2rem 0 0.3rem 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                  {record.shipName || 'Cruise Booking'} {record.cruiseBrand ? `• ${record.cruiseBrand}` : ''}
+                </h2>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  Voyage Route: <strong style={{ color: 'var(--text-main)' }}>{record.route || 'International Sailing'}</strong>
+                </div>
+              </div>
+              {shareActions}
+            </div>
 
-      </div>
+            <div
+              style={{
+                ...subSurfaceStyle,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                gap: '1rem'
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Embarkation</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--primary)', marginTop: '2px' }}>
+                  {formatFriendlyDate(record.sailingStart)}
+                </div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Disembarkation</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
+                  {formatFriendlyDate(record.sailingEnd)}
+                </div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Booking Reference</span>
+                <div className="font-mono" style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '2px' }}>
+                  {record.bookingRef || record.id}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Warm Customer Care Footer */}
+        <footer
+          style={{
+            textAlign: 'center',
+            padding: '1.75rem 1rem 0.5rem',
+            color: 'var(--text-subtle)',
+            fontSize: '0.825rem',
+            lineHeight: '1.6'
+          }}
+        >
+          <div style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
+            Powered by TravelOps • Real-Time Travel &amp; Visa Concierge
+          </div>
+          <div>
+            Have questions about your trip? Reach out to your personal travel consultant anytime.
+          </div>
+        </footer>
+      </main>
     </div>
   );
 };

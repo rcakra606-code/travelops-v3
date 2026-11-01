@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import { useUsers } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import { Edit2, Trash2, Plus, X, Lock, Unlock, Key, User, Mail, Shield, Activity } from 'lucide-react';
 
 const UserManager = () => {
   const { users, addUser, updateUser, deleteUser } = useUsers();
+  const { toast } = useToast();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -49,7 +51,7 @@ const UserManager = () => {
       isLocked: false 
     });
     handleCloseResetModal();
-    alert("Password reset successfully. Account unlocked and user will be forced to change password on next login.");
+    toast.success('Password reset! Account unlocked and user will set a new password on next sign-in.');
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);

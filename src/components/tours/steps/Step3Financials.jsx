@@ -1,82 +1,52 @@
-import React, { useEffect } from 'react';
+import { Calculator, Users, Edit3 } from 'lucide-react';
 import { formatCurrency, parseCurrency } from '../../../utils/currency';
+import { useTheme } from '../../../context/ThemeContext';
+import { hasPerPaxPricing, computeFinancialsFromPax } from '../../../utils/tourHelpers';
 
-const Step3Financials = ({ data, updateData, errors, setErrors }) => {
+const Step3Financials = ({ data, updateData, errors, setErrors, onGoToPassengers }) => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
 
-  useEffect(() => {
-    // Auto calculate from Pax Info if provided
-    let totalBasicPrice = 0;
-    let totalDiscountSupplier = 0;
-    let totalDiscountBranch = 0;
-    let totalProfit = 0;
-    let hasPaxPrices = false;
+  const paxPricingActive = hasPerPaxPricing(data.paxInfo);
+  const financials = paxPricingActive
+    ? computeFinancialsFromPax(data.paxInfo, data.financials || {})
+    : data.financials || {};
 
-    if (Array.isArray(data.paxInfo) && data.paxInfo.length > 0) {
-      data.paxInfo.forEach(pax => {
-        const bp = Number(pax.basicPrice !== undefined && pax.basicPrice !== '' ? pax.basicPrice : pax.sellingPrice) || 0;
-        const ds = Number(pax.discountSupplier) || 0;
-        const db = Number(pax.discountBranch) || 0;
-        const legacyDisc = (pax.discount && !pax.discountSupplier && !pax.discountBranch) ? (Number(pax.discount) || 0) : 0;
-        const pf = Number(pax.profit) || 0;
-
-        if (bp > 0 || ds > 0 || db > 0 || pf > 0 || legacyDisc > 0) {
-          hasPaxPrices = true;
-        }
-
-        totalBasicPrice += bp;
-        totalDiscountSupplier += (ds + legacyDisc);
-        totalDiscountBranch += db;
-        totalProfit += pf;
-      });
-    }
-
-    if (!hasPaxPrices) {
-      totalBasicPrice = Number(data.financials?.basicTourPrice !== undefined ? data.financials.basicTourPrice : (data.financials?.totalSales || 0));
-      totalDiscountSupplier = Number(data.financials?.discountSupplier !== undefined ? data.financials.discountSupplier : (data.financials?.discount || 0));
-      totalDiscountBranch = Number(data.financials?.discountBranch || 0);
-      totalProfit = Number(data.financials?.profit || 0);
-    }
-
-    // Logic 1: Total selling price = Harga dasar tour - discount supplier - discount branch
-    const totalSellingPrice = totalBasicPrice - totalDiscountSupplier - totalDiscountBranch;
-
-    // Logic 2: Total nett price = Harga dasar tour - discount supplier - profit (untuk kebutuhan pembuatan invoice)
-    const totalNettPrice = totalBasicPrice - totalDiscountSupplier - totalProfit;
-
-    updateData({
-      financials: {
-        ...data.financials,
-        basicTourPrice: totalBasicPrice,
-        totalSales: totalBasicPrice, // Backwards compatibility
-        discountSupplier: totalDiscountSupplier,
-        discountBranch: totalDiscountBranch,
-        discount: totalDiscountSupplier + totalDiscountBranch, // Backwards compatibility
-        profit: totalProfit,
-        totalSellingPrice,
-        totalOmset: totalSellingPrice, // Backwards compatibility
-        totalNettPrice,
-        cost: totalNettPrice // Backwards compatibility
-      }
-    });
-  }, [data.paxInfo]); // Re-run when paxInfo changes
+  const basicPrice =
+    financials.basicTourPrice !== undefined
+      ? Number(financials.basicTourPrice) || 0
+      : Number(financials.totalSales) || 0;
+  const discSupplier = Number(financials.discountSupplier || 0);
+  const discBranch = Number(financials.discountBranch || 0);
+  const profitVal = Number(financials.profit || 0);
+  const totalSellingPrice =
+    financials.totalSellingPrice !== undefined
+      ? Number(financials.totalSellingPrice) || 0
+      : basicPrice - discSupplier - discBranch;
+  const totalNettPrice =
+    financials.totalNettPrice !== undefined
+      ? Number(financials.totalNettPrice) || 0
+      : basicPrice - discSupplier - profitVal;
+  const depositAmount = Number(financials.depositAmount || 0);
+  const sisaPelunasan = totalSellingPrice - depositAmount;
+  const sisaCostAgent = totalNettPrice - depositAmount;
+  const profitMarginPct =
+    totalSellingPrice > 0 ? ((profitVal / totalSellingPrice) * 100).toFixed(1) : '0.0';
 
   const handleCurrencyFieldChange = (field, value) => {
     if (!/^[0-9,]*$/.test(value)) return;
     const parsed = parseCurrency(value);
     const parsedVal = parsed === 0 && value !== '0' ? 0 : parsed;
 
-    const fin = { ...data.financials, [field]: parsedVal };
+    const fin = { ...(data.financials || {}), [field]: parsedVal };
+    const basic = field === 'basicTourPrice' ? parsedVal : Number(fin.basicTourPrice) || 0;
+    const dSupp = field === 'discountSupplier' ? parsedVal : Number(fin.discountSupplier) || 0;
+    const dBranch = field === 'discountBranch' ? parsedVal : Number(fin.discountBranch) || 0;
+    const prof = field === 'profit' ? parsedVal : Number(fin.profit) || 0;
 
-    const basic = field === 'basicTourPrice' ? parsedVal : (Number(fin.basicTourPrice) || 0);
-    const dSupp = field === 'discountSupplier' ? parsedVal : (Number(fin.discountSupplier) || 0);
-    const dBranch = field === 'discountBranch' ? parsedVal : (Number(fin.discountBranch) || 0);
-    const prof = field === 'profit' ? parsedVal : (Number(fin.profit) || 0);
-
-    // Logic 1: Total selling price = Harga dasar tour - discount supplier - discount branch
-    const totalSellingPrice = basic - dSupp - dBranch;
-
-    // Logic 2: Total nett price = Harga dasar tour - discount supplier - profit
-    const totalNettPrice = basic - dSupp - prof;
+    const nextSelling = basic - dSupp - dBranch;
+    const nextNett = basic - dSupp - prof;
+    const depAmt = Number(fin.depositAmount || 0);
 
     updateData({
       financials: {
@@ -87,300 +57,637 @@ const Step3Financials = ({ data, updateData, errors, setErrors }) => {
         discountBranch: dBranch,
         discount: dSupp + dBranch,
         profit: prof,
-        totalSellingPrice,
-        totalOmset: totalSellingPrice,
-        totalNettPrice,
-        cost: totalNettPrice
+        totalSellingPrice: nextSelling,
+        totalOmset: nextSelling,
+        totalNettPrice: nextNett,
+        cost: nextNett,
+        sisaPelunasan: nextSelling - depAmt
       }
     });
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'depositNumber' && setErrors) {
-      if (value.trim()) {
-        setErrors(prev => ({ ...prev, depositNumber: null }));
-      }
+    if (name === 'depositNumber' && setErrors && value.trim()) {
+      setErrors((prev) => ({ ...prev, depositNumber: null }));
     }
     updateData({
       financials: {
-        ...data.financials,
+        ...financials,
         [name]: value
       }
     });
   };
 
-  const { financials } = data;
-  const basicPrice = financials.basicTourPrice !== undefined ? financials.basicTourPrice : (financials.totalSales || 0);
-  const discSupplier = financials.discountSupplier || 0;
-  const discBranch = financials.discountBranch || 0;
-  const profitVal = financials.profit || 0;
-  const totalSellingPrice = financials.totalSellingPrice !== undefined ? financials.totalSellingPrice : (basicPrice - discSupplier - discBranch);
-  const totalNettPrice = financials.totalNettPrice !== undefined ? financials.totalNettPrice : (basicPrice - discSupplier - profitVal);
-  const depositAmount = Number(financials.depositAmount || 0);
-  const sisaPelunasan = totalSellingPrice - depositAmount;
-  const sisaCostAgent = totalNettPrice - depositAmount;
+  const handleSetDepositPreset = (amount) => {
+    const safeAmt = Math.max(0, Math.round(amount));
+    updateData({
+      financials: {
+        ...financials,
+        depositAmount: safeAmt,
+        sisaPelunasan: totalSellingPrice - safeAmt
+      }
+    });
+  };
 
   return (
     <div>
-      <h2 style={{ marginBottom: '1.5rem' }}>Step 3: Perhitungan Biaya (Financial Summary)</h2>
-      
-      <div className="card" style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.65rem' }}>
-          <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '700' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginBottom: '1.35rem'
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)' }}>
+            Step 3: Financials, Deposit &amp; Invoice
+          </h2>
+          <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+            Review group revenue, supplier/branch discounts, deposit receipt, and settlement balance.
+          </p>
+        </div>
+
+        {paxPricingActive ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span className="badge badge-primary" style={{ fontSize: '0.73rem' }}>
+              <Users size={12} /> Auto-summed from {data.paxInfo?.length || 1} travelers
+            </span>
+            {onGoToPassengers && (
+              <button
+                type="button"
+                onClick={onGoToPassengers}
+                className="btn btn-secondary"
+                style={{ padding: '0.32rem 0.7rem', fontSize: '0.76rem' }}
+              >
+                <Edit3 size={12} /> Edit Per-Pax Prices
+              </button>
+            )}
+          </div>
+        ) : (
+          <span
+            className="badge badge-primary"
+            style={{ fontSize: '0.73rem' }}
+          >
+            <Calculator size={12} /> Group Lump-Sum Input Mode
+          </span>
+        )}
+      </div>
+
+      {/* Cost Breakdown Card */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            marginBottom: '1.15rem',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: '0.65rem'
+          }}
+        >
+          <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1rem', fontWeight: '700' }}>
             Rincian &amp; Perhitungan Biaya Tour
           </h3>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Otomatis terakumulasi dari Data Penumpang (Step 2)
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            {paxPricingActive
+              ? 'Calculated automatically from Passenger Information (Step 2)'
+              : 'Enter group totals directly below (or enter per-traveler in Step 2)'}
           </span>
         </div>
-        
-        {/* Cost Breakdown Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
-          
+
+        {/* 4 Breakdown Boxes (Editable when no per-pax prices, Read-Only Summary when per-pax prices exist) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '1rem',
+            marginBottom: '1.25rem'
+          }}
+        >
           {/* 1. Harga Dasar Tour */}
-          <div style={{ padding: '0.85rem 1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>
-              Harga Dasar Tour (Basic Tour Price)
+          <div
+            style={{
+              padding: '0.9rem 1rem',
+              background: isLight ? '#f8fbff' : 'rgba(255, 255, 255, 0.03)',
+              borderRadius: '10px',
+              border: '1px solid var(--border)'
+            }}
+          >
+            <label
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.78rem',
+                fontWeight: '600',
+                display: 'block',
+                marginBottom: '0.35rem'
+              }}
+            >
+              Harga Dasar Tour (Basic Price)
+            </label>
+            {paxPricingActive ? (
+              <div className="font-mono" style={{ fontWeight: '800', fontSize: '1.15rem', color: 'var(--text-main)' }}>
+                Rp {formatCurrency(basicPrice)}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={formatCurrency(basicPrice)}
+                onChange={(e) => handleCurrencyFieldChange('basicTourPrice', e.target.value)}
+                placeholder="0"
+                className="font-mono"
+                style={{ fontWeight: '700' }}
+              />
+            )}
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'block', marginTop: '0.25rem' }}>
+              Gross published group price
             </span>
-            <div style={{ fontWeight: '700', fontSize: '1.15rem', color: 'var(--text-main)', fontFamily: 'monospace' }}>
-              Rp {formatCurrency(basicPrice)}
-            </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Menggantikan Selling Price</span>
           </div>
-          
+
           {/* 2. Nominal Profit */}
-          <div style={{ padding: '0.85rem 1rem', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>
-              Nominal Profit (Profit)
-            </span>
-            <div style={{ fontWeight: '700', fontSize: '1.15rem', color: 'var(--success)', fontFamily: 'monospace' }}>
-              Rp {formatCurrency(profitVal)}
+          <div
+            style={{
+              padding: '0.9rem 1rem',
+              background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.06)',
+              borderRadius: '10px',
+              border: '1px solid rgba(16, 185, 129, 0.25)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: '600' }}>
+                Nominal Profit
+              </label>
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: '700',
+                  padding: '0.1rem 0.45rem',
+                  borderRadius: '9999px',
+                  background: 'rgba(16, 185, 129, 0.16)',
+                  color: isLight ? '#047857' : '#34d399'
+                }}
+              >
+                {profitMarginPct}% margin
+              </span>
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Margin keuntungan tour</span>
+            {paxPricingActive ? (
+              <div
+                className="font-mono"
+                style={{ fontWeight: '800', fontSize: '1.15rem', color: isLight ? '#047857' : '#34d399' }}
+              >
+                Rp {formatCurrency(profitVal)}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={formatCurrency(profitVal)}
+                onChange={(e) => handleCurrencyFieldChange('profit', e.target.value)}
+                placeholder="0"
+                className="font-mono"
+                style={{ fontWeight: '700' }}
+              />
+            )}
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'block', marginTop: '0.25rem' }}>
+              Agency operational margin
+            </span>
           </div>
 
           {/* 3. Discount Supplier */}
-          <div style={{ padding: '0.85rem 1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: '0.5rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>
+          <div
+            style={{
+              padding: '0.9rem 1rem',
+              background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.06)',
+              borderRadius: '10px',
+              border: '1px solid rgba(245, 158, 11, 0.25)'
+            }}
+          >
+            <label
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.78rem',
+                fontWeight: '600',
+                display: 'block',
+                marginBottom: '0.35rem'
+              }}
+            >
               Discount Supplier
+            </label>
+            {paxPricingActive ? (
+              <div
+                className="font-mono"
+                style={{ fontWeight: '800', fontSize: '1.15rem', color: isLight ? '#b45309' : '#fbbf24' }}
+              >
+                - Rp {formatCurrency(discSupplier)}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={formatCurrency(discSupplier)}
+                onChange={(e) => handleCurrencyFieldChange('discountSupplier', e.target.value)}
+                placeholder="0"
+                className="font-mono"
+                style={{ fontWeight: '700' }}
+              />
+            )}
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'block', marginTop: '0.25rem' }}>
+              Vendor / airline / operator discount
             </span>
-            <div style={{ fontWeight: '700', fontSize: '1.15rem', color: '#fbbf24', fontFamily: 'monospace' }}>
-              - Rp {formatCurrency(discSupplier)}
-            </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Potongan harga dari vendor/supplier</span>
           </div>
 
           {/* 4. Discount Branch */}
-          <div style={{ padding: '0.85rem 1rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: '0.5rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: '0.25rem' }}>
+          <div
+            style={{
+              padding: '0.9rem 1rem',
+              background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.06)',
+              borderRadius: '10px',
+              border: '1px solid rgba(245, 158, 11, 0.25)'
+            }}
+          >
+            <label
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.78rem',
+                fontWeight: '600',
+                display: 'block',
+                marginBottom: '0.35rem'
+              }}
+            >
               Discount Branch
+            </label>
+            {paxPricingActive ? (
+              <div
+                className="font-mono"
+                style={{ fontWeight: '800', fontSize: '1.15rem', color: isLight ? '#b45309' : '#fbbf24' }}
+              >
+                - Rp {formatCurrency(discBranch)}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={formatCurrency(discBranch)}
+                onChange={(e) => handleCurrencyFieldChange('discountBranch', e.target.value)}
+                placeholder="0"
+                className="font-mono"
+                style={{ fontWeight: '700' }}
+              />
+            )}
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'block', marginTop: '0.25rem' }}>
+              Branch promotional discount
             </span>
-            <div style={{ fontWeight: '700', fontSize: '1.15rem', color: '#fbbf24', fontFamily: 'monospace' }}>
-              - Rp {formatCurrency(discBranch)}
-            </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Potongan harga cabang</span>
           </div>
         </div>
 
         {/* Highlighted Results Banner */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-          
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1rem',
+            marginTop: '1rem'
+          }}
+        >
           {/* Formula 1: Total Selling Price After Discount */}
-          <div style={{ 
-            padding: '1.15rem', 
-            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(59, 130, 246, 0.06))', 
-            borderRadius: '0.75rem', 
-            border: '1.5px solid rgba(6, 182, 212, 0.35)',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-              <span style={{ color: 'var(--primary)', fontWeight: '700', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Total Selling Price After Discount
+          <div
+            style={{
+              padding: '1.15rem',
+              background: isLight
+                ? 'linear-gradient(135deg, #eff8ff 0%, #e0f2fe 100%)'
+                : 'linear-gradient(135deg, rgba(0, 168, 255, 0.14), rgba(0, 119, 255, 0.06))',
+              borderRadius: '12px',
+              border: `1.5px solid ${isLight ? '#7dd3fc' : 'rgba(0, 168, 255, 0.35)'}`
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+              <span
+                style={{
+                  color: 'var(--primary)',
+                  fontWeight: '800',
+                  fontSize: '0.82rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em'
+                }}
+              >
+                Total Selling Price (After Disc)
               </span>
-              <span style={{ background: 'rgba(6, 182, 212, 0.2)', color: 'var(--primary)', fontSize: '0.675rem', fontWeight: '700', padding: '2px 6px', borderRadius: '4px' }}>
+              <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
                 Omset
               </span>
             </div>
-            <div style={{ fontWeight: '800', color: 'var(--primary)', fontSize: '1.45rem', fontFamily: 'monospace', marginBottom: '0.35rem' }}>
+            <div
+              className="font-mono"
+              style={{
+                fontWeight: '800',
+                color: 'var(--primary)',
+                fontSize: '1.45rem',
+                marginBottom: '0.3rem'
+              }}
+            >
               Rp {formatCurrency(totalSellingPrice)}
             </div>
             <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-              = Harga Dasar ({formatCurrency(basicPrice)}) - Disc Supplier ({formatCurrency(discSupplier)}) - Disc Branch ({formatCurrency(discBranch)})
+              = Basic ({formatCurrency(basicPrice)}) - Disc Supplier ({formatCurrency(discSupplier)}) - Disc Branch ({formatCurrency(discBranch)})
             </div>
           </div>
 
-          {/* Formula 2: Total Nett Price (Cost) - Kebutuhan Invoice */}
-          <div style={{ 
-            padding: '1.15rem', 
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.06))', 
-            borderRadius: '0.75rem', 
-            border: '1.5px solid rgba(16, 185, 129, 0.35)',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-              <span style={{ color: '#34d399', fontWeight: '700', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {/* Formula 2: Total Nett Price (Cost) */}
+          <div
+            style={{
+              padding: '1.15rem',
+              background: isLight
+                ? 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)'
+                : 'linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(5, 150, 105, 0.06))',
+              borderRadius: '12px',
+              border: `1.5px solid ${isLight ? '#6ee7b7' : 'rgba(16, 185, 129, 0.35)'}`
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+              <span
+                style={{
+                  color: isLight ? '#047857' : '#34d399',
+                  fontWeight: '800',
+                  fontSize: '0.82rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em'
+                }}
+              >
                 Total Nett Price (Cost)
               </span>
-              <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '0.675rem', fontWeight: '700', padding: '2px 6px', borderRadius: '4px' }}>
+              <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>
                 Invoice Base
               </span>
             </div>
-            <div style={{ fontWeight: '800', color: '#34d399', fontSize: '1.45rem', fontFamily: 'monospace', marginBottom: '0.35rem' }}>
+            <div
+              className="font-mono"
+              style={{
+                fontWeight: '800',
+                color: isLight ? '#047857' : '#34d399',
+                fontSize: '1.45rem',
+                marginBottom: '0.3rem'
+              }}
+            >
               Rp {formatCurrency(totalNettPrice)}
             </div>
             <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-              = Harga Dasar ({formatCurrency(basicPrice)}) - Disc Supplier ({formatCurrency(discSupplier)}) - Profit ({formatCurrency(profitVal)})
+              = Basic ({formatCurrency(basicPrice)}) - Disc Supplier ({formatCurrency(discSupplier)}) - Profit ({formatCurrency(profitVal)})
             </div>
           </div>
-
         </div>
       </div>
 
       {/* Operational Invoice & Deposit Settings */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-          <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1rem' }}>
-            Informasi Invoice &amp; Administrasi
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            marginBottom: '1rem',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: '0.55rem'
+          }}
+        >
+          <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1rem', fontWeight: '700' }}>
+            Deposit Receipt (DP) &amp; Invoice Administration
           </h3>
-          <span style={{ fontSize: '0.75rem', color: '#f87171', fontWeight: '700', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
-            * Nomor DP Wajib Diisi
+          <span className="badge badge-danger" style={{ fontSize: '0.72rem' }}>
+            * Nomor DP Required
           </span>
         </div>
 
         {errors?.depositNumber && (
-          <div style={{ 
-            background: 'rgba(239, 68, 68, 0.12)', 
-            border: '1.5px solid rgba(239, 68, 68, 0.4)', 
-            color: '#f87171', 
-            padding: '0.75rem 1rem', 
-            borderRadius: '8px', 
-            fontSize: '0.825rem', 
-            marginBottom: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-            <span><strong>Validasi Wajib Database:</strong> {errors.depositNumber}</span>
+          <div
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1.5px solid rgba(239, 68, 68, 0.4)',
+              color: 'var(--danger)',
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              fontSize: '0.825rem',
+              marginBottom: '1rem',
+              fontWeight: '600'
+            }}
+          >
+            {errors.depositNumber}
           </div>
         )}
 
         <div className="form-grid">
           <div className="input-group">
             <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Nomor DP (Deposit Number) <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></span>
-              <span style={{ fontSize: '0.675rem', color: financials.depositNumber?.trim() ? '#34d399' : '#f87171', fontWeight: '700' }}>
-                {financials.depositNumber?.trim() ? '✓ Valid' : 'Wajib Diisi'}
+              <span>
+                Nomor DP (Deposit Number) <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>*</span>
+              </span>
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  color: financials.depositNumber?.trim()
+                    ? isLight ? '#047857' : '#34d399'
+                    : 'var(--danger)',
+                  fontWeight: '700'
+                }}
+              >
+                {financials.depositNumber?.trim() ? 'Verified' : 'Required'}
               </span>
             </label>
-            <input 
-              type="text" 
-              name="depositNumber" 
-              value={financials.depositNumber || ''} 
-              onChange={handleChange} 
-              placeholder="e.g. DP-2024-001 / DEP-088" 
+            <input
+              type="text"
+              name="depositNumber"
+              value={financials.depositNumber || ''}
+              onChange={handleChange}
+              placeholder="e.g. DP-2026-001 / DEP-088"
               required
               style={{
-                borderColor: (errors?.depositNumber || (!financials.depositNumber || !financials.depositNumber.trim())) ? 'rgba(239, 68, 68, 0.65)' : undefined,
-                background: (!financials.depositNumber || !financials.depositNumber.trim()) ? 'rgba(239, 68, 68, 0.03)' : undefined
+                borderColor:
+                  errors?.depositNumber || !financials.depositNumber?.trim()
+                    ? 'rgba(239, 68, 68, 0.55)'
+                    : undefined
               }}
             />
-            {(!financials.depositNumber || !financials.depositNumber.trim()) ? (
-              <span style={{ fontSize: '0.725rem', color: '#f87171', marginTop: '4px', display: 'block' }}>
-                * Nomor DP wajib terinput sebelum konfirmasi dan disimpan ke database.
-              </span>
-            ) : (
-              <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                Nomor DP terverifikasi untuk pencatatan database.
-              </span>
-            )}
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px', display: 'block' }}>
+              Required deposit receipt reference before saving booking.
+            </span>
           </div>
 
           <div className="input-group">
             <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Nominal Deposit (IDR)</span>
-              <span style={{ fontSize: '0.675rem', color: '#38bdf8', fontWeight: '700' }}>Uang Muka / DP</span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: '700' }}>
+                Down Payment / DP
+              </span>
             </label>
-            <input 
-              type="text" 
-              name="depositAmount" 
-              value={formatCurrency(depositAmount)} 
+            <input
+              type="text"
+              name="depositAmount"
+              value={formatCurrency(depositAmount)}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^0-9]/g, '');
                 const val = Number(raw) || 0;
                 updateData({
                   financials: {
-                    ...data.financials,
+                    ...financials,
                     depositAmount: val,
                     sisaPelunasan: totalSellingPrice - val
                   }
                 });
-              }} 
-              placeholder="0" 
+              }}
+              placeholder="0"
+              className="font-mono"
             />
-            <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-              Nominal DP tamu untuk perhitungan Bukti Pelunasan Tour.
+            {totalSellingPrice > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>Quick set:</span>
+                {[
+                  { label: '25%', val: totalSellingPrice * 0.25 },
+                  { label: '30%', val: totalSellingPrice * 0.3 },
+                  { label: '50%', val: totalSellingPrice * 0.5 },
+                  { label: 'Lunas 100%', val: totalSellingPrice },
+                  { label: 'Clear', val: 0 }
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => handleSetDepositPreset(preset.val)}
+                    style={{
+                      padding: '0.16rem 0.5rem',
+                      borderRadius: '9999px',
+                      border: '1px solid var(--border)',
+                      background: isLight ? '#f4f9ff' : 'rgba(56, 189, 248, 0.08)',
+                      color: preset.label === 'Lunas 100%' ? 'var(--success)' : 'var(--primary)',
+                      fontSize: '0.68rem',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="input-group">
+            <label>Nomor Invoice (Optional if not issued yet)</label>
+            <input
+              type="text"
+              name="invoiceNumber"
+              value={financials.invoiceNumber || ''}
+              onChange={handleChange}
+              placeholder="e.g. INV-2026-001"
+            />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px', display: 'block' }}>
+              Can also be added anytime via Quick Invoice in All Bookings.
             </span>
           </div>
 
           <div className="input-group">
-            <label>Nomor Invoice (Opsional jika belum terbit)</label>
-            <input type="text" name="invoiceNumber" value={financials.invoiceNumber || ''} onChange={handleChange} placeholder="e.g. INV-2024-001" />
-            <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-              Dapat diinput sekarang atau menyusul melalui quick update.
-            </span>
-          </div>
-
-          <div className="input-group">
-            <label>Discount Proof Link</label>
-            <input type="url" name="discountLink" value={financials.discountLink || ''} onChange={handleChange} placeholder="https://..." />
-            <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-              Link bukti persetujuan diskon (jika ada).
+            <label>Discount Approval Link</label>
+            <input
+              type="url"
+              name="discountLink"
+              value={financials.discountLink || ''}
+              onChange={handleChange}
+              placeholder="https://..."
+            />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '3px', display: 'block' }}>
+              Link to branch/supplier discount approval document (if applicable).
             </span>
           </div>
         </div>
 
         {/* Live Pelunasan Preview Strip */}
-        <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-          
+        <div
+          style={{
+            marginTop: '1.25rem',
+            paddingTop: '1.25rem',
+            borderTop: '1px solid var(--border)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '1rem'
+          }}
+        >
           {/* Passenger Settlement Preview */}
-          <div style={{ padding: '0.85rem 1rem', background: 'rgba(56, 189, 248, 0.06)', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+          <div
+            style={{
+              padding: '0.9rem 1.05rem',
+              background: isLight ? '#f0f9ff' : 'rgba(0, 168, 255, 0.06)',
+              borderRadius: '10px',
+              border: `1px solid ${isLight ? '#bae6fd' : 'rgba(0, 168, 255, 0.25)'}`
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#38bdf8', textTransform: 'uppercase' }}>
-                Pelunasan Tamu (Passenger)
+              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--primary)', textTransform: 'uppercase' }}>
+                Sisa Pelunasan Tamu (Passenger)
               </span>
-              <span style={{ fontSize: '0.675rem', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                Selling Price - DP
+              <span className="badge badge-primary" style={{ fontSize: '0.66rem' }}>
+                Selling - DP
               </span>
             </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: '800', fontFamily: 'monospace', color: sisaPelunasan <= 0 && totalSellingPrice > 0 ? '#34d399' : 'var(--text-main)' }}>
+            <div
+              className="font-mono"
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: '800',
+                color:
+                  sisaPelunasan <= 0 && totalSellingPrice > 0
+                    ? isLight ? '#047857' : '#34d399'
+                    : 'var(--text-main)'
+              }}
+            >
               Rp {formatCurrency(Math.max(0, sisaPelunasan))}
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
               Total Jual ({formatCurrency(totalSellingPrice)}) - DP ({formatCurrency(depositAmount)})
-              {sisaPelunasan <= 0 && totalSellingPrice > 0 && <span style={{ color: '#34d399', fontWeight: 'bold' }}> (LUNAS)</span>}
+              {sisaPelunasan <= 0 && totalSellingPrice > 0 && (
+                <span style={{ color: isLight ? '#047857' : '#34d399', fontWeight: '800' }}> · LUNAS</span>
+              )}
             </div>
           </div>
 
           {/* Agent Cost Settlement Preview */}
-          <div style={{ padding: '0.85rem 1rem', background: 'rgba(16, 185, 129, 0.06)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+          <div
+            style={{
+              padding: '0.9rem 1.05rem',
+              background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.06)',
+              borderRadius: '10px',
+              border: `1px solid ${isLight ? '#a7f3d0' : 'rgba(16, 185, 129, 0.25)'}`
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#34d399', textTransform: 'uppercase' }}>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  color: isLight ? '#047857' : '#34d399',
+                  textTransform: 'uppercase'
+                }}
+              >
                 Pelunasan Cost / Invoice (Agent)
               </span>
-              <span style={{ fontSize: '0.675rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+              <span className="badge badge-success" style={{ fontSize: '0.66rem' }}>
                 Cost - DP
               </span>
             </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: '800', fontFamily: 'monospace', color: '#34d399' }}>
+            <div
+              className="font-mono"
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: '800',
+                color: isLight ? '#047857' : '#34d399'
+              }}
+            >
               Rp {formatCurrency(Math.max(0, sisaCostAgent))}
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
               Total Cost ({formatCurrency(totalNettPrice)}) - DP ({formatCurrency(depositAmount)})
             </div>
           </div>
-
         </div>
       </div>
     </div>

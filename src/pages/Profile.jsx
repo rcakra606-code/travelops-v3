@@ -4,10 +4,12 @@ import TopNav from '../components/TopNav';
 import { useAuth } from '../context/AuthContext';
 import { Palette, CheckCircle2, Eye, EyeOff, X } from 'lucide-react';
 import { useUsers } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 
 const Profile = () => {
   const { user } = useAuth();
   const { updateUser } = useUsers();
+  const { toast } = useToast();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   
   // Profile form state
@@ -44,19 +46,19 @@ const Profile = () => {
     e.preventDefault();
     if (user?.id) {
       updateUser(user.id, { name: personalData.name, email: personalData.email });
-      alert("Personal information updated!");
+      toast.success('Your profile details have been updated!');
     }
   };
 
   const handleSecuritySave = (e) => {
     e.preventDefault();
     if (securityData.newPassword !== securityData.confirmPassword) {
-      alert("Passwords do not match");
+      toast.error('New passwords do not match. Please double-check and try again.');
       return;
     }
     if (user?.id) {
       updateUser(user.id, { password: securityData.newPassword });
-      alert("Password updated!");
+      toast.success('Your password has been updated!');
       setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     }
   };

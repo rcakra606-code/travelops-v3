@@ -1,583 +1,736 @@
-import React, { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
+import {
+  BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight,
+  Activity, FileText, Clock, ArrowUpRight
+} from 'lucide-react';
 import { useTours } from '../../context/TourContext';
+import { useTheme } from '../../context/ThemeContext';
 import { formatCurrency } from '../../utils/currency';
-import { BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight, Activity, FileText, Clock } from 'lucide-react';
+import ExportMenu from '../ExportMenu';
 
-const TourReporting = () => {
+const calcMarginPct = (profit, omset) =>
+  omset > 0 ? Number(((profit / omset) * 100).toFixed(1)) : 0;
+
+const parseMonthLabel = (dateStr) => {
+  if (!dateStr) return null;
+  const clean = String(dateStr).trim().slice(0, 10);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(clean) ? `${clean}T00:00:00` : clean);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+    sortKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  };
+};
+
+const TourReporting = ({ onDrillToBookings }) => {
   const { tours } = useTours();
-  
-  // Split tours into active and past
-  const activeTours = useMemo(() => tours.filter(t => t.status !== 'Past Date'), [tours]);
-  const pastTours = useMemo(() => tours.filter(t => t.status === 'Past Date'), [tours]);
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
 
+  const [selectedYear, setSelectedYear] = useState('all');
   const [reportType, setReportType] = useState('monthly');
-  const [expandedMonths, setExpandedMonths] = useState({});
-  const [expandedStaff, setExpandedStaff] = useState({});
+  const [expandedKeys, setExpandedKeys] = useState({});
 
-  const toggleMonth = (month) => {
-    setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
+  const toggleExpand = (key) => {
+    setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const toggleStaff = (staff) => {
-    setExpandedStaff(prev => ({ ...prev, [staff]: !prev[staff] }));
-  };
-
-  const [expandedStatus, setExpandedStatus] = useState({});
-  const toggleStatus = (status) => {
-    setExpandedStatus(prev => ({ ...prev, [status]: !prev[status] }));
-  };
-
-  const [expandedInvoicing, setExpandedInvoicing] = useState({});
-  const toggleInvoicing = (status) => {
-    setExpandedInvoicing(prev => ({ ...prev, [status]: !prev[status] }));
-  };
-
-  const staffReport = useMemo(() => {
-    const data = {};
-    activeTours.forEach(t => {
-      const staff = t.staffName || 'Unassigned';
-      if (!data[staff]) {
-        data[staff] = { count: 0, omset: 0, profit: 0, pax: 0, months: {} };
-      }
-      data[staff].count += 1;
-      data[staff].pax += (t.paxCount || 0);
-      data[staff].omset += (t.financials?.totalOmset || 0);
-      data[staff].profit += (t.financials?.profit || 0);
-
-      if (t.departureDate) {
-        const date = new Date(t.departureDate);
-        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-        
-        if (!data[staff].months[monthYear]) {
-          data[staff].months[monthYear] = { tours: 0, pax: 0, omset: 0, profit: 0 };
-        }
-        data[staff].months[monthYear].tours += 1;
-        data[staff].months[monthYear].pax += (t.paxCount || 0);
-        data[staff].months[monthYear].omset += (t.financials?.totalOmset || 0);
-        data[staff].months[monthYear].profit += (t.financials?.profit || 0);
+  // Available departure years
+  const yearOptions = useMemo(() => {
+    const yrs = new Set();
+    tours.forEach((t) => {
+      if (t.departureDate && /^\d{4}/.test(t.departureDate)) {
+        yrs.add(t.departureDate.slice(0, 4));
       }
     });
-    return Object.entries(data).sort((a, b) => b[1].omset - a[1].omset);
+    return Array.from(yrs).sort((a, b) => Number(b) - Number(a));
+  }, [tours]);
+
+  const yearFilteredTours = useMemo(() => {
+    if (selectedYear === 'all') return tours;
+    return tours.filter(
+      (t) => t.departureDate && String(t.departureDate).startsWith(selectedYear)
+    );
+  }, [tours, selectedYear]);
+
+  const activeTours = useMemo(
+    () => yearFilteredTours.filter((t) => t.status !== 'Past Date'),
+    [yearFilteredTours]
+  );
+  const pastTours = useMemo(
+    () => yearFilteredTours.filter((t) => t.status === 'Past Date'),
+    [yearFilteredTours]
+  );
+
+  // Helper to build monthly aggregation from a list of tours
+  const buildMonthlyRows = (sourceList) => {
+    const map = {};
+    sourceList.forEach((t) => {
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (!mInfo) return;
+      const omset = Number(t.financials?.totalSellingPrice ?? t.financials?.totalOmset ?? 0);
+      const profit = Number(t.financials?.profit || 0);
+      const pax = Number(t.paxCount || 0);
+
+      if (!map[mInfo.sortKey]) {
+        map[mInfo.sortKey] = {
+          groupKey: mInfo.label,
+          sortKey: mInfo.sortKey,
+          tours: 0,
+          pax: 0,
+          omset: 0,
+          profit: 0,
+          countries: {}
+        };
+      }
+      const bucket = map[mInfo.sortKey];
+      bucket.tours += 1;
+      bucket.pax += pax;
+      bucket.omset += omset;
+      bucket.profit += profit;
+
+      const country = t.country || 'Unknown';
+      if (!bucket.countries[country]) {
+        bucket.countries[country] = { tours: 0, pax: 0, omset: 0, profit: 0 };
+      }
+      bucket.countries[country].tours += 1;
+      bucket.countries[country].pax += pax;
+      bucket.countries[country].omset += omset;
+      bucket.countries[country].profit += profit;
+    });
+
+    return Object.values(map)
+      .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+      .map((row) => ({
+        ...row,
+        marginPct: calcMarginPct(row.profit, row.omset)
+      }));
+  };
+
+  const monthlyReport = useMemo(() => buildMonthlyRows(activeTours), [activeTours]);
+  const pastDateReport = useMemo(() => buildMonthlyRows(pastTours), [pastTours]);
+
+  const staffReport = useMemo(() => {
+    const map = {};
+    activeTours.forEach((t) => {
+      const staff = t.staffName || 'Unassigned';
+      const omset = Number(t.financials?.totalSellingPrice ?? t.financials?.totalOmset ?? 0);
+      const profit = Number(t.financials?.profit || 0);
+      const pax = Number(t.paxCount || 0);
+
+      if (!map[staff]) {
+        map[staff] = { groupKey: staff, tours: 0, pax: 0, omset: 0, profit: 0, months: {} };
+      }
+      map[staff].tours += 1;
+      map[staff].pax += pax;
+      map[staff].omset += omset;
+      map[staff].profit += profit;
+
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (mInfo) {
+        if (!map[staff].months[mInfo.sortKey]) {
+          map[staff].months[mInfo.sortKey] = {
+            label: mInfo.label,
+            sortKey: mInfo.sortKey,
+            tours: 0,
+            pax: 0,
+            omset: 0,
+            profit: 0
+          };
+        }
+        map[staff].months[mInfo.sortKey].tours += 1;
+        map[staff].months[mInfo.sortKey].pax += pax;
+        map[staff].months[mInfo.sortKey].omset += omset;
+        map[staff].months[mInfo.sortKey].profit += profit;
+      }
+    });
+
+    return Object.values(map)
+      .sort((a, b) => b.omset - a.omset)
+      .map((row) => ({ ...row, marginPct: calcMarginPct(row.profit, row.omset) }));
   }, [activeTours]);
 
   const statusReport = useMemo(() => {
-    const data = {};
-    activeTours.forEach(t => {
-      const status = t.status || 'Unknown';
-      if (!data[status]) {
-        data[status] = { count: 0, omset: 0, profit: 0, pax: 0, months: {} };
-      }
-      data[status].count += 1;
-      data[status].pax += (t.paxCount || 0);
-      data[status].omset += (t.financials?.totalOmset || 0);
-      data[status].profit += (t.financials?.profit || 0);
+    const map = {};
+    activeTours.forEach((t) => {
+      const status = t.status || 'Pending';
+      const omset = Number(t.financials?.totalSellingPrice ?? t.financials?.totalOmset ?? 0);
+      const profit = Number(t.financials?.profit || 0);
+      const pax = Number(t.paxCount || 0);
 
-      if (t.departureDate) {
-        const date = new Date(t.departureDate);
-        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-        
-        if (!data[status].months[monthYear]) {
-          data[status].months[monthYear] = { tours: 0, pax: 0, omset: 0, profit: 0 };
+      if (!map[status]) {
+        map[status] = { groupKey: status, tours: 0, pax: 0, omset: 0, profit: 0, months: {} };
+      }
+      map[status].tours += 1;
+      map[status].pax += pax;
+      map[status].omset += omset;
+      map[status].profit += profit;
+
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (mInfo) {
+        if (!map[status].months[mInfo.sortKey]) {
+          map[status].months[mInfo.sortKey] = {
+            label: mInfo.label,
+            sortKey: mInfo.sortKey,
+            tours: 0,
+            pax: 0,
+            omset: 0,
+            profit: 0
+          };
         }
-        data[status].months[monthYear].tours += 1;
-        data[status].months[monthYear].pax += (t.paxCount || 0);
-        data[status].months[monthYear].omset += (t.financials?.totalOmset || 0);
-        data[status].months[monthYear].profit += (t.financials?.profit || 0);
+        map[status].months[mInfo.sortKey].tours += 1;
+        map[status].months[mInfo.sortKey].pax += pax;
+        map[status].months[mInfo.sortKey].omset += omset;
+        map[status].months[mInfo.sortKey].profit += profit;
       }
     });
-    return Object.entries(data).sort((a, b) => b[1].count - a[1].count);
+
+    return Object.values(map)
+      .sort((a, b) => b.tours - a.tours)
+      .map((row) => ({ ...row, marginPct: calcMarginPct(row.profit, row.omset) }));
   }, [activeTours]);
 
   const invoicingReport = useMemo(() => {
-    const data = {
-      'Invoiced': { count: 0, omset: 0, profit: 0, pax: 0, months: {} },
-      'Not Invoiced': { count: 0, omset: 0, profit: 0, pax: 0, months: {} }
+    const map = {
+      Invoiced: { groupKey: 'Invoiced', tours: 0, pax: 0, omset: 0, profit: 0, months: {} },
+      'Not Invoiced': { groupKey: 'Not Invoiced', tours: 0, pax: 0, omset: 0, profit: 0, months: {} }
     };
-    
-    activeTours.forEach(t => {
-      const isInvoiced = t.financials?.invoiceNumber && t.financials.invoiceNumber.trim() !== '';
-      const status = isInvoiced ? 'Invoiced' : 'Not Invoiced';
-      
-      data[status].count += 1;
-      data[status].pax += (t.paxCount || 0);
-      data[status].omset += (t.financials?.totalOmset || 0);
-      data[status].profit += (t.financials?.profit || 0);
 
-      if (t.departureDate) {
-        const date = new Date(t.departureDate);
-        const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-        
-        if (!data[status].months[monthYear]) {
-          data[status].months[monthYear] = { tours: 0, pax: 0, omset: 0, profit: 0 };
+    activeTours.forEach((t) => {
+      const isInv = Boolean(t.financials?.invoiceNumber && t.financials.invoiceNumber.trim() !== '');
+      const key = isInv ? 'Invoiced' : 'Not Invoiced';
+      const omset = Number(t.financials?.totalSellingPrice ?? t.financials?.totalOmset ?? 0);
+      const profit = Number(t.financials?.profit || 0);
+      const pax = Number(t.paxCount || 0);
+
+      map[key].tours += 1;
+      map[key].pax += pax;
+      map[key].omset += omset;
+      map[key].profit += profit;
+
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (mInfo) {
+        if (!map[key].months[mInfo.sortKey]) {
+          map[key].months[mInfo.sortKey] = {
+            label: mInfo.label,
+            sortKey: mInfo.sortKey,
+            tours: 0,
+            pax: 0,
+            omset: 0,
+            profit: 0
+          };
         }
-        data[status].months[monthYear].tours += 1;
-        data[status].months[monthYear].pax += (t.paxCount || 0);
-        data[status].months[monthYear].omset += (t.financials?.totalOmset || 0);
-        data[status].months[monthYear].profit += (t.financials?.profit || 0);
+        map[key].months[mInfo.sortKey].tours += 1;
+        map[key].months[mInfo.sortKey].pax += pax;
+        map[key].months[mInfo.sortKey].omset += omset;
+        map[key].months[mInfo.sortKey].profit += profit;
       }
     });
-    return Object.entries(data);
+
+    return Object.values(map).map((row) => ({
+      ...row,
+      marginPct: calcMarginPct(row.profit, row.omset)
+    }));
   }, [activeTours]);
 
-  const monthlyReport = useMemo(() => {
-    const data = {};
-    activeTours.forEach(t => {
-      if (!t.departureDate) return;
-      const date = new Date(t.departureDate);
-      const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-      
-      if (!data[monthYear]) {
-        data[monthYear] = { omset: 0, profit: 0, tours: 0, pax: 0, countries: {} };
-      }
-      data[monthYear].tours += 1;
-      data[monthYear].pax += (t.paxCount || 0);
-      data[monthYear].omset += (t.financials?.totalOmset || 0);
-      data[monthYear].profit += (t.financials?.profit || 0);
+  const REPORT_TABS = [
+    {
+      id: 'monthly',
+      label: 'Monthly Trend',
+      title: 'Monthly Revenue Trend (Active Tours)',
+      groupHeader: 'Departure Month',
+      icon: CalendarDays,
+      color: 'var(--primary)',
+      rows: monthlyReport,
+      breakdownType: 'countries'
+    },
+    {
+      id: 'staff',
+      label: 'By Consultant',
+      title: 'Consultant Performance Report (Active Tours)',
+      groupHeader: 'PIC Consultant',
+      icon: UserCheck,
+      color: '#10b981',
+      rows: staffReport,
+      breakdownType: 'months'
+    },
+    {
+      id: 'status',
+      label: 'By Status',
+      title: 'Booking Status Report (Active Tours)',
+      groupHeader: 'Booking Status',
+      icon: Activity,
+      color: '#8b5cf6',
+      rows: statusReport,
+      breakdownType: 'months'
+    },
+    {
+      id: 'invoicing',
+      label: 'By Invoicing',
+      title: 'Invoicing Coverage Report (Active Tours)',
+      groupHeader: 'Invoice Status',
+      icon: FileText,
+      color: '#f59e0b',
+      rows: invoicingReport,
+      breakdownType: 'months'
+    },
+    {
+      id: 'past_date',
+      label: 'Completed Trips',
+      title: 'Completed (Past Date) Tours Report',
+      groupHeader: 'Departure Month',
+      icon: Clock,
+      color: '#0284c7',
+      rows: pastDateReport,
+      breakdownType: 'countries'
+    }
+  ];
 
-      const country = t.country || 'Unknown';
-      if (!data[monthYear].countries[country]) {
-        data[monthYear].countries[country] = { tours: 0, pax: 0 };
-      }
-      data[monthYear].countries[country].tours += 1;
-      data[monthYear].countries[country].pax += (t.paxCount || 0);
-    });
-    
-    // Sort reverse chronologically
-    return Object.entries(data).sort((a, b) => new Date(b[0]) - new Date(a[0]));
-  }, [activeTours]);
+  const activeConfig = REPORT_TABS.find((r) => r.id === reportType) || REPORT_TABS[0];
+  const currentRows = activeConfig.rows;
 
-  const pastDateReport = useMemo(() => {
-    const data = {};
-    pastTours.forEach(t => {
-      if (!t.departureDate) return;
-      const date = new Date(t.departureDate);
-      const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-      
-      if (!data[monthYear]) {
-        data[monthYear] = { omset: 0, profit: 0, tours: 0, pax: 0, countries: {} };
-      }
-      data[monthYear].tours += 1;
-      data[monthYear].pax += (t.paxCount || 0);
-      data[monthYear].omset += (t.financials?.totalOmset || 0);
-      data[monthYear].profit += (t.financials?.profit || 0);
+  const grandTotals = useMemo(() => {
+    const totals = currentRows.reduce(
+      (acc, r) => ({
+        tours: acc.tours + r.tours,
+        pax: acc.pax + r.pax,
+        omset: acc.omset + r.omset,
+        profit: acc.profit + r.profit
+      }),
+      { tours: 0, pax: 0, omset: 0, profit: 0 }
+    );
+    return {
+      ...totals,
+      marginPct: calcMarginPct(totals.profit, totals.omset)
+    };
+  }, [currentRows]);
 
-      const country = t.country || 'Unknown';
-      if (!data[monthYear].countries[country]) {
-        data[monthYear].countries[country] = { tours: 0, pax: 0 };
-      }
-      data[monthYear].countries[country].tours += 1;
-      data[monthYear].countries[country].pax += (t.paxCount || 0);
-    });
-    
-    // Sort reverse chronologically
-    return Object.entries(data).sort((a, b) => new Date(b[0]) - new Date(a[0]));
-  }, [pastTours]);
+  const exportColumns = [
+    { header: activeConfig.groupHeader, key: 'groupKey', format: null },
+    { header: 'Total Tours', key: 'tours', format: null },
+    { header: 'Total Pax', key: 'pax', format: null },
+    { header: 'Total Omset (IDR)', key: 'omset', format: 'currency' },
+    { header: 'Total Profit (IDR)', key: 'profit', format: 'currency' },
+    { header: 'Profit Margin', key: 'marginPct', format: 'percent' }
+  ];
+
+  const emeraldColor = isLight ? '#047857' : '#34d399';
+  const accordionBg = isLight ? '#f4f9ff' : 'rgba(56, 189, 248, 0.04)';
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-        <button 
-          className={`card ${reportType === 'monthly' ? 'active-report' : ''}`}
-          onClick={() => setReportType('monthly')}
-          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'monthly' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
-        >
-          <CalendarDays color="var(--primary)" />
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>Monthly Trend</h3>
-        </button>
-
-        <button 
-          className={`card ${reportType === 'staff' ? 'active-report' : ''}`}
-          onClick={() => setReportType('staff')}
-          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'staff' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
-        >
-          <UserCheck color="var(--success)" />
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>By Staff</h3>
-        </button>
-
-        <button 
-          className={`card ${reportType === 'status' ? 'active-report' : ''}`}
-          onClick={() => setReportType('status')}
-          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'status' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
-        >
-          <Activity color="var(--danger)" />
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>By Status</h3>
-        </button>
-
-        <button 
-          className={`card ${reportType === 'invoicing' ? 'active-report' : ''}`}
-          onClick={() => setReportType('invoicing')}
-          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'invoicing' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
-        >
-          <FileText color="#eab308" />
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>By Invoicing</h3>
-        </button>
-
-        <button 
-          className={`card ${reportType === 'past_date' ? 'active-report' : ''}`}
-          onClick={() => setReportType('past_date')}
-          style={{ flex: '1 1 18%', minWidth: '150px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', border: reportType === 'past_date' ? '1px solid var(--primary)' : '1px solid var(--border)' }}
-        >
-          <Clock color="#64748b" />
-          <h3 style={{ margin: 0, fontSize: '0.9rem' }}>Past Date Data</h3>
-        </button>
+    <div className="fade-in">
+      {/* Year Filter Bar */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginBottom: '1.15rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', marginRight: '0.2rem' }}>
+            Filter Year:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedYear('all')}
+            style={{
+              padding: '0.32rem 0.78rem',
+              borderRadius: '9999px',
+              border: `1px solid ${selectedYear === 'all' ? 'transparent' : 'var(--border)'}`,
+              background:
+                selectedYear === 'all'
+                  ? 'linear-gradient(135deg, #00b4ff 0%, #0077ff 100%)'
+                  : isLight ? '#ffffff' : 'var(--bg-card)',
+              color: selectedYear === 'all' ? '#ffffff' : 'var(--text-muted)',
+              fontSize: '0.76rem',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            All Years
+          </button>
+          {yearOptions.map((yr) => {
+            const active = selectedYear === yr;
+            return (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => setSelectedYear(yr)}
+                style={{
+                  padding: '0.32rem 0.78rem',
+                  borderRadius: '9999px',
+                  border: `1px solid ${active ? 'transparent' : 'var(--border)'}`,
+                  background: active
+                    ? 'linear-gradient(135deg, #00b4ff 0%, #0077ff 100%)'
+                    : isLight ? '#ffffff' : 'var(--bg-card)',
+                  color: active ? '#ffffff' : 'var(--text-muted)',
+                  fontSize: '0.76rem',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                {yr}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* Report Mode Selector Cards */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {REPORT_TABS.map((rt) => {
+          const Icon = rt.icon;
+          const active = reportType === rt.id;
+          return (
+            <button
+              key={rt.id}
+              type="button"
+              onClick={() => setReportType(rt.id)}
+              className="card"
+              style={{
+                flex: '1 1 170px',
+                padding: '0.95rem 1.1rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.7rem',
+                textAlign: 'left',
+                border: active ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                background: active
+                  ? isLight ? '#eff8ff' : 'rgba(0, 168, 255, 0.1)'
+                  : undefined,
+                boxShadow: active ? '0 4px 16px rgba(0, 168, 255, 0.16)' : undefined
+              }}
+            >
+              <Icon size={20} color={active ? 'var(--primary)' : rt.color} />
+              <div>
+                <div style={{ fontSize: '0.86rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                  {rt.label}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  {rt.rows.length} group{rt.rows.length === 1 ? '' : 's'}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active Report Table Card */}
       <div className="card">
-        {reportType === 'monthly' && (
-          <>
-            <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Monthly Revenue Trend (Active Tours)
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}></th>
-                    <th>Month (Departure)</th>
-                    <th>Total Tours</th>
-                    <th>Total Pax</th>
-                    <th>Total Omset</th>
-                    <th>Total Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyReport.length > 0 ? monthlyReport.map(([month, stats], idx) => (
-                    <React.Fragment key={idx}>
-                      <tr 
-                        onClick={() => toggleMonth(month)} 
-                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
-                      >
-                        <td style={{ color: 'var(--primary)' }}>
-                          {expandedMonths[month] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                        </td>
-                        <td style={{ fontWeight: '600' }}>{month}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.tours}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
-                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
-                      </tr>
-                      {expandedMonths[month] && (
-                        <tr>
-                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid var(--primary)' }}>
-                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Destination Breakdown</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-                                {Object.entries(stats.countries).map(([country, cStats]) => (
-                                  <div key={country} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
-                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{country}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
-                                      <span style={{ fontWeight: '500' }}>{cStats.tours}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
-                                      <span style={{ fontWeight: '500' }}>{cStats.pax}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  )) : (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            marginBottom: '1.25rem'
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              color: 'var(--text-main)',
+              fontSize: '1.05rem',
+              fontWeight: '800',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <BarChart size={20} color="var(--primary)" /> {activeConfig.title}
+          </h3>
 
-        {reportType === 'staff' && (
-          <>
-            <h3 style={{ marginBottom: '1.5rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Staff Performance Report (Active Tours)
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}></th>
-                    <th>Staff Name</th>
-                    <th>Bookings Handled</th>
-                    <th>Total Pax</th>
-                    <th>Total Omset</th>
-                    <th>Total Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staffReport.length > 0 ? staffReport.map(([staff, stats], idx) => (
-                    <React.Fragment key={idx}>
-                      <tr 
-                        onClick={() => toggleStaff(staff)} 
-                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
-                      >
-                        <td style={{ color: 'var(--success)' }}>
-                          {expandedStaff[staff] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                        </td>
-                        <td style={{ fontWeight: '600' }}>{staff}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.count}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
-                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
-                      </tr>
-                      {expandedStaff[staff] && (
-                        <tr>
-                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid var(--success)' }}>
-                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monthly Breakdown</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-                                {Object.entries(stats.months).sort((a,b) => new Date(b[0]) - new Date(a[0])).map(([month, mStats]) => (
-                                  <div key={month} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
-                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{month}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
-                                      <span style={{ fontWeight: '500' }}>{mStats.tours}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
-                                      <span style={{ fontWeight: '500' }}>{mStats.pax}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Profit</span>
-                                      <span style={{ color: 'var(--success)', fontWeight: '500' }}>Rp {formatCurrency(mStats.profit)}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  )) : (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+          <ExportMenu
+            data={currentRows}
+            columns={exportColumns}
+            filename={`Tour_Report_${reportType}_${selectedYear}`}
+          />
+        </div>
 
-        {reportType === 'status' && (
-          <>
-            <h3 style={{ marginBottom: '1.5rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Tour Status Report (Active Tours)
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}></th>
-                    <th>Status</th>
-                    <th>Total Tours</th>
-                    <th>Total Pax</th>
-                    <th>Total Omset</th>
-                    <th>Total Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statusReport.length > 0 ? statusReport.map(([status, stats], idx) => (
-                    <React.Fragment key={idx}>
-                      <tr 
-                        onClick={() => toggleStatus(status)} 
-                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
-                      >
-                        <td style={{ color: 'var(--danger)' }}>
-                          {expandedStatus[status] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                        </td>
-                        <td style={{ fontWeight: '600' }}>
-                          <span className={`badge ${status === 'Confirm' ? 'badge-success' : status === 'Cancel' ? 'badge-danger' : status === 'Pending' ? 'badge-warning' : 'badge-primary'}`}>
-                            {status}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: '500' }}>{stats.count}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
-                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
-                      </tr>
-                      {expandedStatus[status] && (
-                        <tr>
-                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid var(--danger)' }}>
-                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monthly Breakdown</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-                                {Object.entries(stats.months).sort((a,b) => new Date(b[0]) - new Date(a[0])).map(([month, mStats]) => (
-                                  <div key={month} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
-                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{month}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
-                                      <span style={{ fontWeight: '500' }}>{mStats.tours}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
-                                      <span style={{ fontWeight: '500' }}>{mStats.pax}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Profit</span>
-                                      <span style={{ color: 'var(--success)', fontWeight: '500' }}>Rp {formatCurrency(mStats.profit)}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  )) : (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th style={{ width: '40px' }}></th>
+                <th>{activeConfig.groupHeader}</th>
+                <th>Total Tours</th>
+                <th>Total Pax</th>
+                <th>Total Omset</th>
+                <th>Total Profit</th>
+                <th>Margin %</th>
+                {onDrillToBookings && <th style={{ textAlign: 'right' }}>Bookings</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {currentRows.length > 0 ? (
+                <>
+                  {currentRows.map((row) => {
+                    const rowId = `${reportType}:${row.groupKey}`;
+                    const isExpanded = Boolean(expandedKeys[rowId]);
 
-        {reportType === 'invoicing' && (
-          <>
-            <h3 style={{ marginBottom: '1.5rem', color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BarChart size={20} /> Invoicing Status Report (Active Tours)
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}></th>
-                    <th>Invoice Status</th>
-                    <th>Total Tours</th>
-                    <th>Total Pax</th>
-                    <th>Total Omset</th>
-                    <th>Total Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoicingReport.length > 0 ? invoicingReport.map(([status, stats], idx) => (
-                    <React.Fragment key={idx}>
-                      <tr 
-                        onClick={() => toggleInvoicing(status)} 
-                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
-                      >
-                        <td style={{ color: '#eab308' }}>
-                          {expandedInvoicing[status] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                        </td>
-                        <td style={{ fontWeight: '600' }}>
-                          <span className={`badge ${status === 'Invoiced' ? 'badge-success' : 'badge-danger'}`}>
-                            {status}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: '500' }}>{stats.count}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
-                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
-                      </tr>
-                      {expandedInvoicing[status] && (
-                        <tr>
-                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid #eab308' }}>
-                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monthly Breakdown</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-                                {Object.entries(stats.months).sort((a,b) => new Date(b[0]) - new Date(a[0])).map(([month, mStats]) => (
-                                  <div key={month} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
-                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{month}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
-                                      <span style={{ fontWeight: '500' }}>{mStats.tours}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
-                                      <span style={{ fontWeight: '500' }}>{mStats.pax}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Profit</span>
-                                      <span style={{ color: 'var(--success)', fontWeight: '500' }}>Rp {formatCurrency(mStats.profit)}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                    return (
+                      <Fragment key={rowId}>
+                        <tr
+                          className="tour-report-row"
+                          onClick={() => toggleExpand(rowId)}
+                        >
+                          <td style={{ color: 'var(--primary)' }}>
+                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                           </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  )) : (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {reportType === 'past_date' && (
-          <>
-            <h3 style={{ marginBottom: '1.5rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Clock size={20} /> Past Date Tours Report
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}></th>
-                    <th>Month (Departure)</th>
-                    <th>Total Tours</th>
-                    <th>Total Pax</th>
-                    <th>Total Omset</th>
-                    <th>Total Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pastDateReport.length > 0 ? pastDateReport.map(([month, stats], idx) => (
-                    <React.Fragment key={idx}>
-                      <tr 
-                        onClick={() => toggleMonth(month)} 
-                        style={{ cursor: 'pointer', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.05)' } }}
-                      >
-                        <td style={{ color: '#64748b' }}>
-                          {expandedMonths[month] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                        </td>
-                        <td style={{ fontWeight: '600' }}>{month}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.tours}</td>
-                        <td style={{ fontWeight: '500' }}>{stats.pax}</td>
-                        <td style={{ color: 'var(--primary)', fontWeight: '600' }}>Rp {formatCurrency(stats.omset)}</td>
-                        <td style={{ color: 'var(--success)', fontWeight: '600' }}>Rp {formatCurrency(stats.profit)}</td>
-                      </tr>
-                      {expandedMonths[month] && (
-                        <tr>
-                          <td colSpan="6" style={{ padding: 0, borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '1.5rem 1rem 1.5rem 3rem', borderLeft: '4px solid #64748b' }}>
-                              <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Destination Breakdown</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-                                {Object.entries(stats.countries).map(([country, cStats]) => (
-                                  <div key={country} style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)' }}>
-                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{country}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Tours</span>
-                                      <span style={{ fontWeight: '500' }}>{cStats.tours}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                                      <span style={{ color: 'var(--text-muted)' }}>Passengers</span>
-                                      <span style={{ fontWeight: '500' }}>{cStats.pax}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                          <td style={{ fontWeight: '700' }}>
+                            {reportType === 'status' ? (
+                              <span
+                                className={`badge ${
+                                  row.groupKey === 'Confirm'
+                                    ? 'badge-success'
+                                    : row.groupKey === 'Cancel'
+                                      ? 'badge-danger'
+                                      : 'badge-warning'
+                                }`}
+                              >
+                                {row.groupKey}
+                              </span>
+                            ) : reportType === 'invoicing' ? (
+                              <span
+                                className={`badge ${
+                                  row.groupKey === 'Invoiced' ? 'badge-success' : 'badge-danger'
+                                }`}
+                              >
+                                {row.groupKey}
+                              </span>
+                            ) : (
+                              row.groupKey
+                            )}
                           </td>
+                          <td style={{ fontWeight: '600' }}>{row.tours}</td>
+                          <td style={{ fontWeight: '600' }}>{row.pax}</td>
+                          <td className="font-mono" style={{ color: 'var(--primary)', fontWeight: '700' }}>
+                            Rp {formatCurrency(row.omset)}
+                          </td>
+                          <td className="font-mono" style={{ color: emeraldColor, fontWeight: '700' }}>
+                            Rp {formatCurrency(row.profit)}
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                row.marginPct >= 10
+                                  ? 'badge-success'
+                                  : row.marginPct >= 5
+                                    ? 'badge-primary'
+                                    : 'badge-warning'
+                              }`}
+                              style={{ fontSize: '0.72rem' }}
+                            >
+                              {row.marginPct}%
+                            </span>
+                          </td>
+                          {onDrillToBookings && (
+                            <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (reportType === 'past_date') {
+                                    onDrillToBookings('past', '');
+                                  } else if (reportType === 'invoicing' && row.groupKey === 'Not Invoiced') {
+                                    onDrillToBookings('followup', '');
+                                  } else if (reportType === 'staff') {
+                                    onDrillToBookings(
+                                      'active',
+                                      row.groupKey === 'Unassigned' ? '' : row.groupKey
+                                    );
+                                  } else if (reportType === 'status') {
+                                    onDrillToBookings('active', row.groupKey);
+                                  } else {
+                                    onDrillToBookings('active', '');
+                                  }
+                                }}
+                                className="btn btn-secondary"
+                                style={{ padding: '0.24rem 0.6rem', fontSize: '0.72rem' }}
+                              >
+                                View <ArrowUpRight size={12} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
-                      )}
-                    </React.Fragment>
-                  )) : (
-                    <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
 
+                        {isExpanded && (
+                          <tr>
+                            <td
+                              colSpan={onDrillToBookings ? 8 : 7}
+                              style={{ padding: 0, borderBottom: '1px solid var(--border)' }}
+                            >
+                              <div
+                                style={{
+                                  background: accordionBg,
+                                  padding: '1.15rem 1.25rem 1.25rem 2.75rem',
+                                  borderLeft: '4px solid var(--primary)'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    marginBottom: '0.75rem',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '800',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                  }}
+                                >
+                                  {activeConfig.breakdownType === 'countries'
+                                    ? 'Destination Breakdown'
+                                    : 'Monthly Breakdown'}
+                                </div>
+
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(225px, 1fr))',
+                                    gap: '0.85rem'
+                                  }}
+                                >
+                                  {activeConfig.breakdownType === 'countries'
+                                    ? Object.entries(row.countries || {}).map(([country, cStats]) => (
+                                        <div
+                                          key={country}
+                                          style={{
+                                            background: isLight ? '#ffffff' : 'var(--bg-card)',
+                                            padding: '0.85rem 1rem',
+                                            borderRadius: '10px',
+                                            border: '1px solid var(--border)'
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                                            <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>
+                                              {country}
+                                            </span>
+                                            {onDrillToBookings && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  onDrillToBookings(
+                                                    reportType === 'past_date' ? 'past' : 'active',
+                                                    country
+                                                  )
+                                                }
+                                                style={{
+                                                  background: 'none',
+                                                  border: 'none',
+                                                  color: 'var(--primary)',
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: '700',
+                                                  cursor: 'pointer',
+                                                  padding: 0
+                                                }}
+                                              >
+                                                Filter →
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                            <span style={{ color: 'var(--text-muted)' }}>Tours / Pax</span>
+                                            <span style={{ fontWeight: '600' }}>
+                                              {cStats.tours} tours · {cStats.pax} pax
+                                            </span>
+                                          </div>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: '0.3rem' }}>
+                                            <span style={{ color: 'var(--text-muted)' }}>Profit</span>
+                                            <span className="font-mono" style={{ color: emeraldColor, fontWeight: '700' }}>
+                                              Rp {formatCurrency(cStats.profit)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))
+                                    : Object.values(row.months || {})
+                                        .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+                                        .map((mStats) => (
+                                          <div
+                                            key={mStats.sortKey}
+                                            style={{
+                                              background: isLight ? '#ffffff' : 'var(--bg-card)',
+                                              padding: '0.85rem 1rem',
+                                              borderRadius: '10px',
+                                              border: '1px solid var(--border)'
+                                            }}
+                                          >
+                                            <div style={{ fontWeight: '700', marginBottom: '0.45rem', color: 'var(--text-main)' }}>
+                                              {mStats.label}
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                              <span style={{ color: 'var(--text-muted)' }}>Tours / Pax</span>
+                                              <span style={{ fontWeight: '600' }}>
+                                                {mStats.tours} tours · {mStats.pax} pax
+                                              </span>
+                                            </div>
+                                            <div
+                                              style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontSize: '0.8rem',
+                                                marginTop: '0.35rem',
+                                                borderTop: '1px solid var(--border)',
+                                                paddingTop: '0.35rem'
+                                              }}
+                                            >
+                                              <span style={{ color: 'var(--text-muted)' }}>Profit</span>
+                                              <span className="font-mono" style={{ color: emeraldColor, fontWeight: '700' }}>
+                                                Rp {formatCurrency(mStats.profit)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+
+                  {/* Grand Total Footer Row */}
+                  <tr
+                    style={{
+                      background: isLight ? '#eff8ff' : 'rgba(0, 168, 255, 0.08)',
+                      fontWeight: '800'
+                    }}
+                  >
+                    <td></td>
+                    <td style={{ color: 'var(--primary)', fontWeight: '800' }}>GRAND TOTAL</td>
+                    <td>{grandTotals.tours}</td>
+                    <td>{grandTotals.pax}</td>
+                    <td className="font-mono" style={{ color: 'var(--primary)', fontWeight: '800' }}>
+                      Rp {formatCurrency(grandTotals.omset)}
+                    </td>
+                    <td className="font-mono" style={{ color: emeraldColor, fontWeight: '800' }}>
+                      Rp {formatCurrency(grandTotals.profit)}
+                    </td>
+                    <td>
+                      <span className="badge badge-primary" style={{ fontSize: '0.73rem' }}>
+                        {grandTotals.marginPct}%
+                      </span>
+                    </td>
+                    {onDrillToBookings && <td></td>}
+                  </tr>
+                </>
+              ) : (
+                <tr>
+                  <td
+                    colSpan={onDrillToBookings ? 8 : 7}
+                    style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}
+                  >
+                    No tour records found for this report and year filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
