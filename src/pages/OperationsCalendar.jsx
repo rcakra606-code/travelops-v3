@@ -161,16 +161,29 @@ const OperationsCalendar = () => {
     return Array.from(years).sort((a, b) => a - b);
   }, [currentYear]);
 
-  // Extract active staff for filter
+  // Extract active staff for filter (excluding inactivated personnel)
   const staffList = useMemo(() => {
+    const inactiveNames = new Set(
+      (users || [])
+        .filter((u) => u.status === 'Inactive' && u.name)
+        .map((u) => u.name.toLowerCase().trim())
+    );
     const list = new Set();
-    users?.forEach((u) => u.name && list.add(u.name));
-    tours?.forEach((t) => t.staffName && list.add(t.staffName));
-    cruises?.forEach((c) => c.staff && list.add(c.staff));
-    hotels?.forEach((h) => h.staff && list.add(h.staff));
-    documents?.forEach((d) => d.staff && list.add(d.staff));
-    telecoms?.forEach((t) => t.staff && list.add(t.staff));
-    overtimes?.forEach((o) => o.staff && list.add(o.staff));
+    const addIfActive = (name) => {
+      if (!name) return;
+      const clean = name.trim();
+      if (!inactiveNames.has(clean.toLowerCase())) {
+        list.add(clean);
+      }
+    };
+
+    users?.filter(u => u.status === 'Active').forEach((u) => addIfActive(u.name));
+    tours?.forEach((t) => addIfActive(t.staffName));
+    cruises?.forEach((c) => addIfActive(c.staff));
+    hotels?.forEach((h) => addIfActive(h.staff));
+    documents?.forEach((d) => addIfActive(d.staff));
+    telecoms?.forEach((t) => addIfActive(t.staff));
+    overtimes?.forEach((o) => addIfActive(o.staff));
     return Array.from(list).sort();
   }, [users, tours, cruises, hotels, documents, telecoms, overtimes]);
 

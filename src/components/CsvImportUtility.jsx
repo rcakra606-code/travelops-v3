@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 import { Upload, X, Check, FileSpreadsheet, AlertCircle, DownloadCloud } from 'lucide-react';

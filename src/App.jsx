@@ -1,4 +1,3 @@
-import React from 'react';
 import './mobile.css';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';

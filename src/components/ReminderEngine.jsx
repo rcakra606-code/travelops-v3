@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useTours } from '../context/TourContext';
 import { useCruises } from '../context/CruiseContext';
@@ -7,7 +7,12 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../supabaseClient';
 import { logSystemAction } from '../utils/logger';
-import { Mail, CheckCircle2, AlertTriangle, Calendar, Bell, X, FileText, CheckSquare, Layers } from 'lucide-react';
+import { AlertTriangle, Bell, X } from 'lucide-react';
+import {
+  buildOperationalEmailHtml,
+  buildAdminEmailHtml,
+  buildDocumentEmailHtml
+} from '../utils/emailTemplateBuilder';
 
 const ReminderEngine = () => {
   const { settings } = useSettings();
@@ -28,7 +33,6 @@ const ReminderEngine = () => {
     appointments: 0,
     pendingDocs: 0
   });
-  const [emailDeliveryStatus, setEmailDeliveryStatus] = useState(null); // 'sent' | 'failed' | null
   const hasTriggeredRef = useRef(false);
 
   // Format local date YYYY-MM-DD to avoid UTC midnight timezone offset discrepancies in Indonesia (WIB/WITA/WIT)
@@ -257,8 +261,8 @@ const ReminderEngine = () => {
           const isOngoingOrRecentReturn = diffDep !== null && diffDep < 0 && (diffRet === null || diffRet >= -14);
 
           if (isUpcoming30 || isOngoingOrRecentReturn) {
-            let urgencyLabel = 'Form Claim MDR Belum Dicentang';
-            let urgencyLevel = 'notice';
+            let urgencyLabel;
+            let urgencyLevel;
 
             if (isOngoingOrRecentReturn || diffDep === 0) {
               urgencyLabel = '🚨 MENDESAK: Tour Selesai/Berjalan (Form Claim MDR Belum Dicentang)';
@@ -400,8 +404,8 @@ const ReminderEngine = () => {
         // Belum selesai = shippingStatus !== 'Received'
         const isCompleted = doc.shippingStatus === 'Received';
         if (!isCompleted) {
-          let urgencyLevel = 'in_progress';
-          let statusLabel = '';
+          let urgencyLevel;
+          let statusLabel;
           const diffEst = doc.estimatedDone ? getDiffDays(doc.estimatedDone) : null;
 
           if (!doc.estimatedDone) {
@@ -509,80 +513,11 @@ const ReminderEngine = () => {
           if (!isManual) localStorage.setItem(opSentKey, 'sending');
 
           const opEmailSubject = `[OPERASIONAL] Jadwal Keberangkatan & Kepulangan Tour & Cruise (${operationalItems.length} Agenda Hari Ini) - TravelOps`;
-          const opEmailHtml = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; color: #1e293b;">
-              
-              <!-- Header Banner -->
-              <div style="border-bottom: 2px solid #0284c7; padding-bottom: 14px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 28px;">✈️</span>
-                  <div>
-                    <h2 style="margin: 0; color: #0f172a; font-size: 20px; font-weight: 800;">TravelOps Operasional</h2>
-                    <p style="margin: 0; font-size: 12px; color: #0284c7; font-weight: 600;">Jadwal Keberangkatan &amp; Kepulangan Tour / Cruise</p>
-                  </div>
-                </div>
-                <div style="text-align: right;">
-                  <span style="background: #e0f2fe; color: #0284c7; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
-                    ${operationalItems.length} Agenda Operasional
-                  </span>
-                </div>
-              </div>
-
-              <p style="font-size: 13.5px; color: #334155; margin-bottom: 18px; line-height: 1.5;">
-                Halo Tim Operasional, berikut ringkasan milestone keberangkatan dan kepulangan tour &amp; cruise per <strong>${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>:
-              </p>
-
-              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                <thead>
-                  <tr style="background: #f0f9ff; border-bottom: 1px solid #bae6fd; text-align: left; color: #0369a1;">
-                    <th style="padding: 10px 8px; font-weight: 700;">Tipe &amp; Kode</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Detail Produk</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Staff Handling</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Tgl Target</th>
-                    <th style="padding: 10px 8px; font-weight: 700;">Milestone</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${operationalItems.map(m => `
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                      <td style="padding: 10px 8px; font-weight: 700; color: #0f172a;">
-                        <span style="font-size: 10.5px; color: #64748b; display: block;">${m.type}</span>
-                        ${m.code}
-                      </td>
-                      <td style="padding: 10px 8px; color: #334155;">
-                        <strong>${m.productDetails}</strong>
-                        <div style="font-size: 11px; color: #64748b;">Pax: ${m.pax}</div>
-                      </td>
-                      <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
-                        👤 ${m.customerName}
-                      </td>
-                      <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
-                        💼 ${m.handlingStaff}
-                      </td>
-                      <td style="padding: 10px 8px; font-family: monospace; color: #0284c7; font-weight: 700;">${m.date}</td>
-                      <td style="padding: 10px 8px;">
-                        <span style="background: ${m.diff === 0 ? '#fee2e2' : m.diff <= 3 ? '#fef3c7' : '#ecfdf5'}; color: ${m.diff === 0 ? '#b91c1c' : m.diff <= 3 ? '#b45309' : '#047857'}; font-weight: 700; padding: 3px 8px; border-radius: 4px; font-size: 11px;">
-                          ${m.milestone}
-                        </span>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-
-              <!-- Footer -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
-                <p style="margin: 0; font-size: 11.5px; color: #64748b;">
-                  Penerima: <strong>${targetRecipient}</strong> • Jalur: <strong>Email 1 - Operasional Tour &amp; Cruise</strong>
-                </p>
-              </div>
-
-              <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
-                TravelOps Operations Suite • Automated Daily Dispatcher
-              </p>
-            </div>
-          `;
+          const opEmailHtml = buildOperationalEmailHtml({
+            operationalItems,
+            targetRecipient,
+            appUrl: window.location.origin
+          });
 
           try {
             const res = await fetch('/api/send-email', {
@@ -630,180 +565,12 @@ const ReminderEngine = () => {
           if (uninvoicedItems.length > 0) adminSubjectParts.push(`${uninvoicedItems.length} Tour Belum Di-Invoice`);
 
           const adminEmailSubject = `[ADMINISTRASI] Peringatan: ${adminSubjectParts.join(' & ')} - TravelOps`;
-
-          const adminEmailHtml = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 760px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1.5px solid #fda4af; border-radius: 12px; color: #1e293b;">
-              
-              <!-- Header Banner -->
-              <div style="border-bottom: 2px solid #e11d48; padding-bottom: 14px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 28px;">🧾</span>
-                  <div>
-                    <h2 style="margin: 0; color: #9f1239; font-size: 20px; font-weight: 800;">TravelOps Administrasi &amp; Keuangan</h2>
-                    <p style="margin: 0; font-size: 12px; color: #e11d48; font-weight: 700;">Peringatan Pending: Form Claim MDR &amp; Penerbitan Invoice Tour</p>
-                  </div>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
-                  ${unclaimedMdrItems.length > 0 ? `
-                    <span style="background: #ffe4e6; color: #be123c; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #fecdd3;">
-                      📋 ${unclaimedMdrItems.length} Form Claim MDR Pending
-                    </span>
-                  ` : ''}
-                  ${uninvoicedItems.length > 0 ? `
-                    <span style="background: #fef2f2; color: #991b1b; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #f87171;">
-                      ⚠️ ${uninvoicedItems.length} Tour Belum Di-Invoice
-                    </span>
-                  ` : ''}
-                </div>
-              </div>
-
-              <p style="font-size: 13.5px; color: #334155; margin-bottom: 18px; line-height: 1.5;">
-                Halo Tim Administrasi &amp; Tour Operations, sistem TravelOps mendeteksi data administrasi tour yang <strong>memerlukan tindakan segera</strong> per <strong>${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>:
-              </p>
-
-              <!-- SUB-SECTION 1: FORM CLAIM MDR BELUM DICENTANG -->
-              ${unclaimedMdrItems.length > 0 ? `
-                <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #fda4af; padding-bottom: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 20px;">📋</span>
-                      <div>
-                        <h3 style="margin: 0; color: #9f1239; font-size: 15px; font-weight: 800;">
-                          1. Form Claim MDR Tour Belum Dicentang (${unclaimedMdrItems.length} Tour)
-                        </h3>
-                        <p style="margin: 0; font-size: 11.5px; color: #be123c;">
-                          Tour berikut belum memiliki checklist Form Claim MDR. Mohon PIC segera memverifikasi berkas dan mencentang checkbox pada modul Tour.
-                        </p>
-                      </div>
-                    </div>
-                    <span style="background: #e11d48; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
-                      MDR ACTION
-                    </span>
-                  </div>
-
-                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #fecdd3;">
-                    <thead>
-                      <tr style="background: #ffe4e6; color: #881337; text-align: left;">
-                        <th style="padding: 10px 8px; font-weight: 700;">Kode Tour</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Destinasi &amp; Produk</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">PIC Staff</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Tgl Berangkat</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Status Claim MDR</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${unclaimedMdrItems.map(item => `
-                        <tr style="border-bottom: 1px solid #ffe4e6;">
-                          <td style="padding: 10px 8px; font-weight: 700; color: #0f172a; font-family: monospace;">
-                            ${item.code}
-                            <div style="font-size: 10.5px; color: #64748b; font-family: sans-serif; font-weight: normal;">${item.pax} Pax</div>
-                          </td>
-                          <td style="padding: 10px 8px; color: #334155;">
-                            <strong>${item.destination}</strong>
-                            <div style="font-size: 11px; color: #64748b;">${item.productDetails}</div>
-                          </td>
-                          <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
-                            👤 ${item.customerName}
-                          </td>
-                          <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
-                            💼 ${item.handlingStaff}
-                          </td>
-                          <td style="padding: 10px 8px; font-family: monospace; color: #0f172a;">
-                            ${item.departureDate}
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <span style="background: #fee2e2; color: #991b1b; font-weight: 800; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; border: 1px solid #f87171; display: inline-block;">
-                              ❌ Belum Dicentang
-                            </span>
-                            <div style="font-size: 10px; color: #b91c1c; margin-top: 3px;">${item.milestone}</div>
-                          </td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              ` : ''}
-
-              <!-- SUB-SECTION 2: TOUR BELUM DI-INVOICE -->
-              ${uninvoicedItems.length > 0 ? `
-                <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #fcd34d; padding-bottom: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 20px;">🧾</span>
-                      <div>
-                        <h3 style="margin: 0; color: #92400e; font-size: 15px; font-weight: 800;">
-                          2. Tour Belum Memiliki Nomor Invoice (${uninvoicedItems.length} Tour)
-                        </h3>
-                        <p style="margin: 0; font-size: 11.5px; color: #b45309;">
-                          Tour berikut belum memiliki Nomor Invoice (tempo H-30 s/d H-0). Mohon segera input Nomor Invoice pada modul Tour.
-                        </p>
-                      </div>
-                    </div>
-                    <span style="background: #d97706; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
-                      INVOICE NEEDED
-                    </span>
-                  </div>
-
-                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #fde68a;">
-                    <thead>
-                      <tr style="background: #fef3c7; color: #78350f; text-align: left;">
-                        <th style="padding: 10px 8px; font-weight: 700;">Kode Tour</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Destinasi &amp; Produk</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Staff Handling</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Tgl Berangkat &amp; Tempo</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Status Invoice</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${uninvoicedItems.map(item => `
-                        <tr style="border-bottom: 1px solid #fef3c7;">
-                          <td style="padding: 10px 8px; font-weight: 700; color: #0f172a; font-family: monospace;">
-                            ${item.code}
-                            ${item.depositNumber ? `<div style="font-size: 10.5px; color: #059669; font-weight: 700; margin-top: 2px;">DP: ${item.depositNumber}</div>` : ''}
-                          </td>
-                          <td style="padding: 10px 8px; color: #334155;">
-                            <strong>${item.destination}</strong>
-                            <div style="font-size: 11px; color: #64748b;">${item.productDetails}</div>
-                          </td>
-                          <td style="padding: 10px 8px; color: #0f172a; font-weight: 600;">
-                            👤 ${item.customerName}
-                          </td>
-                          <td style="padding: 10px 8px; color: #0284c7; font-weight: 600;">
-                            💼 ${item.handlingStaff}
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <div style="font-family: monospace; color: #0284c7; font-weight: 700;">${item.departureDate}</div>
-                            <span style="font-size: 10.5px; color: #b45309; font-weight: 700;">${item.milestone}</span>
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <span style="background: #fee2e2; color: #991b1b; font-weight: 800; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; border: 1px solid #f87171;">
-                              Belum Terinput
-                            </span>
-                          </td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              ` : ''}
-
-              <!-- Instructions / Direct Action Tip -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
-                <p style="margin: 0; font-size: 11.5px; color: #64748b;">
-                  Penerima: <strong>${targetRecipient}</strong> • Jalur: <strong>Email 2 - Administrasi (Invoice &amp; Form Claim MDR)</strong>
-                </p>
-                <p style="margin: 4px 0 0 0; font-size: 11.5px; color: #334155;">
-                  💡 <em>Tips: Buka halaman Tours Manager di web TravelOps untuk melakukan checklist Form Claim MDR atau input Nomor Invoice secara langsung.</em>
-                </p>
-              </div>
-
-              <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
-                TravelOps Administration Suite • Automated Daily Dispatcher
-              </p>
-            </div>
-          `;
+          const adminEmailHtml = buildAdminEmailHtml({
+            unclaimedMdrItems,
+            uninvoicedItems,
+            targetRecipient,
+            appUrl: window.location.origin
+          });
 
           try {
             const res = await fetch('/api/send-email', {
@@ -858,206 +625,12 @@ const ReminderEngine = () => {
           if (pendingDocItems.length > 0) docSubjectParts.push(`${pendingDocItems.length} Dokumen Belum Selesai / In-Progress`);
 
           const docEmailSubject = `[DOKUMEN & VISA] Peringatan: ${docSubjectParts.join(' & ')} - TravelOps`;
-
-          const docEmailHtml = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 780px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1.5px solid #c7d2fe; border-radius: 12px; color: #1e293b;">
-              
-              <!-- Header Banner -->
-              <div style="border-bottom: 2px solid #6366f1; padding-bottom: 14px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <span style="font-size: 28px;">🛂</span>
-                  <div>
-                    <h2 style="margin: 0; color: #312e81; font-size: 20px; font-weight: 800;">TravelOps Dokumen &amp; Visa Operasional</h2>
-                    <p style="margin: 0; font-size: 12px; color: #4f46e5; font-weight: 700;">Monitoring Dokumen Dalam Proses &amp; Reminder Jadwal Appointment</p>
-                  </div>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
-                  ${appointmentDocItems.length > 0 ? `
-                    <span style="background: #ede9fe; color: #5b21b6; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #ddd6fe;">
-                      🛂 ${appointmentDocItems.length} Jadwal Appointment
-                    </span>
-                  ` : ''}
-                  ${pendingDocItems.length > 0 ? `
-                    <span style="background: #e0e7ff; color: #3730a3; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #c7d2fe;">
-                      📄 ${pendingDocItems.length} Dokumen In-Progress
-                    </span>
-                  ` : ''}
-                </div>
-              </div>
-
-              <p style="font-size: 13.5px; color: #334155; margin-bottom: 18px; line-height: 1.5;">
-                Halo Tim Dokumen &amp; Visa Operations, berikut ringkasan status <strong>seluruh dokumen yang masih dalam proses</strong> serta <strong>jadwal appointment visa (H-3 s/d Hari-H)</strong> per <strong>${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>:
-              </p>
-
-              <!-- SUB-SECTION 1: JADWAL APPOINTMENT VISA (H-3, H-2, H-1, H-0) -->
-              ${appointmentDocItems.length > 0 ? `
-                <div style="background: #f5f3ff; border: 1.5px solid #ddd6fe; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #c4b5fd; padding-bottom: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 20px;">🛂</span>
-                      <div>
-                        <h3 style="margin: 0; color: #4c1d95; font-size: 15px; font-weight: 800;">
-                          1. Jadwal Appointment Visa (${appointmentDocItems.length} Janji Temu / Biometrik)
-                        </h3>
-                        <p style="margin: 0; font-size: 11.5px; color: #6d28d9;">
-                          Reminder Janji Temu / Biometrik / Wawancara Kedutaan (milestone H-3, H-2, H-1, &amp; Hari-H). Mohon briefing tamu &amp; persiapkan berkas asli.
-                        </p>
-                      </div>
-                    </div>
-                    <span style="background: #7c3aed; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
-                      VISA APPOINTMENT
-                    </span>
-                  </div>
-
-                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #ddd6fe;">
-                    <thead>
-                      <tr style="background: #ede9fe; color: #4c1d95; text-align: left;">
-                        <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu &amp; Kontak</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Tipe Dokumen &amp; Negara</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Tgl &amp; Waktu Appointment</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Lokasi Janji Temu</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Staff PIC</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Milestone Tempo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${appointmentDocItems.map(item => `
-                        <tr style="border-bottom: 1px solid #ede9fe;">
-                          <td style="padding: 10px 8px; font-weight: 700; color: #0f172a;">
-                            👤 ${item.guestName}
-                            <div style="font-size: 10.5px; color: #64748b; font-weight: normal; margin-top: 2px;">
-                              📞 ${item.phoneNumber}
-                              ${item.bookingRef !== '-' ? ` • <span style="font-family: monospace;">${item.bookingRef}</span>` : ''}
-                            </div>
-                          </td>
-                          <td style="padding: 10px 8px; color: #334155;">
-                            <strong>${item.country}</strong>
-                            <div style="font-size: 11px; color: #64748b;">
-                              ${item.docType}
-                              ${item.processType && item.processType !== 'Normal' ? ` • <span style="color: #e11d48; font-weight: 700;">${item.processType}</span>` : ''}
-                            </div>
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <div style="font-family: monospace; color: #4338ca; font-weight: 700; font-size: 12.5px;">
-                              📅 ${item.appointmentDate}
-                            </div>
-                            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                              ⏰ ${item.appointmentTime !== '-' ? item.appointmentTime : 'Waktu Belum Diset'}
-                            </div>
-                          </td>
-                          <td style="padding: 10px 8px; color: #334155;">
-                            📍 <strong>${item.appointmentLocation}</strong>
-                          </td>
-                          <td style="padding: 10px 8px; color: #4f46e5; font-weight: 600;">
-                            💼 ${item.staff}
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <span style="background: ${item.diff === 0 ? '#fee2e2' : item.diff === 1 ? '#ffedd5' : item.diff === 2 ? '#fef3c7' : '#ede9fe'}; color: ${item.diff === 0 ? '#b91c1c' : item.diff === 1 ? '#c2410c' : item.diff === 2 ? '#b45309' : '#5b21b6'}; font-weight: 800; padding: 3px 8px; border-radius: 4px; font-size: 10.5px; border: 1px solid ${item.diff === 0 ? '#f87171' : item.diff === 1 ? '#fb923c' : item.diff === 2 ? '#fcd34d' : '#c4b5fd'}; display: inline-block;">
-                              ${item.milestoneLabel}
-                            </span>
-                          </td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              ` : ''}
-
-              <!-- SUB-SECTION 2: DOKUMEN BELUM SELESAI / DALAM PROSES (TARGET ESTIMASI STAFF) -->
-              ${pendingDocItems.length > 0 ? `
-                <div style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 10px; padding: 16px; margin-bottom: 22px;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #a5b4fc; padding-bottom: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 20px;">📄</span>
-                      <div>
-                        <h3 style="margin: 0; color: #312e81; font-size: 15px; font-weight: 800;">
-                          2. Dokumen Masih Dalam Proses / Belum Selesai (${pendingDocItems.length} Dokumen)
-                        </h3>
-                        <p style="margin: 0; font-size: 11.5px; color: #4338ca;">
-                          Seluruh dokumen aktif yang belum berstatus 'Received'. Urgensi dipantau berdasarkan Tanggal Estimasi Selesai yang diinput oleh staff.
-                        </p>
-                      </div>
-                    </div>
-                    <span style="background: #4f46e5; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
-                      IN-PROGRESS MONITOR
-                    </span>
-                  </div>
-
-                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #c7d2fe;">
-                    <thead>
-                      <tr style="background: #e0e7ff; color: #312e81; text-align: left;">
-                        <th style="padding: 10px 8px; font-weight: 700;">Nama Tamu &amp; Kode</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Tipe Dokumen &amp; Negara</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Tgl Terima &amp; Pengiriman</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Target Estimasi Selesai (Staff)</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Staff PIC</th>
-                        <th style="padding: 10px 8px; font-weight: 700;">Status Urgensi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${pendingDocItems.map(item => `
-                        <tr style="border-bottom: 1px solid #e0e7ff;">
-                          <td style="padding: 10px 8px; font-weight: 700; color: #0f172a;">
-                            👤 ${item.guestName}
-                            <div style="font-size: 10.5px; color: #64748b; font-weight: normal; margin-top: 2px;">
-                              📞 ${item.phoneNumber}
-                              ${item.bookingRef !== '-' ? ` • <span style="font-family: monospace;">${item.bookingRef}</span>` : ''}
-                            </div>
-                          </td>
-                          <td style="padding: 10px 8px; color: #334155;">
-                            <strong>${item.country}</strong>
-                            <div style="font-size: 11px; color: #64748b;">
-                              ${item.docType}
-                              ${item.processType && item.processType !== 'Normal' ? ` • <span style="color: #e11d48; font-weight: 700;">${item.processType}</span>` : ''}
-                            </div>
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <div style="font-family: monospace; color: #334155;">📥 ${item.receiveDate}</div>
-                            <span style="display: inline-block; margin-top: 3px; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${item.shippingStatus === 'Sent' ? '#fef3c7' : item.shippingStatus === 'Returned' ? '#fee2e2' : '#e0e7ff'}; color: ${item.shippingStatus === 'Sent' ? '#b45309' : item.shippingStatus === 'Returned' ? '#b91c1c' : '#3730a3'};">
-                              📦 ${item.shippingStatus}
-                            </span>
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            ${item.estimatedDone ? `
-                              <div style="font-family: monospace; color: #312e81; font-weight: 700; font-size: 12px;">
-                                🎯 ${item.estimatedDone}
-                              </div>
-                            ` : `
-                              <div style="color: #d97706; font-size: 11px; font-weight: 700;">
-                                ⚠️ Belum Diinput Staff
-                              </div>
-                            `}
-                          </td>
-                          <td style="padding: 10px 8px; color: #4f46e5; font-weight: 600;">
-                            💼 ${item.staff}
-                          </td>
-                          <td style="padding: 10px 8px;">
-                            <span style="background: ${item.urgencyLevel === 'overdue' ? '#fee2e2' : item.urgencyLevel === 'today' ? '#ffedd5' : item.urgencyLevel === 'unassigned' ? '#fef3c7' : item.urgencyLevel === 'warning' ? '#fef3c7' : '#ecfdf5'}; color: ${item.urgencyLevel === 'overdue' ? '#b91c1c' : item.urgencyLevel === 'today' ? '#c2410c' : item.urgencyLevel === 'unassigned' ? '#b45309' : item.urgencyLevel === 'warning' ? '#b45309' : '#047857'}; font-weight: 800; padding: 3px 8px; border-radius: 4px; font-size: 10px; border: 1px solid ${item.urgencyLevel === 'overdue' ? '#f87171' : item.urgencyLevel === 'today' ? '#fb923c' : item.urgencyLevel === 'unassigned' ? '#fcd34d' : item.urgencyLevel === 'warning' ? '#fcd34d' : '#a7f3d0'}; display: inline-block;">
-                              ${item.statusLabel}
-                            </span>
-                          </td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              ` : ''}
-
-              <!-- Instructions / Direct Action Tip -->
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
-                <p style="margin: 0; font-size: 11.5px; color: #64748b;">
-                  Penerima: <strong>${targetRecipient}</strong> • Jalur: <strong>Email 3 - Dokumen &amp; Visa Operasional (Terpisah)</strong>
-                </p>
-                <p style="margin: 4px 0 0 0; font-size: 11.5px; color: #334155;">
-                  💡 <em>Tips: Buka modul Dokumen di TravelOps untuk memperbarui status proses, menginput tanggal estimasi selesai staff, atau mengonfirmasi kehadiran janji temu appointment visa.</em>
-                </p>
-              </div>
-
-              <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
-                TravelOps Document &amp; Visa Suite • Automated Daily Dispatcher
-              </p>
-            </div>
-          `;
+          const docEmailHtml = buildDocumentEmailHtml({
+            appointmentDocItems,
+            pendingDocItems,
+            targetRecipient,
+            appUrl: window.location.origin
+          });
 
           try {
             const res = await fetch('/api/send-email', {
@@ -1097,7 +670,6 @@ const ReminderEngine = () => {
         }
       }
 
-      setEmailDeliveryStatus('sent');
       if (isManual) {
         toast?.success(`3 Jalur Reminder (Operasional, Administrasi, & Dokumen/Visa) berhasil dicek dan dikirim ke ${targetRecipient}!`);
       }
@@ -1140,7 +712,7 @@ const ReminderEngine = () => {
       if (opDone && adminDone && docDone) return;
 
       hasTriggeredRef.current = true;
-      runRemindersCheck(false);
+      Promise.resolve().then(() => runRemindersCheck(false));
     }
   }, [authLoading, tours, cruises, documents, settings, user, runRemindersCheck]);
 
@@ -1212,7 +784,6 @@ const ReminderEngine = () => {
           const isInvoice = log.includes('[ADMIN: INVOICE]');
           const isAppointment = log.includes('[APPOINTMENT]');
           const isDoc = log.includes('[DOKUMEN]');
-          const isOp = log.includes('[OPERASIONAL]');
 
           let icon = '✈️';
           let badgeColor = 'var(--primary)';

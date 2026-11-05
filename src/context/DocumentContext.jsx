@@ -142,6 +142,7 @@ export const DocumentProvider = ({ children }) => {
 
   useEffect(() => {
     let cancelled = false;
+
     loadDocumentsFromDb()
       .then((mapped) => {
         if (!cancelled) setDocuments(mapped);
@@ -152,8 +153,27 @@ export const DocumentProvider = ({ children }) => {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
+    const channel = supabase
+      .channel('travelops_documents_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'travelops_documents' },
+        () => {
+          if (!cancelled) {
+            loadDocumentsFromDb()
+              .then((mapped) => {
+                if (!cancelled) setDocuments(mapped);
+              })
+              .catch((err) => console.error('Realtime sync error:', err));
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       cancelled = true;
+      supabase.removeChannel(channel);
     };
   }, []);
 

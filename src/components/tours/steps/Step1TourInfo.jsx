@@ -4,7 +4,7 @@ import { useUsers } from '../../../context/UserContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useToast } from '../../../context/ToastContext';
-import { isTourPast } from '../../../context/TourContext';
+import { isTourPast } from '../../../utils/tourUtils';
 import {
   getTripDurationInfo,
   resizePaxList,

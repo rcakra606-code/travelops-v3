@@ -1,5 +1,4 @@
 import ExcelJS from 'exceljs';
-import { formatCurrency } from './currency';
 
 /**
  * Extracts and prepares display data from tour object

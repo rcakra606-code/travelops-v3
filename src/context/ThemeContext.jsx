@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ACCENT_PRESETS = [
   { id: 'neon-blue', name: 'Neon Sky Blue', color: '#00a8ff' },
   { id: 'cyan', name: 'Electric Cyan', color: '#06b6d4' },
@@ -65,4 +66,5 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTheme = () => useContext(ThemeContext);

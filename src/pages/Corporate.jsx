@@ -1,13 +1,22 @@
 import React, { useState, useMemo, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
+import Pagination from '../components/Pagination';
+import ExportMenu from '../components/ExportMenu';
 import { useCorporate } from '../context/CorporateContext';
-import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
+import {
+  AccountFormModal,
+  SalesFormModal,
+  AccountDossierDrawer,
+  ConfirmDeleteModal
+} from '../components/corporate/CorporateModals';
 import { 
-  Building, Briefcase, Plus, Edit2, Trash2, X, BarChart2, PieChart as PieChartIcon, 
-  FileText, Database, TrendingUp, DollarSign, Activity, Calendar, Download, Upload, Users,
-  Mail, Phone, ExternalLink, Eye
+  Building, Briefcase, Plus, Edit2, Trash2, BarChart2, 
+  TrendingUp, DollarSign, Activity, Upload, Users,
+  Phone, Eye, Search, Filter, ShieldCheck, AlertCircle, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
@@ -15,14 +24,29 @@ import {
 } from 'recharts';
 
 const CATEGORIES = ['Flight', 'Hotel', 'Other', 'All Sales'];
+const PAGE_SIZE = 15;
+
+const formatCurrencyIdr = (val) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0
+  }).format(Number(val) || 0);
+};
 
 const Corporate = () => {
   const { 
-    corporateAccounts, addAccount, updateAccount, deleteAccount, bulkImportAccounts,
+    corporateAccounts, addAccount, updateAccount, deleteAccount,
     corporateSales, addSales, updateSales, deleteSales, bulkImportSales 
   } = useCorporate();
-  const { user } = useAuth();
   
+  const { user } = useAuth();
+  const { theme } = useTheme();
+  const { toast } = useToast();
+  
+  const isLight = theme === 'light';
+  const neonBlue = isLight ? '#0284c7' : '#00d4ff';
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountFilter, setSelectedAccountFilter] = useState('All');
@@ -38,18 +62,38 @@ const Corporate = () => {
   const [compAccount, setCompAccount] = useState('All');
   const [compCategory, setCompCategory] = useState('All');
 
-  // Modals State
+  // Accounts Tab Filters & Pagination
+  const [accountsSearch, setAccountsSearch] = useState('');
+  const [accountsStatusFilter, setAccountsStatusFilter] = useState('All');
+  const [accountsPage, setAccountsPage] = useState(1);
+
+  // Sales Tab Filters & Pagination
+  const [salesSearch, setSalesSearch] = useState('');
+  const [salesCategoryFilter, setSalesCategoryFilter] = useState('All');
+  const [salesPeriodFilter, setSalesPeriodFilter] = useState('All');
+  const [salesPage, setSalesPage] = useState(1);
+
+  // Modals & Drawer State
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [viewingAccount, setViewingAccount] = useState(null);
   const [editingSales, setEditingSales] = useState(null);
+
+  // Delete Confirm Modal State
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    isOpen: false,
+    type: null, // 'account' | 'sales'
+    id: null,
+    title: '',
+    message: ''
+  });
   
   const fileInputSalesRef = useRef(null);
 
-  // Initial Data
+  // Initial Form Data
   const initialAccountData = {
-    accountCode: '', corporateName: '', address: '', creditLimit: '', status: 'Active',
+    accountCode: '', corporateName: '', companyName: '', address: '', creditLimit: '', status: 'Active',
     picName: '', picPhone: '', picOfficeEmail: '', picPersonalEmail: '', remarks: '',
     flightFee: { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
     hotelFee: { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
@@ -57,7 +101,12 @@ const Corporate = () => {
   };
 
   const initialSalesData = {
-    date: '', accountCode: '', category: 'Flight', salesAmount: '', profitAmount: '', remarks: ''
+    date: new Date().toISOString().slice(0, 7),
+    accountCode: '',
+    category: 'Flight',
+    salesAmount: '',
+    profitAmount: '',
+    remarks: ''
   };
 
   const [accountFormData, setAccountFormData] = useState(initialAccountData);
@@ -68,13 +117,12 @@ const Corporate = () => {
 
   const isAdmin = user?.role === 'Admin';
   const isManager = user?.role === 'Manager';
-  const isStaff = user?.role === 'Staff';
   
   const canDelete = isAdmin;
   const canEditAny = isAdmin || isManager;
   const canAdd = isAdmin || isManager;
 
-  // Filtering Sales
+  // Global Filtered Sales by Account selection
   const filteredSales = useMemo(() => {
     let data = corporateSales;
     if (selectedAccountFilter !== 'All') {
@@ -83,48 +131,72 @@ const Corporate = () => {
     return data;
   }, [corporateSales, selectedAccountFilter]);
 
-  // Dashboard Logic
-  const totalSales = filteredSales.reduce((sum, r) => sum + r.salesAmount, 0);
-  const totalProfit = filteredSales.reduce((sum, r) => sum + r.profitAmount, 0);
-  const overallMargin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(2) : 0;
-  const activeAccountsCount = corporateAccounts.filter(a => a.status === 'Active').length;
+  // Overall KPI Telemetry
+  const totalSales = useMemo(() => filteredSales.reduce((sum, r) => sum + r.salesAmount, 0), [filteredSales]);
+  const totalProfit = useMemo(() => filteredSales.reduce((sum, r) => sum + r.profitAmount, 0), [filteredSales]);
+  const overallMargin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : '0.0';
+  const activeAccountsCount = useMemo(() => corporateAccounts.filter(a => a.status === 'Active').length, [corporateAccounts]);
+
+  // Map account sales totals for utilization telemetry
+  const accountSalesMap = useMemo(() => {
+    const map = {};
+    corporateSales.forEach(s => {
+      map[s.accountCode] = (map[s.accountCode] || 0) + (Number(s.salesAmount) || 0);
+    });
+    return map;
+  }, [corporateSales]);
+
+  // Count over-limit accounts
+  const overLimitCount = useMemo(() => {
+    return corporateAccounts.filter(a => {
+      const spent = accountSalesMap[a.accountCode] || 0;
+      return a.creditLimit > 0 && spent >= a.creditLimit;
+    }).length;
+  }, [corporateAccounts, accountSalesMap]);
 
   // Chart: Sales by Category
-  const catMap = {};
-  CATEGORIES.forEach(c => catMap[c] = { name: c, Sales: 0, Profit: 0 });
-  filteredSales.forEach(r => {
-    if (catMap[r.category]) {
-      catMap[r.category].Sales += r.salesAmount;
-      catMap[r.category].Profit += r.profitAmount;
-    }
-  });
-  const catBarData = Object.values(catMap).sort((a, b) => b.Sales - a.Sales);
+  const catBarData = useMemo(() => {
+    const catMap = {};
+    CATEGORIES.forEach(c => { catMap[c] = { name: c, Sales: 0, Profit: 0 }; });
+    filteredSales.forEach(r => {
+      if (catMap[r.category]) {
+        catMap[r.category].Sales += r.salesAmount;
+        catMap[r.category].Profit += r.profitAmount;
+      }
+    });
+    return Object.values(catMap).sort((a, b) => b.Sales - a.Sales);
+  }, [filteredSales]);
 
   // Chart: Top 5 Accounts by Sales
-  const accMap = {};
-  filteredSales.forEach(r => {
-    if (!accMap[r.accountCode]) accMap[r.accountCode] = { name: r.accountCode, Sales: 0, Profit: 0 };
-    accMap[r.accountCode].Sales += r.salesAmount;
-    accMap[r.accountCode].Profit += r.profitAmount;
-  });
-  const topAccountsData = Object.values(accMap).sort((a, b) => b.Sales - a.Sales).slice(0, 5);
+  const topAccountsData = useMemo(() => {
+    const accMap = {};
+    filteredSales.forEach(r => {
+      if (!accMap[r.accountCode]) accMap[r.accountCode] = { name: r.accountCode, Sales: 0, Profit: 0 };
+      accMap[r.accountCode].Sales += r.salesAmount;
+      accMap[r.accountCode].Profit += r.profitAmount;
+    });
+    return Object.values(accMap).sort((a, b) => b.Sales - a.Sales).slice(0, 5);
+  }, [filteredSales]);
 
   // Chart: Trend over time
-  const trendMap = {};
-  filteredSales.forEach(r => {
-    if (!trendMap[r.date]) trendMap[r.date] = { date: r.date, Sales: 0, Profit: 0 };
-    trendMap[r.date].Sales += r.salesAmount;
-    trendMap[r.date].Profit += r.profitAmount;
-  });
-  const trendData = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
+  const trendData = useMemo(() => {
+    const trendMap = {};
+    filteredSales.forEach(r => {
+      if (!trendMap[r.date]) trendMap[r.date] = { date: r.date, Sales: 0, Profit: 0 };
+      trendMap[r.date].Sales += r.salesAmount;
+      trendMap[r.date].Profit += r.profitAmount;
+    });
+    return Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredSales]);
 
-  // Comparison Table Data
+  // Comparison Table (12-Month Matrix)
   const comparisonData = useMemo(() => {
     const accData = {};
     corporateAccounts.forEach(acc => {
       if (selectedAccountFilter === 'All' || selectedAccountFilter === acc.accountCode) {
         accData[acc.accountCode] = {
-          corporateName: acc.corporateName,
+          corporateName: acc.corporateName || acc.companyName,
+          accountCode: acc.accountCode,
           months: {},
           ytdSales: 0,
           ytdProfit: 0,
@@ -140,13 +212,13 @@ const Corporate = () => {
     corporateSales.forEach(sale => {
       if (!accData[sale.accountCode]) return;
       if (matrixCategory !== 'All' && sale.category !== matrixCategory) return;
-      const [y, m] = sale.date.split('-');
-      if (y === selectedYear) {
+      const [y, m] = (sale.date || '').split('-');
+      if (y === selectedYear && accData[sale.accountCode].months[m]) {
         accData[sale.accountCode].months[m].sales += sale.salesAmount;
         accData[sale.accountCode].months[m].profit += sale.profitAmount;
         accData[sale.accountCode].ytdSales += sale.salesAmount;
         accData[sale.accountCode].ytdProfit += sale.profitAmount;
-      } else if (y === (parseInt(selectedYear) - 1).toString()) {
+      } else if (y === (parseInt(selectedYear, 10) - 1).toString()) {
         accData[sale.accountCode].prevYtdSales += sale.salesAmount;
       }
     });
@@ -162,15 +234,13 @@ const Corporate = () => {
       mixMap[m] = { name: m, Flight: 0, Hotel: 0, Other: 0, 'All Sales': 0 };
     }
     filteredSales.forEach(r => {
-      const [y, m] = r.date.split('-');
-      if (y === selectedYear) {
+      const [y, m] = (r.date || '').split('-');
+      if (y === selectedYear && mixMap[m]) {
         if (mixMap[m][r.category] !== undefined) mixMap[m][r.category] += r.salesAmount;
       }
     });
     return Object.values(mixMap);
   }, [filteredSales, selectedYear]);
-
-  const formatCurrency = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
   // --- PERIOD COMPARISON LOGIC ---
   const isInPeriod = (saleDate, periodStr, level) => {
@@ -220,14 +290,76 @@ const Corporate = () => {
     return { dataA, dataB };
   }, [corporateSales, compLevel, compPeriodA, compPeriodB, compAccount, compCategory]);
 
-  const compGrowthSales = compData.dataB.sales > 0 ? ((compData.dataA.sales - compData.dataB.sales) / compData.dataB.sales * 100) : (compData.dataA.sales > 0 ? 100 : 0);
-  const compGrowthProfit = compData.dataB.profit > 0 ? ((compData.dataA.profit - compData.dataB.profit) / compData.dataB.profit * 100) : (compData.dataA.profit > 0 ? 100 : 0);
+  const compGrowthSales = compData.dataB.sales > 0 
+    ? ((compData.dataA.sales - compData.dataB.sales) / compData.dataB.sales * 100) 
+    : (compData.dataA.sales > 0 ? 100 : 0);
+  const compGrowthProfit = compData.dataB.profit > 0 
+    ? ((compData.dataA.profit - compData.dataB.profit) / compData.dataB.profit * 100) 
+    : (compData.dataA.profit > 0 ? 100 : 0);
 
-  // Handlers for Account
+  // Filtered Accounts
+  const filteredAccounts = useMemo(() => {
+    return corporateAccounts.filter(acc => {
+      const q = accountsSearch.toLowerCase().trim();
+      const name = (acc.corporateName || acc.companyName || '').toLowerCase();
+      const code = (acc.accountCode || '').toLowerCase();
+      const pic = (acc.picName || '').toLowerCase();
+      const phone = (acc.picPhone || '').toLowerCase();
+      const matchSearch = !q || name.includes(q) || code.includes(q) || pic.includes(q) || phone.includes(q);
+      const matchStatus = accountsStatusFilter === 'All' || acc.status === accountsStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [corporateAccounts, accountsSearch, accountsStatusFilter]);
+
+  const paginatedAccounts = useMemo(() => {
+    const start = (accountsPage - 1) * PAGE_SIZE;
+    return filteredAccounts.slice(start, start + PAGE_SIZE);
+  }, [filteredAccounts, accountsPage]);
+
+  const totalAccountPages = Math.ceil(filteredAccounts.length / PAGE_SIZE) || 1;
+
+  // Filtered Sales in Sales Tab
+  const filteredSalesTab = useMemo(() => {
+    return corporateSales.filter(rec => {
+      const q = salesSearch.toLowerCase().trim();
+      const code = (rec.accountCode || '').toLowerCase();
+      const remarks = (rec.remarks || '').toLowerCase();
+      const matchSearch = !q || code.includes(q) || remarks.includes(q);
+      const matchCat = salesCategoryFilter === 'All' || rec.category === salesCategoryFilter;
+      const matchPeriod = salesPeriodFilter === 'All' || rec.date === salesPeriodFilter;
+      const matchAccount = selectedAccountFilter === 'All' || rec.accountCode === selectedAccountFilter;
+      return matchSearch && matchCat && matchPeriod && matchAccount;
+    });
+  }, [corporateSales, salesSearch, salesCategoryFilter, salesPeriodFilter, selectedAccountFilter]);
+
+  const paginatedSales = useMemo(() => {
+    const start = (salesPage - 1) * PAGE_SIZE;
+    return filteredSalesTab.slice(start, start + PAGE_SIZE);
+  }, [filteredSalesTab, salesPage]);
+
+  const totalSalesPages = Math.ceil(filteredSalesTab.length / PAGE_SIZE) || 1;
+
+  // Handlers for Account Modal
   const handleOpenAccountModal = (acc = null) => {
     if (acc) {
       setEditingAccount(acc);
-      setAccountFormData(acc);
+      setAccountFormData({
+        accountCode: acc.accountCode || '',
+        corporateName: acc.corporateName || acc.companyName || '',
+        companyName: acc.companyName || acc.corporateName || '',
+        address: acc.address || '',
+        creditLimit: acc.creditLimit || '',
+        status: acc.status || 'Active',
+        picName: acc.picName || '',
+        picPhone: acc.picPhone || '',
+        picOfficeEmail: acc.picOfficeEmail || '',
+        picPersonalEmail: acc.picPersonalEmail || '',
+        remarks: acc.remarks || '',
+        flightFee: acc.flightFee || { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
+        hotelFee: acc.hotelFee || { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
+        airlinesCode: acc.airlinesCode || '',
+        detailLink: acc.detailLink || ''
+      });
     } else {
       setEditingAccount(null);
       setAccountFormData(initialAccountData);
@@ -235,105 +367,223 @@ const Corporate = () => {
     setIsAccountModalOpen(true);
   };
 
-  const handleAccountSubmit = (e) => {
+  const handleAccountSubmit = async (e) => {
     e.preventDefault();
-    if (editingAccount) {
-      updateAccount(editingAccount.id, accountFormData);
-    } else {
-      addAccount(accountFormData);
+    if (!accountFormData.accountCode || (!accountFormData.corporateName && !accountFormData.companyName)) {
+      toast.warning('Account code and company name are required.');
+      return;
     }
-    setIsAccountModalOpen(false);
+
+    if (editingAccount) {
+      const res = await updateAccount(editingAccount.id, accountFormData);
+      if (res?.success) {
+        toast.success(`Corporate account "${accountFormData.accountCode}" updated.`);
+        setIsAccountModalOpen(false);
+      } else {
+        toast.error(res?.error || 'Failed to update account.');
+      }
+    } else {
+      const res = await addAccount(accountFormData);
+      if (res?.success) {
+        toast.success(`Corporate account "${accountFormData.accountCode}" registered.`);
+        setIsAccountModalOpen(false);
+      } else {
+        toast.error(res?.error || 'Failed to create account.');
+      }
+    }
   };
 
-  // Handlers for Sales
+  // Handlers for Sales Modal
   const handleOpenSalesModal = (sale = null) => {
     if (sale) {
       setEditingSales(sale);
-      setSalesFormData(sale);
+      setSalesFormData({
+        date: sale.date || '',
+        accountCode: sale.accountCode || '',
+        category: sale.category || 'Flight',
+        salesAmount: sale.salesAmount || '',
+        profitAmount: sale.profitAmount || '',
+        remarks: sale.remarks || ''
+      });
     } else {
       setEditingSales(null);
-      setSalesFormData(initialSalesData);
+      setSalesFormData({
+        ...initialSalesData,
+        accountCode: corporateAccounts[0]?.accountCode || ''
+      });
     }
     setIsSalesModalOpen(true);
   };
 
-  const handleSalesSubmit = (e) => {
+  const handleSalesSubmit = async (e) => {
     e.preventDefault();
-    if (editingSales) {
-      updateSales(editingSales.id, salesFormData);
-    } else {
-      addSales(salesFormData);
-    }
-    setIsSalesModalOpen(false);
-  };
-
-  // Export Sales
-  const handleExportSales = () => {
-    const headers = ['id', 'date', 'accountCode', 'category', 'salesAmount', 'profitAmount', 'remarks'];
-    const escapeCsv = (str) => {
-      if (str === null || str === undefined) return '""';
-      return `"${String(str).replace(/"/g, '""')}"`;
-    };
-    const csvRows = [headers.join(',')];
-    filteredSales.forEach(row => {
-      csvRows.push(headers.map(h => escapeCsv(row[h])).join(','));
-    });
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Corporate_Sales_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Import Sales
-  const handleImportSales = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      alert('Harap unggah file dengan format .csv yang valid.');
+    if (!salesFormData.date || !salesFormData.accountCode) {
+      toast.warning('Period and corporate account are required.');
       return;
     }
+
+    if (editingSales) {
+      const res = await updateSales(editingSales.id, salesFormData);
+      if (res?.success) {
+        toast.success('Sales record updated.');
+        setIsSalesModalOpen(false);
+      } else {
+        toast.error(res?.error || 'Failed to update sales.');
+      }
+    } else {
+      const res = await addSales(salesFormData);
+      if (res?.success) {
+        toast.success('Sales record created.');
+        setIsSalesModalOpen(false);
+      } else {
+        toast.error(res?.error || 'Failed to add sales.');
+      }
+    }
+  };
+
+  // Safe Deletion Handlers
+  const handlePromptDeleteAccount = (acc) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'account',
+      id: acc.id,
+      title: 'Delete Corporate Account?',
+      message: `Are you sure you want to delete ${acc.accountCode} (${acc.corporateName || acc.companyName})? All fee configurations and associated account data will be permanently removed.`
+    });
+  };
+
+  const handlePromptDeleteSales = (sale) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'sales',
+      id: sale.id,
+      title: 'Delete Sales Record?',
+      message: `Delete record for ${sale.accountCode} (${sale.date}) with sales ${formatCurrencyIdr(sale.salesAmount)}?`
+    });
+  };
+
+  const handleExecuteDelete = async () => {
+    const { type, id } = deleteConfirm;
+    setDeleteConfirm({ isOpen: false, type: null, id: null, title: '', message: '' });
+
+    if (type === 'account' && id) {
+      const res = await deleteAccount(id);
+      if (res?.success) {
+        toast.success('Corporate account deleted.');
+      } else {
+        toast.error(res?.error || 'Failed to delete account.');
+      }
+    } else if (type === 'sales' && id) {
+      const res = await deleteSales(id);
+      if (res?.success) {
+        toast.success('Sales record deleted.');
+      } else {
+        toast.error(res?.error || 'Failed to delete record.');
+      }
+    }
+  };
+
+  // CSV Import for Sales
+  const handleImportSales = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast.warning('Please select a valid .csv file.');
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const str = event.target.result;
-        const result = [];
-        let row = [], inQuotes = false, currentVal = '';
-        for (let i = 0; i < str.length; i++) {
-          let char = str[i], nextChar = str[i+1];
-          if (char === '"' && inQuotes && nextChar === '"') { currentVal += '"'; i++; }
-          else if (char === '"') inQuotes = !inQuotes;
-          else if (char === ',' && !inQuotes) { row.push(currentVal); currentVal = ''; }
-          else if ((char === '\n' || char === '\r') && !inQuotes) {
-            if (char === '\r' && nextChar === '\n') i++;
-            if (currentVal !== '' || row.length > 0) { row.push(currentVal); result.push(row); }
-            row = []; currentVal = '';
-          } else currentVal += char;
+        const text = event.target?.result;
+        if (typeof text !== 'string') return;
+
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) {
+          toast.warning('CSV file is empty or missing data rows.');
+          return;
         }
-        if (currentVal !== '' || row.length > 0) { row.push(currentVal); result.push(row); }
-        
-        if (result.length < 2) return alert("Empty CSV");
-        const headers = result[0];
-        const importedData = [];
-        for (let i = 1; i < result.length; i++) {
-          if (result[i].length === 1 && result[i][0].trim() === '') continue;
-          const obj = {};
-          headers.forEach((h, idx) => obj[h.trim()] = result[i][idx] || '');
-          if (obj.date && obj.accountCode && obj.category) importedData.push(obj);
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const dateIdx = headers.findIndex(h => /date|period/i.test(h));
+        const codeIdx = headers.findIndex(h => /account|code/i.test(h));
+        const catIdx = headers.findIndex(h => /category/i.test(h));
+        const salesIdx = headers.findIndex(h => /sales/i.test(h));
+        const profitIdx = headers.findIndex(h => /profit/i.test(h));
+        const remarksIdx = headers.findIndex(h => /remark|notes/i.test(h));
+
+        if (dateIdx === -1 || codeIdx === -1) {
+          toast.error('CSV must have "date" (or "period") and "accountCode" columns.');
+          return;
         }
-        if (importedData.length > 0) {
-          bulkImportSales(importedData);
-          alert(`Imported ${importedData.length} records!`);
+
+        const parsed = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+          const date = cols[dateIdx] || '';
+          const accountCode = cols[codeIdx] || '';
+          if (!date || !accountCode) continue;
+
+          parsed.push({
+            date,
+            accountCode,
+            category: catIdx !== -1 && cols[catIdx] ? cols[catIdx] : 'Flight',
+            salesAmount: salesIdx !== -1 ? Number(cols[salesIdx].replace(/[^0-9.-]/g, '')) || 0 : 0,
+            profitAmount: profitIdx !== -1 ? Number(cols[profitIdx].replace(/[^0-9.-]/g, '')) || 0 : 0,
+            remarks: remarksIdx !== -1 ? cols[remarksIdx] : ''
+          });
+        }
+
+        if (parsed.length === 0) {
+          toast.warning('No valid rows found to import.');
+          return;
+        }
+
+        const res = await bulkImportSales(parsed);
+        if (res?.success) {
+          toast.success(`Successfully imported ${res.count || parsed.length} corporate sales records.`);
         } else {
-          alert('No valid records found.');
+          toast.error(res?.error || 'Import failed.');
         }
-      } catch (err) { alert('Failed to parse CSV'); }
-      if (fileInputSalesRef.current) fileInputSalesRef.current.value = '';
+      } catch (err) {
+        console.error('CSV import error:', err);
+        toast.error('Failed to parse CSV file.');
+      } finally {
+        if (fileInputSalesRef.current) fileInputSalesRef.current.value = '';
+      }
     };
     reader.readAsText(file);
   };
+
+  // Export Columns Config
+  const accountExportColumns = [
+    { header: 'Account Code', key: 'accountCode' },
+    { header: 'Corporate Name', key: 'corporateName' },
+    { header: 'Status', key: 'status' },
+    { header: 'Credit Limit', key: 'creditLimit', format: 'currency' },
+    { header: 'PIC Name', key: 'picName' },
+    { header: 'PIC Phone', key: 'picPhone' },
+    { header: 'Office Email', key: 'picOfficeEmail' },
+    { header: 'Airlines Code', key: 'airlinesCode' },
+    { header: 'Address', key: 'address' }
+  ];
+
+  const salesExportColumns = [
+    { header: 'Period', key: 'date' },
+    { header: 'Account Code', key: 'accountCode' },
+    { header: 'Category', key: 'category' },
+    { header: 'Sales Amount', key: 'salesAmount', format: 'currency' },
+    { header: 'Profit Amount', key: 'profitAmount', format: 'currency' },
+    { header: 'Remarks', key: 'remarks' }
+  ];
+
+  // Unique list of periods for filter dropdown
+  const uniquePeriods = useMemo(() => {
+    const set = new Set();
+    corporateSales.forEach(s => s.date && set.add(s.date));
+    return Array.from(set).sort().reverse();
+  }, [corporateSales]);
 
   return (
     <div className="app-container fade-in">
@@ -344,182 +594,336 @@ const Corporate = () => {
         
         <div className="content-area">
           <div className="page-container">
+
+            {/* HEADER BAR */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <h1 className="section-title" style={{ marginBottom: 0 }}>Corporate Dashboard</h1>
+              <div>
+                <h1 className="section-title" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Building size={26} color={neonBlue} /> Corporate Telemetry & Accounts
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Multi-horizon contract performance, credit limit telemetry, and transaction ledger.
+                </p>
+              </div>
               
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Account:</span>
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Account Filter Pill */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)', padding: '0.4rem 0.85rem', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                  <Filter size={15} color={neonBlue} />
+                  <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Account Filter:</span>
                   <select 
-                    value={selectedAccountFilter} onChange={e => setSelectedAccountFilter(e.target.value)}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', fontWeight: '500' }}
+                    value={selectedAccountFilter} 
+                    onChange={e => setSelectedAccountFilter(e.target.value)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}
                   >
-                    <option value="All" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>All Accounts</option>
-                    {corporateAccounts.map(a => <option key={a.id} value={a.accountCode} style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>{a.accountCode} - {a.corporateName}</option>)}
+                    <option value="All" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>All Corporate Accounts</option>
+                    {corporateAccounts.map(a => (
+                      <option key={a.id} value={a.accountCode} style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>
+                        {a.accountCode} - {a.corporateName || a.companyName}
+                      </option>
+                    ))}
                   </select>
                 </div>
+
+                {canAdd && (
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => handleOpenAccountModal()}
+                    style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.15rem' }}
+                  >
+                    <Plus size={16} /> New Account
+                  </button>
+                )}
               </div>
             </div>
 
+            {/* TAB SELECTOR */}
             <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-              <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-                <Activity size={18} /> Dashboard
+              <button 
+                className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('dashboard')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Activity size={17} color={activeTab === 'dashboard' ? neonBlue : 'currentColor'} /> Executive Dashboard
               </button>
-              <button className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`} onClick={() => setActiveTab('comparison')}>
-                <BarChart2 size={18} /> Period Comparison
+              <button 
+                className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('comparison')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <BarChart2 size={17} color={activeTab === 'comparison' ? neonBlue : 'currentColor'} /> Period Comparison
               </button>
-              <button className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`} onClick={() => setActiveTab('accounts')}>
-                <Building size={18} /> Corporate Accounts
+              <button 
+                className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('accounts')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Building size={17} color={activeTab === 'accounts' ? neonBlue : 'currentColor'} /> Corporate Accounts ({corporateAccounts.length})
               </button>
-              <button className={`tab-btn ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>
-                <TrendingUp size={18} /> Corporate Sales
+              <button 
+                className={`tab-btn ${activeTab === 'sales' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('sales')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <TrendingUp size={17} color={activeTab === 'sales' ? neonBlue : 'currentColor'} /> Sales Database ({corporateSales.length})
               </button>
             </div>
 
-            {/* TAB: DASHBOARD */}
+            {/* ========================================================= */}
+            {/* TAB 1: EXECUTIVE DASHBOARD */}
+            {/* ========================================================= */}
             {activeTab === 'dashboard' && (
               <div className="fade-in">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                {/* 4 KPI SCORECARDS */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
+                  
+                  {/* Total Sales */}
                   <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-20px', right: '-20px', background: 'rgba(59, 130, 246, 0.12)', width: '100px', height: '100px', borderRadius: '50%', filter: 'blur(20px)' }}></div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Briefcase size={16} color="var(--primary)"/> Total Corporate Sales</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>{formatCurrency(totalSales)}</div>
+                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: `${neonBlue}20`, width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Briefcase size={16} color={neonBlue} /> Total Corporate Sales
+                    </div>
+                    <div style={{ fontSize: '1.85rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
+                      {formatCurrencyIdr(totalSales)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                      Filtered: {filteredSales.length} transaction records
+                    </div>
                   </div>
+
+                  {/* Total Profit */}
                   <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-20px', right: '-20px', background: 'rgba(16, 185, 129, 0.12)', width: '100px', height: '100px', borderRadius: '50%', filter: 'blur(20px)' }}></div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><DollarSign size={16} color="#10b981"/> Total Corporate Profit</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>{formatCurrency(totalProfit)}</div>
+                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(16, 185, 129, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <DollarSign size={16} color="#10b981" /> Total Gross Profit
+                    </div>
+                    <div style={{ fontSize: '1.85rem', fontWeight: '700', color: '#10b981', letterSpacing: '-0.025em' }}>
+                      {formatCurrencyIdr(totalProfit)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                      Net margin realized from corporate bookings
+                    </div>
                   </div>
+
+                  {/* Overall Margin */}
                   <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-20px', right: '-20px', background: 'rgba(139, 92, 246, 0.12)', width: '100px', height: '100px', borderRadius: '50%', filter: 'blur(20px)' }}></div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Activity size={16} color="#8b5cf6"/> Overall Margin</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>{overallMargin}%</div>
+                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(139, 92, 246, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Activity size={16} color="#8b5cf6" /> Blended Profit Margin
+                    </div>
+                    <div style={{ fontSize: '1.85rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
+                      {overallMargin}%
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                      Average yield across Flight, Hotel & Other
+                    </div>
                   </div>
+
+                  {/* Active Accounts & Telemetry */}
                   <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-20px', right: '-20px', background: 'rgba(245, 158, 11, 0.12)', width: '100px', height: '100px', borderRadius: '50%', filter: 'blur(20px)' }}></div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Users size={16} color="#f59e0b"/> Active Accounts</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>{activeAccountsCount}</div>
+                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(245, 158, 11, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Users size={16} color="#f59e0b" /> Active Contracts
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '1.85rem', fontWeight: '700', color: 'var(--text-main)' }}>{activeAccountsCount}</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>/ {corporateAccounts.length} Total</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', marginTop: '0.4rem', color: overLimitCount > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {overLimitCount > 0 ? <AlertCircle size={13}/> : <ShieldCheck size={13}/>}
+                      {overLimitCount > 0 ? `${overLimitCount} account(s) at or above limit` : 'All credit limits healthy'}
+                    </div>
                   </div>
+
                 </div>
 
+                {/* CHARTS ROW 1: Trend & Category Mix */}
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                  
+                  {/* Sales & Profit Trend */}
                   <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>Sales & Profit Trend</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                      <div>
+                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Sales & Profit Trend</h3>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Monthly revenue and margin trajectory</p>
+                      </div>
+                    </div>
                     <div style={{ height: '300px' }}>
                       <ResponsiveContainer>
-                        <AreaChart data={trendData} margin={{ top: 5, right: 0, left: 20, bottom: 0 }}>
+                        <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
                           <defs>
-                            <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            <linearGradient id="corpSalesGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={neonBlue} stopOpacity={0.35}/>
+                              <stop offset="95%" stopColor={neonBlue} stopOpacity={0.0}/>
                             </linearGradient>
-                            <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            <linearGradient id="corpProfitGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                          <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                          <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
+                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
                           <Legend verticalAlign="top" height={36} iconType="circle" />
-                          <Area type="monotone" dataKey="Sales" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
-                          <Area type="monotone" dataKey="Profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" />
+                          <Area type="monotone" dataKey="Sales" stroke={neonBlue} strokeWidth={2.5} fillOpacity={1} fill="url(#corpSalesGrad)" />
+                          <Area type="monotone" dataKey="Profit" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#corpProfitGrad)" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
+                  {/* Category Donut Mix */}
                   <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>Sales by Category</h3>
-                    <div style={{ height: '300px' }}>
+                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Sales by Category</h3>
+                    <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Revenue distribution across segments</p>
+                    <div style={{ height: '280px' }}>
                       <ResponsiveContainer>
                         <PieChart>
                           <Pie
                             data={catBarData.filter(d => d.Sales > 0)}
                             cx="50%"
                             cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
+                            innerRadius={65}
+                            outerRadius={95}
                             paddingAngle={5}
                             dataKey="Sales"
                           >
-                            {catBarData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index % 4]} />
+                            {catBarData.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={[neonBlue, '#10b981', '#f59e0b', '#8b5cf6'][index % 4]} />
                             ))}
                           </Pie>
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
-                          <Legend verticalAlign="bottom" height={36} />
+                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
+
                 </div>
 
+                {/* CHARTS ROW 2: Top Accounts & Product Mix */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                  
+                  {/* Top 5 Accounts */}
                   <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>Top 5 Accounts by Sales</h3>
+                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Top 5 Accounts by Revenue</h3>
+                    <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Highest billing corporate clients</p>
                     <div style={{ height: '300px' }}>
                       <ResponsiveContainer>
-                        <BarChart data={topAccountsData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <BarChart data={topAccountsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} cursor={{fill: 'var(--border)', opacity: 0.4}} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
+                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} cursor={{ fill: 'var(--border)', opacity: 0.3 }} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
                           <Legend verticalAlign="top" height={36} iconType="circle" />
-                          <Bar dataKey="Sales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
-                          <Bar dataKey="Profit" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
+                          <Bar dataKey="Sales" fill={neonBlue} radius={[6, 6, 0, 0]} barSize={34} />
+                          <Bar dataKey="Profit" fill="#10b981" radius={[6, 6, 0, 0]} barSize={34} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
+                  {/* Product Mix Stacked Bar */}
                   <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>Product Mix by Month</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Monthly Product Mix</h3>
+                      <span style={{ fontSize: '0.75rem', color: neonBlue, fontWeight: '600', background: `${neonBlue}18`, padding: '2px 8px', borderRadius: '6px' }}>Year {selectedYear}</span>
+                    </div>
+                    <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Segmented contribution by calendar month</p>
                     <div style={{ height: '300px' }}>
                       <ResponsiveContainer>
-                        <BarChart data={productMixData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <BarChart data={productMixData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} cursor={{fill: 'var(--border)', opacity: 0.4}} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
+                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} cursor={{ fill: 'var(--border)', opacity: 0.3 }} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
                           <Legend verticalAlign="top" height={36} iconType="circle" />
-                          <Bar dataKey="Flight" stackId="a" fill="#3b82f6" barSize={30} />
-                          <Bar dataKey="Hotel" stackId="a" fill="#10b981" />
-                          <Bar dataKey="Other" stackId="a" fill="#f59e0b" />
-                          <Bar dataKey="All Sales" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Flight" stackId="mix" fill={neonBlue} barSize={26} />
+                          <Bar dataKey="Hotel" stackId="mix" fill="#10b981" />
+                          <Bar dataKey="Other" stackId="mix" fill="#f59e0b" />
+                          <Bar dataKey="All Sales" stackId="mix" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
+
                 </div>
 
-                {/* Comparison Table */}
+                {/* 12-MONTH MATRIX TABLE */}
                 <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)', overflowX: 'auto', marginTop: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>Sales & Profit Comparison by Month</h3>
-                    <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                      {[...Array(5)].map((_, i) => {
-                        const year = (new Date().getFullYear() - 2 + i).toString();
-                        return <option key={year} value={year}>{year}</option>;
-                      })}
-                    </select>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>
+                        12-Month Sales & Profit Matrix
+                      </h3>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Detailed month-by-month financial ledger for Year {selectedYear}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {/* Year Selector */}
+                      <select 
+                        value={selectedYear} 
+                        onChange={e => setSelectedYear(e.target.value)} 
+                        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.45rem 0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}
+                      >
+                        {[...Array(5)].map((_, i) => {
+                          const year = (new Date().getFullYear() - 2 + i).toString();
+                          return <option key={year} value={year}>{year}</option>;
+                        })}
+                      </select>
+
+                      {/* Category Filter */}
+                      <select 
+                        value={matrixCategory} 
+                        onChange={e => setMatrixCategory(e.target.value)} 
+                        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.45rem 0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}
+                      >
+                        <option value="All">All Categories</option>
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+
+                      {/* Matrix Export */}
+                      <ExportMenu 
+                        data={comparisonData.map(r => {
+                          const growth = r.prevYtdSales > 0 ? ((r.ytdSales - r.prevYtdSales) / r.prevYtdSales * 100).toFixed(1) : (r.ytdSales > 0 ? '100.0' : '0.0');
+                          return {
+                            corporateName: r.corporateName,
+                            accountCode: r.accountCode,
+                            ytdSales: r.ytdSales,
+                            ytdProfit: r.ytdProfit,
+                            growth: `${growth}%`
+                          };
+                        })} 
+                        columns={[
+                          { header: 'Account Code', key: 'accountCode' },
+                          { header: 'Corporate Name', key: 'corporateName' },
+                          { header: 'YTD Total Sales', key: 'ytdSales', format: 'currency' },
+                          { header: 'YTD Gross Profit', key: 'ytdProfit', format: 'currency' },
+                          { header: 'YoY Growth', key: 'growth' }
+                        ]} 
+                        filename={`Corporate_Matrix_${selectedYear}`} 
+                      />
+                    </div>
                   </div>
+
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', color: 'var(--text-main)', minWidth: '1400px' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-                        <th rowSpan="2" style={{ padding: '0.75rem', textAlign: 'left', color: '#f59e0b', width: '200px' }}>Corporate</th>
+                        <th rowSpan="2" style={{ padding: '0.75rem', textAlign: 'left', color: neonBlue, width: '220px', fontWeight: '600' }}>Corporate Account</th>
                         {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(m => (
-                          <th key={m} colSpan="2" style={{ padding: '0.75rem', textAlign: 'center', color: '#f59e0b', borderLeft: '1px solid var(--border)' }}>{m}</th>
+                          <th key={m} colSpan="2" style={{ padding: '0.65rem', textAlign: 'center', color: 'var(--text-main)', borderLeft: '1px solid var(--border)', fontWeight: '600' }}>{m}</th>
                         ))}
-                        <th colSpan="2" style={{ padding: '0.75rem', textAlign: 'center', color: '#f59e0b', borderLeft: '1px solid var(--border)' }}>YTD Total</th>
-                        <th rowSpan="2" style={{ padding: '0.75rem', textAlign: 'center', color: '#f59e0b', borderLeft: '1px solid var(--border)' }}>Growth %</th>
+                        <th colSpan="2" style={{ padding: '0.65rem', textAlign: 'center', color: '#10b981', borderLeft: '1px solid var(--border)', fontWeight: '700' }}>YTD Total</th>
+                        <th rowSpan="2" style={{ padding: '0.65rem', textAlign: 'center', color: '#f59e0b', borderLeft: '1px solid var(--border)', fontWeight: '600' }}>Growth %</th>
                       </tr>
                       <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
                         {Array.from({ length: 13 }).map((_, i) => (
                           <React.Fragment key={i}>
-                            <th style={{ padding: '0.5rem', textAlign: 'right', color: '#f59e0b', borderLeft: '1px solid var(--border)', width: '60px' }}>Sales</th>
-                            <th style={{ padding: '0.5rem', textAlign: 'right', color: '#f59e0b', width: '60px' }}>Profit</th>
+                            <th style={{ padding: '0.45rem', textAlign: 'right', color: 'var(--text-muted)', borderLeft: '1px solid var(--border)', width: '60px', fontSize: '0.7rem' }}>Sales</th>
+                            <th style={{ padding: '0.45rem', textAlign: 'right', color: 'var(--text-muted)', width: '60px', fontSize: '0.7rem' }}>Profit</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -528,41 +932,60 @@ const Corporate = () => {
                       {comparisonData.map((row, idx) => {
                         const growth = row.prevYtdSales > 0 ? ((row.ytdSales - row.prevYtdSales) / row.prevYtdSales * 100) : (row.ytdSales > 0 ? 100 : 0);
                         return (
-                          <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'transparent' : 'rgba(120, 135, 126, 0.04)' }}>
-                            <td style={{ padding: '0.75rem', fontWeight: '500', color: 'var(--text-main)' }}>{row.corporateName}</td>
+                          <tr key={row.accountCode || idx} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'transparent' : 'rgba(120, 135, 126, 0.03)' }}>
+                            <td style={{ padding: '0.7rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                              <div>{row.corporateName}</div>
+                              <span style={{ fontSize: '0.7rem', color: neonBlue, fontWeight: 'normal' }}>{row.accountCode}</span>
+                            </td>
                             {Array.from({ length: 12 }).map((_, i) => {
                               const m = (i + 1).toString().padStart(2, '0');
                               return (
                                 <React.Fragment key={m}>
-                                  <td style={{ padding: '0.75rem', textAlign: 'right', borderLeft: '1px solid var(--border)' }}>{row.months[m].sales === 0 ? 'Rp 0' : formatCurrency(row.months[m].sales)}</td>
-                                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>{row.months[m].profit === 0 ? 'Rp 0' : formatCurrency(row.months[m].profit)}</td>
+                                  <td style={{ padding: '0.65rem', textAlign: 'right', borderLeft: '1px solid var(--border)' }}>
+                                    {row.months[m].sales === 0 ? '-' : formatCurrencyIdr(row.months[m].sales)}
+                                  </td>
+                                  <td style={{ padding: '0.65rem', textAlign: 'right', color: row.months[m].profit > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                                    {row.months[m].profit === 0 ? '-' : formatCurrencyIdr(row.months[m].profit)}
+                                  </td>
                                 </React.Fragment>
                               );
                             })}
-                            <td style={{ padding: '0.75rem', textAlign: 'right', borderLeft: '1px solid var(--border)', fontWeight: '600', color: 'var(--text-main)' }}>{row.ytdSales === 0 ? 'Rp 0' : formatCurrency(row.ytdSales)}</td>
-                            <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600', color: 'var(--text-main)' }}>{row.ytdProfit === 0 ? 'Rp 0' : formatCurrency(row.ytdProfit)}</td>
-                            <td style={{ padding: '0.75rem', textAlign: 'center', borderLeft: '1px solid var(--border)', color: growth > 0 ? '#10b981' : (growth < 0 ? '#ef4444' : 'var(--text-muted)') }}>
+                            <td style={{ padding: '0.65rem', textAlign: 'right', borderLeft: '1px solid var(--border)', fontWeight: '700', color: neonBlue }}>
+                              {formatCurrencyIdr(row.ytdSales)}
+                            </td>
+                            <td style={{ padding: '0.65rem', textAlign: 'right', fontWeight: '700', color: '#10b981' }}>
+                              {formatCurrencyIdr(row.ytdProfit)}
+                            </td>
+                            <td style={{ padding: '0.65rem', textAlign: 'center', borderLeft: '1px solid var(--border)', fontWeight: '600', color: growth > 0 ? '#10b981' : (growth < 0 ? '#ef4444' : 'var(--text-muted)') }}>
                               {growth > 0 ? '+' : ''}{growth.toFixed(1)}%
                             </td>
                           </tr>
                         );
                       })}
+                      {comparisonData.length === 0 && (
+                        <tr><td colSpan="28" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No accounts available for matrix comparison.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
+
               </div>
             )}
 
-            {/* TAB: PERIOD COMPARISON */}
+            {/* ========================================================= */}
+            {/* TAB 2: PERIOD COMPARISON */}
+            {/* ========================================================= */}
             {activeTab === 'comparison' && (
               <div className="fade-in">
                 {/* Controls */}
                 <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                  <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1.1rem' }}>Comparison Settings</h3>
+                  <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>
+                    Comparison Settings & Horizon
+                  </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                     <div className="input-group">
-                      <label style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Level</label>
-                      <select value={compLevel} onChange={e => setCompLevel(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
+                      <label style={{ color: 'var(--text-muted)', fontSize: '0.825rem' }}>Horizon Level</label>
+                      <select value={compLevel} onChange={e => setCompLevel(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }}>
                         <option value="Month">Month vs Month</option>
                         <option value="Quarter">Quarter vs Quarter</option>
                         <option value="Semester">Semester vs Semester</option>
@@ -570,73 +993,73 @@ const Corporate = () => {
                       </select>
                     </div>
                     <div className="input-group">
-                      <label style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: 'bold' }}>Period A (Actual)</label>
-                      {compLevel === 'Month' && <input type="month" value={compPeriodA} onChange={e => setCompPeriodA(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />}
+                      <label style={{ color: neonBlue, fontSize: '0.825rem', fontWeight: 'bold' }}>Period A (Actual)</label>
+                      {compLevel === 'Month' && <input type="month" value={compPeriodA} onChange={e => setCompPeriodA(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }} />}
                       {compLevel === 'Quarter' && (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select value={compPeriodA.split('-')[0]} onChange={e => setCompPeriodA(`${e.target.value}-${compPeriodA.split('-')[1] || 'Q1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
-                            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                          <select value={compPeriodA.split('-')[0]} onChange={e => setCompPeriodA(`${e.target.value}-${compPeriodA.split('-')[1] || 'Q1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
+                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                           </select>
-                          <select value={compPeriodA.split('-')[1] || 'Q1'} onChange={e => setCompPeriodA(`${compPeriodA.split('-')[0]}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
+                          <select value={compPeriodA.split('-')[1] || 'Q1'} onChange={e => setCompPeriodA(`${compPeriodA.split('-')[0]}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
                             {['Q1', 'Q2', 'Q3', 'Q4'].map(q => <option key={q} value={q}>{q}</option>)}
                           </select>
                         </div>
                       )}
                       {compLevel === 'Semester' && (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select value={compPeriodA.split('-')[0]} onChange={e => setCompPeriodA(`${e.target.value}-${compPeriodA.split('-')[1] || 'S1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
-                            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                          <select value={compPeriodA.split('-')[0]} onChange={e => setCompPeriodA(`${e.target.value}-${compPeriodA.split('-')[1] || 'S1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
+                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                           </select>
-                          <select value={compPeriodA.split('-')[1] || 'S1'} onChange={e => setCompPeriodA(`${compPeriodA.split('-')[0]}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
+                          <select value={compPeriodA.split('-')[1] || 'S1'} onChange={e => setCompPeriodA(`${compPeriodA.split('-')[0]}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
                             {['S1', 'S2'].map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </div>
                       )}
                       {compLevel === 'Year' && (
-                        <select value={compPeriodA} onChange={e => setCompPeriodA(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                          {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                        <select value={compPeriodA} onChange={e => setCompPeriodA(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }}>
+                          {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
                       )}
                     </div>
                     <div className="input-group">
-                      <label style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: 'bold' }}>Period B (Baseline)</label>
-                      {compLevel === 'Month' && <input type="month" value={compPeriodB} onChange={e => setCompPeriodB(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />}
+                      <label style={{ color: '#10b981', fontSize: '0.825rem', fontWeight: 'bold' }}>Period B (Baseline)</label>
+                      {compLevel === 'Month' && <input type="month" value={compPeriodB} onChange={e => setCompPeriodB(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }} />}
                       {compLevel === 'Quarter' && (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select value={compPeriodB.split('-')[0] || new Date().getFullYear()} onChange={e => setCompPeriodB(`${e.target.value}-${compPeriodB.split('-')[1] || 'Q1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
-                            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                          <select value={compPeriodB.split('-')[0] || new Date().getFullYear()} onChange={e => setCompPeriodB(`${e.target.value}-${compPeriodB.split('-')[1] || 'Q1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
+                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                           </select>
-                          <select value={compPeriodB.split('-')[1] || 'Q1'} onChange={e => setCompPeriodB(`${compPeriodB.split('-')[0] || new Date().getFullYear()}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
+                          <select value={compPeriodB.split('-')[1] || 'Q1'} onChange={e => setCompPeriodB(`${compPeriodB.split('-')[0] || new Date().getFullYear()}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
                             {['Q1', 'Q2', 'Q3', 'Q4'].map(q => <option key={q} value={q}>{q}</option>)}
                           </select>
                         </div>
                       )}
                       {compLevel === 'Semester' && (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select value={compPeriodB.split('-')[0] || new Date().getFullYear()} onChange={e => setCompPeriodB(`${e.target.value}-${compPeriodB.split('-')[1] || 'S1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
-                            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                          <select value={compPeriodB.split('-')[0] || new Date().getFullYear()} onChange={e => setCompPeriodB(`${e.target.value}-${compPeriodB.split('-')[1] || 'S1'}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
+                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                           </select>
-                          <select value={compPeriodB.split('-')[1] || 'S1'} onChange={e => setCompPeriodB(`${compPeriodB.split('-')[0] || new Date().getFullYear()}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', flex: 1 }}>
+                          <select value={compPeriodB.split('-')[1] || 'S1'} onChange={e => setCompPeriodB(`${compPeriodB.split('-')[0] || new Date().getFullYear()}-${e.target.value}`)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px', flex: 1 }}>
                             {['S1', 'S2'].map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </div>
                       )}
                       {compLevel === 'Year' && (
-                        <select value={compPeriodB} onChange={e => setCompPeriodB(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                          {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                        <select value={compPeriodB} onChange={e => setCompPeriodB(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }}>
+                          {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
                       )}
                     </div>
                     <div className="input-group">
-                      <label style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Account</label>
-                      <select value={compAccount} onChange={e => setCompAccount(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                        <option value="All">All Accounts</option>
-                        {corporateAccounts.map(a => <option key={a.id} value={a.accountCode}>{a.accountCode} - {a.corporateName}</option>)}
+                      <label style={{ color: 'var(--text-muted)', fontSize: '0.825rem' }}>Filter Account</label>
+                      <select value={compAccount} onChange={e => setCompAccount(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }}>
+                        <option value="All">All Corporate Accounts</option>
+                        {corporateAccounts.map(a => <option key={a.id} value={a.accountCode}>{a.accountCode} - {a.corporateName || a.companyName}</option>)}
                       </select>
                     </div>
                     <div className="input-group">
-                      <label style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Category</label>
-                      <select value={compCategory} onChange={e => setCompCategory(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
+                      <label style={{ color: 'var(--text-muted)', fontSize: '0.825rem' }}>Filter Category</label>
+                      <select value={compCategory} onChange={e => setCompCategory(e.target.value)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem', borderRadius: '8px' }}>
                         <option value="All">All Categories</option>
                         {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
@@ -644,62 +1067,90 @@ const Corporate = () => {
                   </div>
                 </div>
 
-                {/* Scorecards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                {/* Variance Scorecards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                  
+                  {/* Sales Variance */}
                   <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-card)' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: '500', marginBottom: '1rem' }}>Total Sales Comparison</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: '500', marginBottom: '1rem' }}>Total Sales Comparison</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                       <div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '4px' }}>Period A ({compPeriodA})</div>
-                        <div style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)' }}>{formatCurrency(compData.dataA.sales)}</div>
+                        <div style={{ fontSize: '0.8rem', color: neonBlue, marginBottom: '4px' }}>Period A ({compPeriodA})</div>
+                        <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-main)' }}>{formatCurrencyIdr(compData.dataA.sales)}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.8rem', color: '#10b981', marginBottom: '4px' }}>Period B ({compPeriodB})</div>
-                        <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-muted)' }}>{formatCurrency(compData.dataB.sales)}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '600', color: 'var(--text-muted)' }}>{formatCurrencyIdr(compData.dataB.sales)}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Variance / Growth:</span>
-                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: compGrowthSales > 0 ? '#10b981' : (compGrowthSales < 0 ? '#ef4444' : 'var(--text-muted)'), background: compGrowthSales > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '20px' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Variance / Growth:</span>
+                      <span style={{ 
+                        fontSize: '1.15rem', 
+                        fontWeight: 'bold', 
+                        color: compGrowthSales > 0 ? '#10b981' : (compGrowthSales < 0 ? '#ef4444' : 'var(--text-muted)'), 
+                        background: compGrowthSales > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)', 
+                        padding: '4px 12px', 
+                        borderRadius: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        {compGrowthSales > 0 ? <ArrowUpRight size={16}/> : (compGrowthSales < 0 ? <ArrowDownRight size={16}/> : null)}
                         {compGrowthSales > 0 ? '+' : ''}{compGrowthSales.toFixed(2)}%
                       </span>
                     </div>
                   </div>
+
+                  {/* Profit Variance */}
                   <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-card)' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: '500', marginBottom: '1rem' }}>Total Profit Comparison</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: '500', marginBottom: '1rem' }}>Total Profit Comparison</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                       <div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '4px' }}>Period A ({compPeriodA})</div>
-                        <div style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)' }}>{formatCurrency(compData.dataA.profit)}</div>
+                        <div style={{ fontSize: '0.8rem', color: neonBlue, marginBottom: '4px' }}>Period A ({compPeriodA})</div>
+                        <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-main)' }}>{formatCurrencyIdr(compData.dataA.profit)}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.8rem', color: '#10b981', marginBottom: '4px' }}>Period B ({compPeriodB})</div>
-                        <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-muted)' }}>{formatCurrency(compData.dataB.profit)}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '600', color: 'var(--text-muted)' }}>{formatCurrencyIdr(compData.dataB.profit)}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Variance / Growth:</span>
-                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: compGrowthProfit > 0 ? '#10b981' : (compGrowthProfit < 0 ? '#ef4444' : 'var(--text-muted)'), background: compGrowthProfit > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '20px' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Variance / Growth:</span>
+                      <span style={{ 
+                        fontSize: '1.15rem', 
+                        fontWeight: 'bold', 
+                        color: compGrowthProfit > 0 ? '#10b981' : (compGrowthProfit < 0 ? '#ef4444' : 'var(--text-muted)'), 
+                        background: compGrowthProfit > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)', 
+                        padding: '4px 12px', 
+                        borderRadius: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        {compGrowthProfit > 0 ? <ArrowUpRight size={16}/> : (compGrowthProfit < 0 ? <ArrowDownRight size={16}/> : null)}
                         {compGrowthProfit > 0 ? '+' : ''}{compGrowthProfit.toFixed(2)}%
                       </span>
                     </div>
                   </div>
+
                 </div>
 
+                {/* Side-by-side Chart & Breakdown */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem' }}>
-                  {/* Side-by-side Chart */}
+                  
                   <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1rem' }}>Sales: {compPeriodA} vs {compPeriodB}</h3>
+                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1rem', fontWeight: '600' }}>Sales: {compPeriodA} vs {compPeriodB}</h3>
                     <div style={{ height: '300px' }}>
                       <ResponsiveContainer>
-                        <BarChart data={[{ name: 'Sales Comparison', PeriodA: compData.dataA.sales, PeriodB: compData.dataB.sales }]} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+                        <BarChart data={[{ name: 'Sales Horizon', PeriodA: compData.dataA.sales, PeriodB: compData.dataB.sales }]} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                           <XAxis dataKey="name" stroke="var(--text-muted)" tickLine={false} axisLine={false} />
                           <YAxis stroke="var(--text-muted)" tickFormatter={(val) => `Rp${val/1000000}M`} tickLine={false} axisLine={false} width={80} />
-                          <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
                           <Legend verticalAlign="top" height={36} />
-                          <Bar dataKey="PeriodA" name={`Period A (${compPeriodA})`} fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={60} />
-                          <Bar dataKey="PeriodB" name={`Period B (${compPeriodB})`} fill="#10b981" radius={[4, 4, 0, 0]} barSize={60} />
+                          <Bar dataKey="PeriodA" name={`Period A (${compPeriodA})`} fill={neonBlue} radius={[6, 6, 0, 0]} barSize={55} />
+                          <Bar dataKey="PeriodB" name={`Period B (${compPeriodB})`} fill="#10b981" radius={[6, 6, 0, 0]} barSize={55} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -707,158 +1158,420 @@ const Corporate = () => {
 
                   {/* Account Breakdown Table */}
                   <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', overflowX: 'auto', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1rem' }}>Account Breakdown (Sales)</h3>
+                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1rem', fontWeight: '600' }}>Account Revenue Breakdown</h3>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
                           <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-muted)' }}>Account Code</th>
-                          <th style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--primary)' }}>Period A</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', color: neonBlue }}>Period A</th>
                           <th style={{ textAlign: 'right', padding: '0.75rem', color: '#10b981' }}>Period B</th>
                           <th style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--text-muted)' }}>Variance</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.keys({...compData.dataA.accounts, ...compData.dataB.accounts}).map(accCode => {
+                        {Object.keys({ ...compData.dataA.accounts, ...compData.dataB.accounts }).map(accCode => {
                           const valA = compData.dataA.accounts[accCode]?.sales || 0;
                           const valB = compData.dataB.accounts[accCode]?.sales || 0;
                           const varPct = valB > 0 ? ((valA - valB) / valB * 100) : (valA > 0 ? 100 : 0);
                           return (
                             <tr key={accCode} style={{ borderBottom: '1px solid var(--border)' }}>
-                              <td style={{ padding: '0.75rem', color: 'var(--text-main)', fontWeight: '500' }}>{accCode}</td>
-                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrency(valA)}</td>
-                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrency(valB)}</td>
+                              <td style={{ padding: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{accCode}</td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrencyIdr(valA)}</td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrencyIdr(valB)}</td>
                               <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'bold', color: varPct > 0 ? '#10b981' : (varPct < 0 ? '#ef4444' : 'var(--text-muted)') }}>
                                 {varPct > 0 ? '+' : ''}{varPct.toFixed(1)}%
                               </td>
                             </tr>
                           );
                         })}
-                        {Object.keys({...compData.dataA.accounts, ...compData.dataB.accounts}).length === 0 && (
-                          <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No data for selected periods.</td></tr>
+                        {Object.keys({ ...compData.dataA.accounts, ...compData.dataB.accounts }).length === 0 && (
+                          <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No data found for selected periods.</td></tr>
                         )}
                       </tbody>
                     </table>
                   </div>
+
                 </div>
               </div>
             )}
 
-            {/* TAB: ACCOUNTS */}
+            {/* ========================================================= */}
+            {/* TAB 3: CORPORATE ACCOUNTS DATABASE */}
+            {/* ========================================================= */}
             {activeTab === 'accounts' && (
-              <div className="card fade-in" style={{ overflowX: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                  <h3 style={{ margin: 0 }}>Corporate Accounts Database</h3>
-                  {canAdd && (
-                    <button className="btn btn-primary" onClick={() => handleOpenAccountModal()}>
-                      <Plus size={16} /> New Account
-                    </button>
-                  )}
-                </div>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>CODE</th>
-                      <th>CORPORATE NAME</th>
-                      <th>PIC DETAILS</th>
-                      <th>CREDIT LIMIT</th>
-                      <th>STATUS</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {corporateAccounts.map(acc => (
-                      <tr key={acc.id}>
-                        <td style={{ fontWeight: '500', color: '#3b82f6' }}>{acc.accountCode}</td>
-                        <td>{acc.corporateName}</td>
-                        <td>
-                          <div>{acc.picName}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}><Phone size={10} style={{marginRight:'4px'}}/>{acc.picPhone}</div>
-                        </td>
-                        <td>{formatCurrency(acc.creditLimit)}</td>
-                        <td>
-                          <span className={`badge ${acc.status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
-                            {acc.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="action-btn view" onClick={() => setViewingAccount(acc)} title="View Detail" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}><Eye size={16} /></button>
-                            {canEditAny && (
-                              <button className="action-btn edit" onClick={() => handleOpenAccountModal(acc)} title="Edit"><Edit2 size={16} /></button>
-                            )}
-                            {canDelete && (
-                              <button className="action-btn delete" onClick={() => window.confirm('Delete account?') && deleteAccount(acc.id)} title="Delete"><Trash2 size={16} /></button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {corporateAccounts.length === 0 && (
-                      <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>No accounts found.</td></tr>
+              <div className="card fade-in" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
+                {/* Search & Filter Toolbar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+                    {/* Search Input */}
+                    <div style={{ position: 'relative', minWidth: '260px' }}>
+                      <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Search by code, company, or PIC..." 
+                        value={accountsSearch}
+                        onChange={e => { setAccountsSearch(e.target.value); setAccountsPage(1); }}
+                        style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.55rem 0.85rem 0.55rem 2.25rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    {/* Status Filter Pills */}
+                    <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg-surface)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      {['All', 'Active', 'Inactive'].map(st => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => { setAccountsStatusFilter(st); setAccountsPage(1); }}
+                          style={{
+                            background: accountsStatusFilter === st ? neonBlue : 'transparent',
+                            color: accountsStatusFilter === st ? '#ffffff' : 'var(--text-muted)',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontSize: '0.785rem',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions & Export */}
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <ExportMenu 
+                      data={filteredAccounts} 
+                      columns={accountExportColumns} 
+                      filename="Corporate_Accounts_Travelops" 
+                    />
+                    {canAdd && (
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={() => handleOpenAccountModal()}
+                        style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.15rem' }}
+                      >
+                        <Plus size={16} /> Add Account
+                      </button>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                {/* Accounts Data Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th>ACCOUNT CODE</th>
+                        <th>COMPANY / CORPORATE NAME</th>
+                        <th>PIC DETAILS</th>
+                        <th>CREDIT LIMIT & UTILIZATION</th>
+                        <th>STATUS</th>
+                        <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedAccounts.map(acc => {
+                        const spent = accountSalesMap[acc.accountCode] || 0;
+                        const limit = acc.creditLimit || 0;
+                        const ratio = limit > 0 ? (spent / limit) * 100 : 0;
+                        const isExceeded = ratio >= 100;
+                        const isWarning = ratio >= 80 && ratio < 100;
+
+                        return (
+                          <tr key={acc.id} style={{ cursor: 'pointer' }} onClick={() => setViewingAccount(acc)}>
+                            <td>
+                              <span style={{ 
+                                fontWeight: '700', 
+                                color: neonBlue, 
+                                background: `${neonBlue}15`, 
+                                padding: '3px 8px', 
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                border: `1px solid ${neonBlue}25`
+                              }}>
+                                {acc.accountCode}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                              <div>{acc.corporateName || acc.companyName}</div>
+                              {acc.airlinesCode && (
+                                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                                  Airlines: {acc.airlinesCode}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '500' }}>{acc.picName || '-'}</div>
+                              {acc.picPhone && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                                  <Phone size={11}/> {acc.picPhone}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem' }}>
+                                <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{formatCurrencyIdr(limit)}</span>
+                                <span style={{ 
+                                  fontSize: '0.725rem', 
+                                  fontWeight: '700', 
+                                  color: isExceeded ? '#ef4444' : (isWarning ? '#f59e0b' : '#10b981') 
+                                }}>
+                                  {ratio.toFixed(0)}%
+                                </span>
+                              </div>
+                              <div style={{ width: '130px', height: '6px', background: 'var(--bg-surface)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                <div 
+                                  style={{ 
+                                    width: `${Math.min(ratio, 100)}%`, 
+                                    height: '100%', 
+                                    background: isExceeded ? '#ef4444' : (isWarning ? '#f59e0b' : neonBlue) 
+                                  }} 
+                                />
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`badge ${acc.status === 'Active' ? 'badge-primary' : 'badge-danger'}`} style={{ borderRadius: '6px', fontSize: '0.75rem' }}>
+                                {acc.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                              <div style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <button 
+                                  type="button"
+                                  className="action-btn view" 
+                                  onClick={() => setViewingAccount(acc)} 
+                                  title="360° Account Dossier" 
+                                  style={{ background: `${neonBlue}18`, color: neonBlue, border: `1px solid ${neonBlue}33` }}
+                                >
+                                  <Eye size={15} />
+                                </button>
+                                {canEditAny && (
+                                  <button 
+                                    type="button"
+                                    className="action-btn edit" 
+                                    onClick={() => handleOpenAccountModal(acc)} 
+                                    title="Edit Account"
+                                    style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}
+                                  >
+                                    <Edit2 size={15} />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button 
+                                    type="button"
+                                    className="action-btn delete" 
+                                    onClick={() => handlePromptDeleteAccount(acc)} 
+                                    title="Delete Account"
+                                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredAccounts.length === 0 && (
+                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>No corporate accounts matching search criteria.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <Pagination 
+                  currentPage={accountsPage}
+                  totalPages={totalAccountPages}
+                  onPageChange={setAccountsPage}
+                  totalItems={filteredAccounts.length}
+                  itemsPerPage={PAGE_SIZE}
+                />
               </div>
             )}
 
-            {/* TAB: SALES */}
+            {/* ========================================================= */}
+            {/* TAB 4: CORPORATE SALES DATABASE */}
+            {/* ========================================================= */}
             {activeTab === 'sales' && (
-              <div className="card fade-in" style={{ overflowX: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                  <h3 style={{ margin: 0 }}>Corporate Sales Database</h3>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="btn" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid #3b82f6' }} onClick={handleExportSales}>
-                      <Download size={16} /> Export CSV
-                    </button>
+              <div className="card fade-in" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
+                {/* Search & Actions Toolbar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+                    {/* Search Input */}
+                    <div style={{ position: 'relative', minWidth: '240px' }}>
+                      <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Search code or remarks..." 
+                        value={salesSearch}
+                        onChange={e => { setSalesSearch(e.target.value); setSalesPage(1); }}
+                        style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.55rem 0.85rem 0.55rem 2.25rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    {/* Category Filter Pills */}
+                    <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg-surface)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      {['All', ...CATEGORIES].map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => { setSalesCategoryFilter(cat); setSalesPage(1); }}
+                          style={{
+                            background: salesCategoryFilter === cat ? neonBlue : 'transparent',
+                            color: salesCategoryFilter === cat ? '#ffffff' : 'var(--text-muted)',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontSize: '0.785rem',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Period Selector Dropdown */}
+                    <select 
+                      value={salesPeriodFilter}
+                      onChange={e => { setSalesPeriodFilter(e.target.value); setSalesPage(1); }}
+                      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.45rem 0.75rem', borderRadius: '8px', fontSize: '0.85rem' }}
+                    >
+                      <option value="All">All Periods</option>
+                      {uniquePeriods.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Actions: Export, Import, Add */}
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <ExportMenu 
+                      data={filteredSalesTab} 
+                      columns={salesExportColumns} 
+                      filename="Corporate_Sales_Travelops" 
+                    />
+
                     {canAdd && (
                       <>
-                        <button className="btn" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981' }} onClick={() => fileInputSalesRef.current?.click()}>
-                          <Upload size={16} /> Import CSV
+                        <button 
+                          className="btn" 
+                          onClick={() => fileInputSalesRef.current?.click()}
+                          style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '10px', padding: '0.55rem 1rem' }}
+                        >
+                          <Upload size={15} /> Import CSV
                         </button>
-                        <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputSalesRef} onChange={handleImportSales} />
-                        <button className="btn btn-primary" onClick={() => handleOpenSalesModal()}>
+                        <input 
+                          type="file" 
+                          accept=".csv" 
+                          style={{ display: 'none' }} 
+                          ref={fileInputSalesRef} 
+                          onChange={handleImportSales} 
+                        />
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={() => handleOpenSalesModal()}
+                          style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.15rem' }}
+                        >
                           <Plus size={16} /> Add Sales
                         </button>
                       </>
                     )}
                   </div>
                 </div>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>PERIOD</th>
-                      <th>ACCOUNT</th>
-                      <th>CATEGORY</th>
-                      <th>SALES</th>
-                      <th>PROFIT</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSales.map(rec => (
-                      <tr key={rec.id}>
-                        <td>{rec.date}</td>
-                        <td style={{ fontWeight: '500' }}>{rec.accountCode}</td>
-                        <td>{rec.category}</td>
-                        <td style={{ color: '#10b981', fontWeight: '500' }}>{formatCurrency(rec.salesAmount)}</td>
-                        <td style={{ color: '#f59e0b', fontWeight: '500' }}>{formatCurrency(rec.profitAmount)}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            {canEditAny && (
-                              <button className="action-btn edit" onClick={() => handleOpenSalesModal(rec)}><Edit2 size={16} /></button>
-                            )}
-                            {canDelete && (
-                              <button className="action-btn delete" onClick={() => window.confirm('Delete?') && deleteSales(rec.id)}><Trash2 size={16} /></button>
-                            )}
-                          </div>
-                        </td>
+
+                {/* Sales Data Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th>PERIOD</th>
+                        <th>ACCOUNT</th>
+                        <th>CATEGORY</th>
+                        <th>SALES AMOUNT</th>
+                        <th>PROFIT AMOUNT</th>
+                        <th>MARGIN %</th>
+                        <th>REMARKS</th>
+                        <th style={{ textAlign: 'right' }}>ACTIONS</th>
                       </tr>
-                    ))}
-                    {filteredSales.length === 0 && (
-                      <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>No sales data found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {paginatedSales.map(rec => {
+                        const margin = rec.salesAmount > 0 ? ((rec.profitAmount / rec.salesAmount) * 100).toFixed(1) : 0;
+                        return (
+                          <tr key={rec.id}>
+                            <td style={{ fontWeight: '500' }}>{rec.date}</td>
+                            <td>
+                              <span style={{ fontWeight: '600', color: neonBlue }}>{rec.accountCode}</span>
+                            </td>
+                            <td>
+                              <span style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '3px 8px', 
+                                borderRadius: '6px', 
+                                background: 'var(--bg-surface)', 
+                                border: '1px solid var(--border)',
+                                color: 'var(--text-main)'
+                              }}>
+                                {rec.category}
+                              </span>
+                            </td>
+                            <td style={{ color: '#10b981', fontWeight: '600' }}>{formatCurrencyIdr(rec.salesAmount)}</td>
+                            <td style={{ color: '#f59e0b', fontWeight: '600' }}>{formatCurrencyIdr(rec.profitAmount)}</td>
+                            <td>
+                              <span style={{ fontSize: '0.8rem', fontWeight: '600', color: margin > 10 ? '#10b981' : 'var(--text-muted)' }}>
+                                {margin}%
+                              </span>
+                            </td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {rec.remarks || '-'}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+                                {canEditAny && (
+                                  <button 
+                                    type="button"
+                                    className="action-btn edit" 
+                                    onClick={() => handleOpenSalesModal(rec)} 
+                                    title="Edit Record"
+                                    style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button 
+                                    type="button"
+                                    className="action-btn delete" 
+                                    onClick={() => handlePromptDeleteSales(rec)} 
+                                    title="Delete Record"
+                                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredSalesTab.length === 0 && (
+                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>No sales records found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <Pagination 
+                  currentPage={salesPage}
+                  totalPages={totalSalesPages}
+                  onPageChange={setSalesPage}
+                  totalItems={filteredSalesTab.length}
+                  itemsPerPage={PAGE_SIZE}
+                />
               </div>
             )}
 
@@ -866,262 +1579,48 @@ const Corporate = () => {
         </div>
       </div>
 
+      {/* 360° ACCOUNT DOSSIER SLIDE-OVER DRAWER */}
+      <AccountDossierDrawer 
+        account={viewingAccount}
+        sales={corporateSales}
+        onClose={() => setViewingAccount(null)}
+        onEdit={canEditAny ? (acc) => handleOpenAccountModal(acc) : null}
+        neonBlue={neonBlue}
+        formatCurrency={formatCurrencyIdr}
+      />
+
       {/* ACCOUNT MODAL */}
-      {isAccountModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="modal-header">
-              <h2>{editingAccount ? 'Edit Corporate Account' : 'New Corporate Account'}</h2>
-              <button className="close-btn" onClick={() => setIsAccountModalOpen(false)}><X size={24} /></button>
-            </div>
-            <form onSubmit={handleAccountSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' }}>
-                {/* General Info */}
-                <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary)' }}>General Information</h4>
-                  <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                    <div className="input-group">
-                      <label>Account Code<span style={{color: '#ef4444'}}>*</span></label>
-                      <input type="text" required value={accountFormData.accountCode} onChange={e => setAccountFormData({...accountFormData, accountCode: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group">
-                      <label>Corporate Name<span style={{color: '#ef4444'}}>*</span></label>
-                      <input type="text" required value={accountFormData.corporateName} onChange={e => setAccountFormData({...accountFormData, corporateName: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group">
-                      <label>Status</label>
-                      <select value={accountFormData.status} onChange={e => setAccountFormData({...accountFormData, status: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                      </select>
-                    </div>
-                    <div className="input-group">
-                      <label>Credit Limit (IDR)</label>
-                      <input type="number" value={accountFormData.creditLimit} onChange={e => setAccountFormData({...accountFormData, creditLimit: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>Address</label>
-                      <input type="text" value={accountFormData.address} onChange={e => setAccountFormData({...accountFormData, address: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* PIC Info */}
-                <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', color: '#10b981' }}>PIC / Booker Details</h4>
-                  <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                    <div className="input-group">
-                      <label>PIC Name</label>
-                      <input type="text" value={accountFormData.picName} onChange={e => setAccountFormData({...accountFormData, picName: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group">
-                      <label>Phone Number</label>
-                      <input type="text" value={accountFormData.picPhone} onChange={e => setAccountFormData({...accountFormData, picPhone: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group">
-                      <label>Office Email</label>
-                      <input type="email" value={accountFormData.picOfficeEmail} onChange={e => setAccountFormData({...accountFormData, picOfficeEmail: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group">
-                      <label>Personal Email</label>
-                      <input type="email" value={accountFormData.picPersonalEmail} onChange={e => setAccountFormData({...accountFormData, picPersonalEmail: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service Fees */}
-                <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', color: '#f59e0b' }}>Service Fees (IDR)</h4>
-                  
-                  <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>Flight Fees</h5>
-                  <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '1rem' }}>
-                    {['domestic', 'international', 'reissued', 'refund', 'void', 'revalidate'].map(fee => (
-                      <div className="input-group" key={`flight-${fee}`}>
-                        <label style={{ fontSize: '0.75rem' }}>{fee.charAt(0).toUpperCase() + fee.slice(1)}</label>
-                        <input type="number" value={accountFormData.flightFee[fee]} onChange={e => setAccountFormData({...accountFormData, flightFee: {...accountFormData.flightFee, [fee]: e.target.value}})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
-                      </div>
-                    ))}
-                  </div>
-
-                  <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>Hotel Fees</h5>
-                  <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                    {['domestic', 'international', 'reissued', 'refund', 'void', 'revalidate'].map(fee => (
-                      <div className="input-group" key={`hotel-${fee}`}>
-                        <label style={{ fontSize: '0.75rem' }}>{fee.charAt(0).toUpperCase() + fee.slice(1)}</label>
-                        <input type="number" value={accountFormData.hotelFee[fee]} onChange={e => setAccountFormData({...accountFormData, hotelFee: {...accountFormData.hotelFee, [fee]: e.target.value}})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '0.25rem' }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Others */}
-                <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', color: '#8b5cf6' }}>Additional Details</h4>
-                  <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                    <div className="input-group">
-                      <label>Airlines Corporate Account Code</label>
-                      <input type="text" placeholder="e.g. GA-12345" value={accountFormData.airlinesCode} onChange={e => setAccountFormData({...accountFormData, airlinesCode: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group">
-                      <label>Detail Link (Drive / CRM)</label>
-                      <input type="text" placeholder="https://" value={accountFormData.detailLink} onChange={e => setAccountFormData({...accountFormData, detailLink: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                    </div>
-                    <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>Remarks</label>
-                      <textarea value={accountFormData.remarks} onChange={e => setAccountFormData({...accountFormData, remarks: e.target.value})} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', minHeight: '60px' }} />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn" onClick={() => setIsAccountModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">{editingAccount ? 'Save Changes' : 'Add Account'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AccountFormModal 
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        accountFormData={accountFormData}
+        setAccountFormData={setAccountFormData}
+        handleSubmit={handleAccountSubmit}
+        isEditing={Boolean(editingAccount)}
+        neonBlue={neonBlue}
+      />
 
       {/* SALES MODAL */}
-      {isSalesModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>{editingSales ? 'Edit Sales Record' : 'Add Sales Record'}</h2>
-              <button className="close-btn" onClick={() => setIsSalesModalOpen(false)}><X size={24} /></button>
-            </div>
-            <form onSubmit={handleSalesSubmit}>
-              <div className="form-grid">
-                <div className="input-group">
-                  <label>Period (Month/Year)<span style={{color: '#ef4444'}}>*</span></label>
-                  <input type="month" required value={salesFormData.date} onChange={e => setSalesFormData({...salesFormData, date: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                </div>
-                <div className="input-group">
-                  <label>Account<span style={{color: '#ef4444'}}>*</span></label>
-                  <select required value={salesFormData.accountCode} onChange={e => setSalesFormData({...salesFormData, accountCode: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                    <option value="" disabled>Select Account</option>
-                    {corporateAccounts.map(a => <option key={a.id} value={a.accountCode}>{a.accountCode} - {a.corporateName}</option>)}
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label>Category<span style={{color: '#ef4444'}}>*</span></label>
-                  <select required value={salesFormData.category} onChange={e => setSalesFormData({...salesFormData, category: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label>Sales Amount (IDR)<span style={{color: '#ef4444'}}>*</span></label>
-                  <input type="number" required value={salesFormData.salesAmount} onChange={e => setSalesFormData({...salesFormData, salesAmount: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                </div>
-                <div className="input-group">
-                  <label>Profit Amount (IDR)<span style={{color: '#ef4444'}}>*</span></label>
-                  <input type="number" required value={salesFormData.profitAmount} onChange={e => setSalesFormData({...salesFormData, profitAmount: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem' }} />
-                </div>
-                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label>Remarks</label>
-                  <textarea value={salesFormData.remarks} onChange={e => setSalesFormData({...salesFormData, remarks: e.target.value})} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '0.5rem', minHeight: '60px' }} />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn" onClick={() => setIsSalesModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">{editingSales ? 'Save Changes' : 'Add Sales'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SalesFormModal 
+        isOpen={isSalesModalOpen}
+        onClose={() => setIsSalesModalOpen(false)}
+        salesFormData={salesFormData}
+        setSalesFormData={setSalesFormData}
+        handleSubmit={handleSalesSubmit}
+        isEditing={Boolean(editingSales)}
+        accounts={corporateAccounts}
+        categories={CATEGORIES}
+        neonBlue={neonBlue}
+      />
 
-      {/* VIEW ACCOUNT MODAL */}
-      {viewingAccount && (
-        <div className="modal-overlay fade-in">
-          <div className="modal-content" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border)', padding: '0' }}>
-            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', borderRadius: '8px 8px 0 0' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-main)' }}>{viewingAccount.corporateName}</h2>
-                  <span className={`badge ${viewingAccount.status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>{viewingAccount.status}</span>
-                </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Building size={14} /> {viewingAccount.accountCode}
-                </div>
-              </div>
-              <button className="close-btn" onClick={() => setViewingAccount(null)}><X size={24} /></button>
-            </div>
-            
-            <div style={{ padding: '2rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
-                <div>
-                  <h4 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Corporate Profile</h4>
-                  <div style={{ display: 'grid', gap: '0.75rem', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Address:</span> <span>{viewingAccount.address || '-'}</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Credit Limit:</span> <span style={{ color: '#10b981', fontWeight: '600' }}>{formatCurrency(viewingAccount.creditLimit || 0)}</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Airlines Code:</span> <span>{viewingAccount.airlinesCode || '-'}</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Detail Link:</span> 
-                      {viewingAccount.detailLink ? <a href={viewingAccount.detailLink} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>Open Link <ExternalLink size={12}/></a> : '-'}
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h4 style={{ color: '#10b981', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>PIC / Booker Info</h4>
-                  <div style={{ display: 'grid', gap: '0.75rem', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Name:</span> <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>{viewingAccount.picName || '-'}</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Phone:</span> <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={14}/> {viewingAccount.picPhone || '-'}</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Office Email:</span> <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={14}/> {viewingAccount.picOfficeEmail || '-'}</span></div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}><span style={{ color: 'var(--text-muted)' }}>Personal Email:</span> <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={14}/> {viewingAccount.picPersonalEmail || '-'}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <h4 style={{ color: '#f59e0b', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Service Fees Profile (IDR)</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
-                <table style={{ width: '100%', fontSize: '0.9rem', textAlign: 'left', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr><th colSpan="2" style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', borderRadius: '4px' }}>Flight Fees</th></tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(viewingAccount.flightFee || {}).map(([k, v]) => (
-                      <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{k}</td>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-main)', fontWeight: '500', textAlign: 'right' }}>{formatCurrency(v)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <table style={{ width: '100%', fontSize: '0.9rem', textAlign: 'left', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr><th colSpan="2" style={{ padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', borderRadius: '4px' }}>Hotel Fees</th></tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(viewingAccount.hotelFee || {}).map(([k, v]) => (
-                      <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{k}</td>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-main)', fontWeight: '500', textAlign: 'right' }}>{formatCurrency(v)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              {viewingAccount.remarks && (
-                <div>
-                  <h4 style={{ color: '#8b5cf6', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Remarks</h4>
-                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.9rem', fontStyle: 'italic', border: '1px solid var(--border)' }}>
-                    "{viewingAccount.remarks}"
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--border)', background: 'var(--bg-surface)', display: 'flex', justifyContent: 'flex-end', borderRadius: '0 0 8px 8px' }}>
-               {canEditAny && (
-                 <button className="btn btn-primary" onClick={() => { setViewingAccount(null); handleOpenAccountModal(viewingAccount); }}>
-                   <Edit2 size={16} /> Edit Account
-                 </button>
-               )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* CONFIRM DELETE MODAL */}
+      <ConfirmDeleteModal 
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, type: null, id: null, title: '', message: '' })}
+        onConfirm={handleExecuteDelete}
+        title={deleteConfirm.title}
+        message={deleteConfirm.message}
+      />
 
     </div>
   );

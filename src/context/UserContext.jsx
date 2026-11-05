@@ -1,48 +1,67 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { logSystemAction } from '../utils/logger';
 import { useAuth } from './AuthContext';
 
 const UserContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useUsers = () => useContext(UserContext);
+
+const loadUsersFromDb = async () => {
+  const { data, error } = await supabase
+    .from('travelops_users')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  
+  return (data || []).map(u => ({
+    id: u.id,
+    name: u.name || '',
+    email: u.email || '',
+    role: u.role || 'Staff',
+    status: u.status || 'Active',
+    isLocked: Boolean(u.is_locked),
+    mustChangePassword: Boolean(u.must_change_password),
+    lastLogin: u.last_login
+  }));
+};
 
 export const UserProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('travelops_users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      const mapped = data.map(u => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        status: u.status,
-        isLocked: u.is_locked,
-        mustChangePassword: u.must_change_password,
-        lastLogin: u.last_login
-      }));
-      
+      const mapped = await loadUsersFromDb();
       setUsers(mapped);
+      return { success: true };
     } catch (err) {
       console.error('Error fetching users:', err);
+      return { success: false, error: err?.message || 'Failed to fetch users' };
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadUsersFromDb()
+      .then(mapped => {
+        if (!cancelled) setUsers(mapped);
+      })
+      .catch(err => {
+        console.error('Initial fetch users error:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -155,7 +174,14 @@ export const UserProvider = ({ children }) => {
   };
 
   return (
-    <UserContext.Provider value={{ users, addUser, updateUser, deleteUser, loading }}>
+    <UserContext.Provider value={{ 
+      users, 
+      addUser, 
+      updateUser, 
+      deleteUser, 
+      fetchUsers, 
+      loading 
+    }}>
       {children}
     </UserContext.Provider>
   );

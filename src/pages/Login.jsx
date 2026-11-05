@@ -14,6 +14,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [logoutNotice] = useState(() => {
+    try {
+      const reason = sessionStorage.getItem('travelops_logout_reason');
+      if (reason) {
+        sessionStorage.removeItem('travelops_logout_reason');
+        return reason;
+      }
+    } catch {
+      // Ignore
+    }
+    return '';
+  });
   const { login } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -119,6 +131,27 @@ const Login = () => {
         <p style={{ color: 'var(--text-muted)', marginBottom: '1.85rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
           Welcome back! Sign in to manage trips, guests, and travel documents with ease.
         </p>
+
+        {logoutNotice && (
+          <div
+            style={{
+              backgroundColor: isLight ? '#fef3c7' : 'rgba(245, 158, 11, 0.14)',
+              color: isLight ? '#b45309' : '#fbbf24',
+              border: `1px solid ${isLight ? '#fde68a' : 'rgba(245, 158, 11, 0.35)'}`,
+              padding: '0.8rem 1rem',
+              borderRadius: '11px',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              fontSize: '0.825rem',
+              textAlign: 'left'
+            }}
+          >
+            <AlertCircle size={17} style={{ flexShrink: 0 }} />
+            <span>{logoutNotice}</span>
+          </div>
+        )}
 
         {error && (
           <div

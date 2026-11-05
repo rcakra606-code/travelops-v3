@@ -216,9 +216,15 @@ const StaffPerformance = () => {
 
   const isStaffRole = user?.role === 'Staff';
 
-  // Build canonical staff roster combining active users + any staff names appearing in records
+  // Build canonical staff roster combining active users + any staff names appearing in records (excluding inactivated staff)
   const staffRoster = useMemo(() => {
     const map = new Map();
+    const inactiveNames = new Set(
+      (users || [])
+        .filter((u) => u.status === 'Inactive' && u.name)
+        .map((u) => normName(u.name))
+    );
+
     (users || [])
       .filter((u) => u.status === 'Active' && u.name)
       .forEach((u) => {
@@ -228,8 +234,10 @@ const StaffPerformance = () => {
     const register = (raw) => {
       const clean = String(raw || '').trim();
       if (!clean || clean.toLowerCase() === 'unassigned') return;
-      if (!map.has(normName(clean))) {
-        map.set(normName(clean), clean);
+      const normalized = normName(clean);
+      if (inactiveNames.has(normalized)) return;
+      if (!map.has(normalized)) {
+        map.set(normalized, clean);
       }
     };
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 
 export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' }, itemsPerPage = 10) => {
   const [sortConfig, setSortConfig] = useState(defaultSort);
@@ -72,24 +72,17 @@ export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' },
   }, [data, sortConfig, filters, globalSearch]);
 
   const totalPages = Math.ceil(processedData.length / itemsPerPage);
-  
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages);
-    } else if (totalPages === 0 && currentPage > 1) {
-      setCurrentPage(1);
-    }
-  }, [totalPages, currentPage]);
+  const activePage = totalPages > 0 ? Math.min(Math.max(1, currentPage), totalPages) : 1;
 
   const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
+    const start = (activePage - 1) * itemsPerPage;
     return processedData.slice(start, start + itemsPerPage);
-  }, [processedData, currentPage, itemsPerPage]);
+  }, [processedData, activePage, itemsPerPage]);
 
   return {
     sortConfig,
     filters,
-    currentPage,
+    currentPage: activePage,
     globalSearch,
     itemsPerPage,
     handleSort,

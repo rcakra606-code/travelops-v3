@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, X, Send, Bot, Copy, Check, 
   RefreshCw, Minimize2, Maximize2, MessageCircle,
@@ -93,7 +93,7 @@ const formatForWhatsApp = (text) => {
   wa = wa.replace(/^##\s*(.*$)/gim, '\n*$1*');
   wa = wa.replace(/^#\s*(.*$)/gim, '\n*$1*');
   // Convert bullet points - or * to •
-  wa = wa.replace(/^[\*\-]\s+/gm, '• ');
+  wa = wa.replace(/^[*-]\s+/gm, '• ');
   // Clean up excess blank lines
   wa = wa.replace(/\n{3,}/g, '\n\n');
   return wa.trim();

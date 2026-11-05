@@ -37,7 +37,6 @@ import {
   Copy,
   Eye,
   RotateCcw,
-  RefreshCw,
   Award,
   AlertTriangle,
   CheckCircle2,
@@ -203,7 +202,6 @@ const Productivity = () => {
   const {
     productivityData,
     loading,
-    refreshProductivity,
     addRecord,
     updateRecord,
     deleteRecord,
@@ -241,13 +239,22 @@ const Productivity = () => {
   }, [users]);
 
   const staffOptions = useMemo(() => {
+    const inactiveNames = new Set(
+      (users || [])
+        .filter((u) => u.status === 'Inactive' && u.name)
+        .map((u) => u.name.toLowerCase().trim())
+    );
     const names = new Set(activeStaff.map((u) => u.name).filter(Boolean));
     (productivityData || []).forEach((r) => {
-      if (r.staff) names.add(r.staff);
+      if (r.staff && !inactiveNames.has(r.staff.toLowerCase().trim())) {
+        names.add(r.staff);
+      }
     });
-    if (user?.name) names.add(user.name);
+    if (user?.name && !inactiveNames.has(user.name.toLowerCase().trim())) {
+      names.add(user.name);
+    }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [activeStaff, productivityData, user]);
+  }, [activeStaff, productivityData, user, users]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
@@ -292,7 +299,6 @@ const Productivity = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRec, setEditingRec] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getDefaultForm = (overrides = {}) => ({
     date: horizonMode === 'month' ? selectedMonth : currentMonthStr,
@@ -442,18 +448,6 @@ const Productivity = () => {
     setSelectedStaffFilter('All');
     setSelectedTypeFilter('All');
     setSelectedCategoryFilter('All');
-  };
-
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshProductivity();
-      toast.success('Productivity records synced with database.');
-    } catch (err) {
-      toast.error(err?.message || 'Failed to sync productivity data.');
-    } finally {
-      setIsRefreshing(false);
-    }
   };
 
   // ==========================================
@@ -1173,26 +1167,6 @@ const Productivity = () => {
               </div>
 
               <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing || loading}
-                  title="Sync latest productivity records"
-                  style={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.6rem 0.9rem'
-                  }}
-                >
-                  <RefreshCw size={16} className={isRefreshing ? 'spin' : ''} />
-                  Sync
-                </button>
-
                 {canAdd && (
                   <button
                     type="button"

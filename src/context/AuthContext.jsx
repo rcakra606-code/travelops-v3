@@ -1,9 +1,10 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { logSystemAction } from '../utils/logger';
 
 const AuthContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -12,28 +13,16 @@ export const AuthProvider = ({ children }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutName, setLogoutName] = useState('');
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleSession = async (session) => {
+  const handleSession = useCallback(async (session) => {
     if (session && session.user) {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('travelops_users')
           .select('*')
           .ilike('email', session.user.email)
           .single();
 
-        if (data && !data.is_locked) {
+        if (data && !data.is_locked && data.status === 'Active') {
           setUser({
             id: data.id,
             name: data.name,
@@ -54,7 +43,19 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [handleSession]);
 
   const login = async (email, password) => {
     try {
@@ -156,6 +157,14 @@ export const AuthProvider = ({ children }) => {
     setLogoutName(user?.name || 'TravelOps User');
     setIsLoggingOut(true);
     
+    if (reason) {
+      try {
+        sessionStorage.setItem('travelops_logout_reason', reason);
+      } catch {
+        // Ignore
+      }
+    }
+
     // Remove session from DB
     const sessionId = localStorage.getItem('travelops_session_id');
     if (sessionId) {
@@ -168,10 +177,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsLoggingOut(false);
       setLogoutName('');
-      if (reason) {
-        alert(`Logged out: ${reason}`);
-      }
-    }, 1500);
+    }, 1200);
   }, [user]);
 
   const verifySession = async () => {
@@ -181,15 +187,20 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
     
-    // Quick DB check to ensure they weren't locked out remotely
+    // Quick DB check to ensure they weren't locked out or inactivated remotely
     const { data } = await supabase
       .from('travelops_users')
-      .select('is_locked')
+      .select('is_locked, status')
       .eq('id', user.id)
       .single();
       
     if (data?.is_locked) {
       logout('Account has been locked by Administrator');
+      return false;
+    }
+
+    if (data?.status && data.status !== 'Active') {
+      logout('Account has been inactivated by Administrator');
       return false;
     }
     return true;

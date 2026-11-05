@@ -1,159 +1,129 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { normalizeFinancials, isTourPast } from '../utils/tourUtils';
 
 const TourContext = createContext(null);
 
-export const normalizeFinancials = (fin = {}) => {
-  const basicTourPrice = Number(fin.basicTourPrice !== undefined ? fin.basicTourPrice : (fin.totalSales || 0));
-  const discountSupplier = Number(fin.discountSupplier !== undefined ? fin.discountSupplier : (fin.discount || 0));
-  const discountBranch = Number(fin.discountBranch || 0);
-  const profit = Number(fin.profit || 0);
-  const totalSellingPrice = Number(fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : (fin.totalOmset !== undefined ? fin.totalOmset : (basicTourPrice - discountSupplier - discountBranch)));
-  const totalNettPrice = Number(fin.totalNettPrice !== undefined ? fin.totalNettPrice : (fin.cost !== undefined ? fin.cost : (basicTourPrice - discountSupplier - profit)));
-  const depositNumber = fin.depositNumber ? String(fin.depositNumber).trim() : '';
-  const depositAmount = Number(fin.depositAmount || 0);
-  const invoiceNumber = fin.invoiceNumber ? String(fin.invoiceNumber).trim() : '';
-  const sisaPelunasan = totalSellingPrice - depositAmount;
+const loadToursFromDb = async () => {
+  const { data, error } = await supabase
+    .from('travelops_tours')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  
+  return (data || []).map(t => {
+    let currentStatus = t.status;
+    
+    // Auto-detect status based on return_date (or departure_date if no return_date)
+    const tourHasEnded = isTourPast(t.departure_date, t.return_date);
 
-  return {
-    ...fin,
-    basicTourPrice,
-    totalSales: basicTourPrice,
-    discountSupplier,
-    discountBranch,
-    discount: discountSupplier + discountBranch,
-    profit,
-    totalSellingPrice,
-    totalOmset: totalSellingPrice,
-    totalNettPrice,
-    cost: totalNettPrice,
-    depositNumber,
-    depositAmount,
-    sisaPelunasan,
-    invoiceNumber,
-    discountLink: fin.discountLink || ''
-  };
-};
+    if (tourHasEnded) {
+      // Tour has ended: transition to Past Date if not Cancelled
+      if (currentStatus !== 'Past Date' && currentStatus !== 'Cancel' && currentStatus !== 'Cancelled') {
+        currentStatus = 'Past Date';
+        // Background update to database
+        supabase.from('travelops_tours').update({ status: 'Past Date' }).eq('id', t.id).then();
+      }
+    } else {
+      // Tour is still on-going or in the future:
+      // If status in database was erroneously recorded as "Past Date", recover to "Confirm"
+      if (currentStatus === 'Past Date') {
+        currentStatus = 'Confirm';
+        supabase.from('travelops_tours').update({ status: 'Confirm' }).eq('id', t.id).then();
+      }
+    }
 
-export const parseLocalDateToEndOfDay = (dateStr) => {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  const trimmed = dateStr.trim();
-  const match = trimmed.match(/^(\d{4,})-(\d{2})-(\d{2})/);
-  if (match) {
-    const year = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10) - 1;
-    const day = parseInt(match[3], 10);
-    const d = new Date(year, month, day, 23, 59, 59, 999);
-    if (!isNaN(d.getTime())) return d;
-  }
-  const fallback = new Date(trimmed);
-  if (isNaN(fallback.getTime())) return null;
-  return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 23, 59, 59, 999);
-};
+    const fin = normalizeFinancials(t.financials || {});
+    // Also fallback to internals if depositNumber was saved there
+    if (!fin.depositNumber && t.internals?.depositNumber) {
+      fin.depositNumber = String(t.internals.depositNumber).trim();
+    }
 
-export const isTourPast = (departureDateStr, returnDateStr) => {
-  const now = new Date();
-  const depEnd = parseLocalDateToEndOfDay(departureDateStr);
-  const retEnd = parseLocalDateToEndOfDay(returnDateStr);
+    const claimMdr = Boolean(t.claim_mdr !== undefined ? t.claim_mdr : t.internals?.claimMdr);
+    const claimMdrAt = t.claim_mdr_at || t.internals?.claimMdrAt || null;
+    const claimMdrBy = t.claim_mdr_by || t.internals?.claimMdrBy || '';
 
-  // If no valid dates are present, do not mark as past
-  if (!depEnd && !retEnd) return false;
-
-  // If departure date is today or in the future, tour cannot be completed
-  if (depEnd && now <= depEnd) return false;
-
-  // If return date is today or in the future, tour cannot be completed
-  if (retEnd && now <= retEnd) return false;
-
-  // Determine latest end date
-  const latestEnd = (depEnd && retEnd)
-    ? (retEnd > depEnd ? retEnd : depEnd)
-    : (retEnd || depEnd);
-
-  return now > latestEnd;
+    return {
+      id: t.id,
+      country: t.country,
+      category: t.category,
+      departureDate: t.departure_date,
+      returnDate: t.return_date,
+      maxCapacity: t.max_capacity,
+      status: currentStatus,
+      financials: fin,
+      depositNumber: fin.depositNumber,
+      depositAmount: fin.depositAmount,
+      sisaPelunasan: fin.sisaPelunasan,
+      invoiceNumber: fin.invoiceNumber,
+      totalOmset: fin.totalSellingPrice,
+      totalSellingPrice: fin.totalSellingPrice,
+      totalNettPrice: fin.totalNettPrice,
+      paxInfo: t.pax_info || [],
+      internals: t.internals || {},
+      tourCode: t.internals?.tourCode || '',
+      bookingCode: t.internals?.bookingCode || '',
+      paxCount: t.internals?.paxCount || 1,
+      staffName: t.internals?.staffName || '',
+      claimMdr,
+      claimMdrAt,
+      claimMdrBy,
+      history: t.internals?.history || []
+    };
+  });
 };
 
 export const TourProvider = ({ children }) => {
   const [tours, setTours] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTours();
-  }, []);
-
-  const fetchTours = async () => {
+  const fetchTours = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('travelops_tours').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      
-      const mapped = data.map(t => {
-        let currentStatus = t.status;
-        
-        // Auto-detect status based on return_date (or departure_date if no return_date)
-        const tourHasEnded = isTourPast(t.departure_date, t.return_date);
-
-        if (tourHasEnded) {
-          // Tour has ended: transition to Past Date if not Cancelled
-          if (currentStatus !== 'Past Date' && currentStatus !== 'Cancel' && currentStatus !== 'Cancelled') {
-            currentStatus = 'Past Date';
-            // Background update to database
-            supabase.from('travelops_tours').update({ status: 'Past Date' }).eq('id', t.id).then();
-          }
-        } else {
-          // Tour is still on-going or in the future:
-          // If status in database was erroneously recorded as "Past Date", recover to "Confirm"
-          if (currentStatus === 'Past Date') {
-            currentStatus = 'Confirm';
-            supabase.from('travelops_tours').update({ status: 'Confirm' }).eq('id', t.id).then();
-          }
-        }
-
-        const fin = normalizeFinancials(t.financials || {});
-        // Also fallback to internals if depositNumber was saved there
-        if (!fin.depositNumber && t.internals?.depositNumber) {
-          fin.depositNumber = String(t.internals.depositNumber).trim();
-        }
-
-        const claimMdr = Boolean(t.claim_mdr !== undefined ? t.claim_mdr : t.internals?.claimMdr);
-        const claimMdrAt = t.claim_mdr_at || t.internals?.claimMdrAt || null;
-        const claimMdrBy = t.claim_mdr_by || t.internals?.claimMdrBy || '';
-
-        return {
-          id: t.id,
-          country: t.country,
-          category: t.category,
-          departureDate: t.departure_date,
-          returnDate: t.return_date,
-          maxCapacity: t.max_capacity,
-          status: currentStatus,
-          financials: fin,
-          depositNumber: fin.depositNumber,
-          depositAmount: fin.depositAmount,
-          sisaPelunasan: fin.sisaPelunasan,
-          invoiceNumber: fin.invoiceNumber,
-          totalOmset: fin.totalSellingPrice,
-          totalSellingPrice: fin.totalSellingPrice,
-          totalNettPrice: fin.totalNettPrice,
-          paxInfo: t.pax_info || [],
-          internals: t.internals || {},
-          tourCode: t.internals?.tourCode || '',
-          bookingCode: t.internals?.bookingCode || '',
-          paxCount: t.internals?.paxCount || 1,
-          staffName: t.internals?.staffName || '',
-          claimMdr,
-          claimMdrAt,
-          claimMdrBy,
-          history: t.internals?.history || []
-        };
-      });
-      
+      const mapped = await loadToursFromDb();
       setTours(mapped);
     } catch (err) {
       console.error('Error fetching tours:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadToursFromDb()
+      .then((mapped) => {
+        if (!cancelled) setTours(mapped);
+      })
+      .catch((err) => {
+        console.error('Initial fetch tours error:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    const channel = supabase
+      .channel('travelops_tours_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'travelops_tours' },
+        () => {
+          if (!cancelled) {
+            loadToursFromDb()
+              .then((mapped) => {
+                if (!cancelled) setTours(mapped);
+              })
+              .catch((err) => console.error('Realtime sync error:', err));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const addTour = async (tourData) => {
     try {
@@ -377,4 +347,5 @@ export const TourProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTours = () => useContext(TourContext);
