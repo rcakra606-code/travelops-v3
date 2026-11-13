@@ -2695,16 +2695,19 @@ const Telecom = () => {
                 {/* Data Table Card */}
                 <div
                   className="card"
-                  style={{ padding: 0, display: 'flex', flexDirection: 'column' }}
+                  style={{
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: '14px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-card)',
+                    boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)',
+                    overflow: 'hidden'
+                  }}
                 >
-                  <div
-                    style={{
-                      overflowX: 'auto',
-                      borderTopLeftRadius: '1rem',
-                      borderTopRightRadius: '1rem'
-                    }}
-                  >
-                    <table className="data-table">
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '1100px' }}>
                       <thead
                         style={{
                           background: isLight

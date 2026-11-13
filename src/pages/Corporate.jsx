@@ -851,8 +851,8 @@ const Corporate = () => {
                 </div>
 
                 {/* 12-MONTH MATRIX TABLE */}
-                <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)', overflowX: 'auto', marginTop: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div className="card" style={{ borderRadius: '14px', padding: 0, overflow: 'hidden', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)', marginTop: '1.5rem' }}>
+                  <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
                       <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '600' }}>
                         12-Month Sales & Profit Matrix
@@ -909,7 +909,8 @@ const Corporate = () => {
                     </div>
                   </div>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', color: 'var(--text-main)', minWidth: '1400px' }}>
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', color: 'var(--text-main)', minWidth: '1380px' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
                         <th rowSpan="2" style={{ padding: '0.75rem', textAlign: 'left', color: neonBlue, width: '220px', fontWeight: '600' }}>Corporate Account</th>
@@ -968,6 +969,7 @@ const Corporate = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
 
               </div>
             )}
@@ -1199,9 +1201,9 @@ const Corporate = () => {
             {/* TAB 3: CORPORATE ACCOUNTS DATABASE */}
             {/* ========================================================= */}
             {activeTab === 'accounts' && (
-              <div className="card fade-in" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
+              <div className="card fade-in" style={{ borderRadius: '14px', padding: 0, overflow: 'hidden', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
                 {/* Search & Filter Toolbar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
                     {/* Search Input */}
                     <div style={{ position: 'relative', minWidth: '260px' }}>
@@ -1259,8 +1261,8 @@ const Corporate = () => {
                 </div>
 
                 {/* Accounts Data Table */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-sticky-wrapper">
+                  <table className="data-table" style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
                         <th>ACCOUNT CODE</th>
@@ -1382,13 +1384,15 @@ const Corporate = () => {
                 </div>
 
                 {/* Pagination */}
-                <Pagination 
-                  currentPage={accountsPage}
-                  totalPages={totalAccountPages}
-                  onPageChange={setAccountsPage}
-                  totalItems={filteredAccounts.length}
-                  itemsPerPage={PAGE_SIZE}
-                />
+                <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+                  <Pagination 
+                    currentPage={accountsPage}
+                    totalPages={totalAccountPages}
+                    onPageChange={setAccountsPage}
+                    totalItems={filteredAccounts.length}
+                    itemsPerPage={PAGE_SIZE}
+                  />
+                </div>
               </div>
             )}
 
@@ -1396,9 +1400,9 @@ const Corporate = () => {
             {/* TAB 4: CORPORATE SALES DATABASE */}
             {/* ========================================================= */}
             {activeTab === 'sales' && (
-              <div className="card fade-in" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
+              <div className="card fade-in" style={{ borderRadius: '14px', padding: 0, overflow: 'hidden', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
                 {/* Search & Actions Toolbar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
                     {/* Search Input */}
                     <div style={{ position: 'relative', minWidth: '240px' }}>
@@ -1483,8 +1487,8 @@ const Corporate = () => {
                 </div>
 
                 {/* Sales Data Table */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-sticky-wrapper">
+                  <table className="data-table" style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
                         <th>PERIOD</th>
@@ -1565,13 +1569,15 @@ const Corporate = () => {
                 </div>
 
                 {/* Pagination */}
-                <Pagination 
-                  currentPage={salesPage}
-                  totalPages={totalSalesPages}
-                  onPageChange={setSalesPage}
-                  totalItems={filteredSalesTab.length}
-                  itemsPerPage={PAGE_SIZE}
-                />
+                <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+                  <Pagination 
+                    currentPage={salesPage}
+                    totalPages={totalSalesPages}
+                    onPageChange={setSalesPage}
+                    totalItems={filteredSalesTab.length}
+                    itemsPerPage={PAGE_SIZE}
+                  />
+                </div>
               </div>
             )}
 

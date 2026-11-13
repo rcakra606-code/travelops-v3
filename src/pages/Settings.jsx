@@ -1250,7 +1250,7 @@ const Settings = () => {
                 </div>
 
                 {/* Logs Table */}
-                <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <div className="table-sticky-wrapper" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   <table className="data-table" style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
@@ -1434,7 +1434,7 @@ const Settings = () => {
                     </button>
                   }
                 >
-                  <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                  <div className="table-sticky-wrapper" style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
                     <table className="data-table" style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr>

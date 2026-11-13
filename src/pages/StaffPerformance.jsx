@@ -1820,8 +1820,8 @@ const StaffPerformance = () => {
                     </div>
                   </div>
 
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="data-table">
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '980px' }}>
                       <thead>
                         <tr>
                           <th>RANK</th>
@@ -2233,8 +2233,8 @@ const StaffPerformance = () => {
                   </div>
 
                   {/* Standardized IDR Productivity Table */}
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="data-table">
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '980px' }}>
                       <thead>
                         <tr>
                           <th>PRODUCT CATEGORY</th>
@@ -2656,8 +2656,8 @@ const StaffPerformance = () => {
                     </div>
                   </div>
 
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="data-table">
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '980px' }}>
                       <thead>
                         <tr>
                           <th onClick={() => handleTourSort('codeLabel')} style={{ cursor: 'pointer' }}>

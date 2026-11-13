@@ -2941,13 +2941,14 @@ const Productivity = () => {
             {/* ========================================================= */}
             {activeTab === 'report' && (
               <div className="fade-in">
-                <div className="card" style={{ overflowX: 'auto' }}>
+                <div className="card" style={{ borderRadius: '14px', padding: 0, overflow: 'hidden', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
                   <div
                     style={{
+                      padding: '1.25rem 1.5rem',
+                      borderBottom: '1px solid var(--border)',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: '1.15rem',
                       flexWrap: 'wrap',
                       gap: '0.85rem'
                     }}
@@ -2986,7 +2987,8 @@ const Productivity = () => {
                     </div>
                   </div>
 
-                  <table className="data-table">
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '920px' }}>
                     <thead>
                       <tr>
                         <th>PRODUCT CATEGORY</th>
@@ -3134,6 +3136,7 @@ const Productivity = () => {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -3151,7 +3154,7 @@ const Productivity = () => {
                   />
                 )}
 
-                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: '14px', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
                   {/* Database Toolbar */}
                   <div
                     style={{
@@ -3329,8 +3332,8 @@ const Productivity = () => {
                   </div>
 
                   {/* Sortable Data Table */}
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="data-table">
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '980px' }}>
                       <thead>
                         <tr>
                           {canDelete && (

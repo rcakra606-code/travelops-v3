@@ -2080,9 +2080,9 @@ const Hotel = () => {
                 </div>
 
                 {/* Theme-Aware Stays Table */}
-                <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="data-table">
+                <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '14px', border: '1px solid var(--border)', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
+                  <div className="table-sticky-wrapper">
+                    <table className="data-table" style={{ width: '100%', minWidth: '1100px' }}>
                       <thead
                         style={{
                           background: isLight ? '#f4f9ff' : 'rgba(15, 23, 42, 0.85)',

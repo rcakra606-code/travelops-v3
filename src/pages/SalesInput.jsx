@@ -2985,8 +2985,8 @@ const SalesInput = () => {
                 </div>
 
                 {/* Quota & Achievement Data Table */}
-                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
+                <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: '14px', border: '1px solid var(--border)', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
+                  <div className="table-sticky-wrapper">
                     <table
                       className="data-table"
                       style={{ width: '100%', minWidth: '1060px' }}

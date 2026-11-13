@@ -943,15 +943,26 @@ const DatabaseTable = ({
       )}
 
       {/* Main Bookings Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div
+        className="card"
+        style={{
+          padding: 0,
+          overflow: 'hidden',
+          borderRadius: '14px',
+          border: '1px solid var(--border)',
+          background: 'var(--bg-card)',
+          boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)',
+          width: '100%'
+        }}
+      >
         <div className="table-sticky-wrapper">
           <table
             className={`data-table ${tableDensity === 'compact' ? 'table-compact' : 'table-comfortable'}`}
-            style={{ minWidth: '1340px' }}
+            style={{ width: '100%', minWidth: '1280px' }}
           >
             <thead>
               <tr>
-                <th style={{ width: '42px', textAlign: 'center' }}>
+                <th style={{ width: '42px', minWidth: '42px', textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     checked={
@@ -967,7 +978,7 @@ const DatabaseTable = ({
                   />
                 </th>
 
-                <th>
+                <th style={{ width: '135px', minWidth: '135px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -980,12 +991,21 @@ const DatabaseTable = ({
                       placeholder="Filter..."
                       value={filters.tourCode || ''}
                       onChange={(e) => handleFilterChange('tourCode', e.target.value)}
-                      style={{ padding: '0.22rem 0.45rem', fontSize: '0.73rem' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.24rem 0.45rem',
+                        fontSize: '0.73rem',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     />
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '150px', minWidth: '150px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -998,12 +1018,21 @@ const DatabaseTable = ({
                       placeholder="Filter..."
                       value={filters.bookingCode || ''}
                       onChange={(e) => handleFilterChange('bookingCode', e.target.value)}
-                      style={{ padding: '0.22rem 0.45rem', fontSize: '0.73rem' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.24rem 0.45rem',
+                        fontSize: '0.73rem',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     />
                   </div>
                 </th>
 
-                <th>
+                <th style={{ minWidth: '180px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1016,12 +1045,21 @@ const DatabaseTable = ({
                       placeholder="Filter..."
                       value={filters.country || ''}
                       onChange={(e) => handleFilterChange('country', e.target.value)}
-                      style={{ padding: '0.22rem 0.45rem', fontSize: '0.73rem' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.24rem 0.45rem',
+                        fontSize: '0.73rem',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     />
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '140px', minWidth: '140px', whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1033,7 +1071,7 @@ const DatabaseTable = ({
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '150px', minWidth: '150px', whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1045,7 +1083,7 @@ const DatabaseTable = ({
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '110px', minWidth: '110px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1056,7 +1094,17 @@ const DatabaseTable = ({
                     <select
                       value={filters.status || ''}
                       onChange={(e) => handleFilterChange('status', e.target.value)}
-                      style={{ padding: '0.2rem 0.4rem', fontSize: '0.73rem', height: '25px' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.2rem 0.4rem',
+                        fontSize: '0.73rem',
+                        height: '26px',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     >
                       <option value="">All</option>
                       <option value="Confirm">Confirm</option>
@@ -1067,7 +1115,7 @@ const DatabaseTable = ({
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '120px', minWidth: '120px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1078,7 +1126,17 @@ const DatabaseTable = ({
                     <select
                       value={filters.invoiceStatus || ''}
                       onChange={(e) => handleFilterChange('invoiceStatus', e.target.value)}
-                      style={{ padding: '0.2rem 0.4rem', fontSize: '0.73rem', height: '25px' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.2rem 0.4rem',
+                        fontSize: '0.73rem',
+                        height: '26px',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     >
                       <option value="">All</option>
                       <option value="Sudah">Invoiced</option>
@@ -1087,7 +1145,7 @@ const DatabaseTable = ({
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '120px', minWidth: '120px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1101,7 +1159,17 @@ const DatabaseTable = ({
                     <select
                       value={filters.claimMdrStatus || ''}
                       onChange={(e) => handleFilterChange('claimMdrStatus', e.target.value)}
-                      style={{ padding: '0.2rem 0.4rem', fontSize: '0.73rem', height: '25px' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.2rem 0.4rem',
+                        fontSize: '0.73rem',
+                        height: '26px',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     >
                       <option value="">All</option>
                       <option value="Sudah Claim">Claimed</option>
@@ -1110,7 +1178,7 @@ const DatabaseTable = ({
                   </div>
                 </th>
 
-                <th>
+                <th style={{ width: '155px', minWidth: '155px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1123,12 +1191,21 @@ const DatabaseTable = ({
                       placeholder="Filter..."
                       value={filters.staffName || ''}
                       onChange={(e) => handleFilterChange('staffName', e.target.value)}
-                      style={{ padding: '0.22rem 0.45rem', fontSize: '0.73rem' }}
+                      style={{
+                        width: '100%',
+                        padding: '0.24rem 0.45rem',
+                        fontSize: '0.73rem',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        color: 'var(--text-main)',
+                        outline: 'none'
+                      }}
                     />
                   </div>
                 </th>
 
-                <th style={{ textAlign: 'center' }}>Actions</th>
+                <th style={{ width: '105px', minWidth: '105px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
 
@@ -1380,7 +1457,7 @@ const DatabaseTable = ({
                       </td>
 
                       {/* PIC Staff */}
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
                         <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', fontWeight: '500' }}>
                           {tour.staffName || '-'}
                         </span>

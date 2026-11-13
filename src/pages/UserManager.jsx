@@ -368,10 +368,10 @@ const UserManager = () => {
             </div>
 
             {/* USER DIRECTORY CARD */}
-            <div className="card fade-in" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
+            <div className="card fade-in" style={{ borderRadius: '14px', padding: 0, overflow: 'hidden', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
               
               {/* Toolbar: Search & Role / Status Filter Pills */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
                   
                   {/* Search Input */}
@@ -440,8 +440,8 @@ const UserManager = () => {
               </div>
 
               {/* DATA TABLE */}
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="table-sticky-wrapper">
+                <table className="data-table" style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       <th>USER / OPERATOR</th>
@@ -625,13 +625,15 @@ const UserManager = () => {
               </div>
 
               {/* Pagination */}
-              <Pagination 
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-                totalItems={filteredUsers.length}
-                itemsPerPage={PAGE_SIZE}
-              />
+              <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+                <Pagination 
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  totalItems={filteredUsers.length}
+                  itemsPerPage={PAGE_SIZE}
+                />
+              </div>
 
             </div>
 
