@@ -1,7 +1,7 @@
 import './mobile.css';
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { TourProvider } from './context/TourContext';
 import { UserProvider } from './context/UserContext';
 import { SalesProvider } from './context/SalesContext';
@@ -36,11 +36,16 @@ const composeProviders = (...providers) => {
     );
 };
 
-// Stacked Data & Domain Providers
-const AppProviders = composeProviders(
+// Base application providers needed globally (theme, settings, auth, toast notifications)
+const BaseProviders = composeProviders(
   ThemeProvider,
   SettingsProvider,
   AuthProvider,
+  ToastProvider
+);
+
+// Operational Domain Data Providers
+const DataProviderStack = composeProviders(
   UserProvider,
   TourProvider,
   KnowledgeProvider,
@@ -51,9 +56,54 @@ const AppProviders = composeProviders(
   HotelProvider,
   OvertimeProvider,
   ProductivityProvider,
-  CorporateProvider,
-  ToastProvider
+  CorporateProvider
 );
+
+// Session-aware wrapper: dynamic key remounts domain providers immediately upon login or logout
+const AuthenticatedDataProviders = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          background: 'var(--bg-dark, #0b1120)',
+          color: 'var(--primary, #00d4ff)',
+          fontSize: '1rem',
+          fontFamily: 'inherit'
+        }}
+        aria-busy="true"
+        aria-label="Memuat aplikasi TravelOps..."
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              border: '3px solid rgba(0, 212, 255, 0.2)',
+              borderTopColor: '#00d4ff',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite'
+            }}
+          />
+          <span style={{ fontSize: '13px', color: '#94a3b8', letterSpacing: '0.04em' }}>
+            Memuat TravelOps...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <DataProviderStack key={user?.id || 'guest'}>
+      {children}
+    </DataProviderStack>
+  );
+};
 
 function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -83,19 +133,21 @@ function App() {
 
   return (
     <GlobalErrorBoundary>
-      <AppProviders>
-        <AutoLogout>
-          <ForcePasswordChange />
-          <Router>
-            <ReminderEngine />
-            <CommandPalette />
-            <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-            <AiCopilot />
-            <ToastNotification />
-            <AnimatedRoutes />
-          </Router>
-        </AutoLogout>
-      </AppProviders>
+      <BaseProviders>
+        <Router>
+          <AutoLogout>
+            <ForcePasswordChange />
+            <AuthenticatedDataProviders>
+              <ReminderEngine />
+              <CommandPalette />
+              <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+              <AiCopilot />
+              <ToastNotification />
+              <AnimatedRoutes />
+            </AuthenticatedDataProviders>
+          </AutoLogout>
+        </Router>
+      </BaseProviders>
     </GlobalErrorBoundary>
   );
 }
