@@ -234,7 +234,11 @@ const Productivity = () => {
   };
 
   const activeStaff = useMemo(() => {
-    const active = (users || []).filter((u) => u.status === 'Active');
+    const active = (users || []).filter(
+      (u) =>
+        u.status === 'Active' &&
+        (u.role || '').toLowerCase() !== 'admin'
+    );
     return active;
   }, [users]);
 
@@ -244,13 +248,23 @@ const Productivity = () => {
         .filter((u) => u.status === 'Inactive' && u.name)
         .map((u) => u.name.toLowerCase().trim())
     );
+    const adminNames = new Set(
+      (users || [])
+        .filter((u) => (u.role || '').toLowerCase() === 'admin' && u.name)
+        .map((u) => u.name.toLowerCase().trim())
+    );
     const names = new Set(activeStaff.map((u) => u.name).filter(Boolean));
     (productivityData || []).forEach((r) => {
-      if (r.staff && !inactiveNames.has(r.staff.toLowerCase().trim())) {
+      const clean = (r.staff || '').toLowerCase().trim();
+      if (clean && !inactiveNames.has(clean) && !adminNames.has(clean)) {
         names.add(r.staff);
       }
     });
-    if (user?.name && !inactiveNames.has(user.name.toLowerCase().trim())) {
+    if (
+      user?.name &&
+      (user.role || '').toLowerCase() !== 'admin' &&
+      !inactiveNames.has(user.name.toLowerCase().trim())
+    ) {
       names.add(user.name);
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
@@ -306,7 +320,7 @@ const Productivity = () => {
       ? user?.name || ''
       : selectedStaffFilter !== 'All'
         ? selectedStaffFilter
-        : activeStaff[0]?.name || user?.name || '',
+        : activeStaff[0]?.name || '',
     category: selectedCategoryFilter !== 'All' ? selectedCategoryFilter : 'Flight',
     type: selectedTypeFilter !== 'All' ? selectedTypeFilter : 'Retail',
     salesAmount: 0,

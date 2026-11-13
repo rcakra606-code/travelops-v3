@@ -216,7 +216,7 @@ const StaffPerformance = () => {
 
   const isStaffRole = user?.role === 'Staff';
 
-  // Build canonical staff roster combining active users + any staff names appearing in records (excluding inactivated staff)
+  // Build canonical staff roster combining active users + any staff names appearing in records (excluding inactivated staff & admin users)
   const staffRoster = useMemo(() => {
     const map = new Map();
     const inactiveNames = new Set(
@@ -224,9 +224,14 @@ const StaffPerformance = () => {
         .filter((u) => u.status === 'Inactive' && u.name)
         .map((u) => normName(u.name))
     );
+    const adminNames = new Set(
+      (users || [])
+        .filter((u) => (u.role || '').toLowerCase() === 'admin' && u.name)
+        .map((u) => normName(u.name))
+    );
 
     (users || [])
-      .filter((u) => u.status === 'Active' && u.name)
+      .filter((u) => u.status === 'Active' && u.name && (u.role || '').toLowerCase() !== 'admin')
       .forEach((u) => {
         map.set(normName(u.name), u.name.trim());
       });
@@ -235,7 +240,7 @@ const StaffPerformance = () => {
       const clean = String(raw || '').trim();
       if (!clean || clean.toLowerCase() === 'unassigned') return;
       const normalized = normName(clean);
-      if (inactiveNames.has(normalized)) return;
+      if (inactiveNames.has(normalized) || adminNames.has(normalized)) return;
       if (!map.has(normalized)) {
         map.set(normalized, clean);
       }
@@ -249,7 +254,7 @@ const StaffPerformance = () => {
     (documents || []).forEach((d) => register(d.staff));
     (telecoms || []).forEach((t) => register(t.staff));
     (overtimes || []).forEach((o) => register(o.staff));
-    if (user?.name) register(user.name);
+    if (user?.name && (user.role || '').toLowerCase() !== 'admin') register(user.name);
 
     return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
   }, [users, sales, productivityData, tours, cruises, hotels, documents, telecoms, overtimes, user]);

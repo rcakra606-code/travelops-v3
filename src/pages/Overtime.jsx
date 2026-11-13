@@ -46,7 +46,11 @@ const Overtime = () => {
   const neonBlue = isLight ? '#0284c7' : '#00d4ff';
 
   const activeStaff = useMemo(() => {
-    return (users || []).filter(u => u.status === 'Active');
+    return (users || []).filter(
+      (u) =>
+        u.status === 'Active' &&
+        (u.role || '').toLowerCase() !== 'admin'
+    );
   }, [users]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);

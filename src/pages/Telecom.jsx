@@ -378,16 +378,22 @@ const Telecom = () => {
   const currentUserRole = user?.role || '';
 
   const activeStaff = useMemo(
-    () => (users || []).filter((u) => u.status === 'Active'),
+    () =>
+      (users || []).filter(
+        (u) =>
+          u.status === 'Active' &&
+          (u.role || '').toLowerCase() !== 'admin'
+      ),
     [users]
   );
 
   const defaultStaffName = useMemo(() => {
+    if ((currentUserRole || '').toLowerCase() === 'admin') return '';
     if (currentUserName && activeStaff.some((u) => u.name === currentUserName)) {
       return currentUserName;
     }
-    return currentUserName || '';
-  }, [currentUserName, activeStaff]);
+    return '';
+  }, [currentUserName, currentUserRole, activeStaff]);
 
   const isAdmin = currentUserRole === 'Admin';
   const isManager = currentUserRole === 'Manager';
@@ -3554,6 +3560,10 @@ const Telecom = () => {
                     style={formInputStyle}
                   >
                     <option value="">Select Consultant</option>
+                    {formData.staff &&
+                      !activeStaff.some((u) => u.name === formData.staff) && (
+                        <option value={formData.staff}>{formData.staff}</option>
+                      )}
                     {activeStaff.map((u) => (
                       <option key={u.id} value={u.name}>
                         {u.name}

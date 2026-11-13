@@ -183,7 +183,11 @@ const TourWizard = ({ initialData, prefillDate, onComplete, onCancel }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [tourData, setTourData] = useState(() =>
-    buildInitialWizardState(initialData, prefillDate, user?.name)
+    buildInitialWizardState(
+      initialData,
+      prefillDate,
+      (user?.role || '').toLowerCase() === 'admin' ? '' : user?.name
+    )
   );
 
   const isBrandNewTour = !isEditingExisting && !initialData;

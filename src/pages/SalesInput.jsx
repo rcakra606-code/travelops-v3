@@ -239,7 +239,12 @@ const SalesInput = () => {
   const canAdd = isAdmin || isManager;
 
   const activeStaff = useMemo(
-    () => (users || []).filter((u) => u.status === 'Active'),
+    () =>
+      (users || []).filter(
+        (u) =>
+          u.status === 'Active' &&
+          (u.role || '').toLowerCase() !== 'admin'
+      ),
     [users]
   );
 
@@ -2649,6 +2654,10 @@ const SalesInput = () => {
                               style={inputBoxStyle}
                             >
                               <option value="">Select Consultant...</option>
+                              {formData.staffName &&
+                                !activeStaff.some((u) => u.name === formData.staffName) && (
+                                  <option value={formData.staffName}>{formData.staffName}</option>
+                                )}
                               {activeStaff.map((u) => (
                                 <option key={u.id} value={u.name}>
                                   {u.name} ({u.role})

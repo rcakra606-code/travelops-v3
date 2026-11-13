@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { logSystemAction } from '../utils/logger';
 import { useAuth } from './AuthContext';
@@ -193,9 +193,15 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+  const staffUsers = useMemo(
+    () => (users || []).filter((u) => u.status === 'Active' && (u.role || '').toLowerCase() !== 'admin'),
+    [users]
+  );
+
   return (
     <UserContext.Provider value={{ 
       users, 
+      staffUsers,
       addUser, 
       updateUser, 
       deleteUser, 

@@ -161,23 +161,31 @@ const OperationsCalendar = () => {
     return Array.from(years).sort((a, b) => a - b);
   }, [currentYear]);
 
-  // Extract active staff for filter (excluding inactivated personnel)
+  // Extract active staff for filter (excluding inactivated personnel & admin users)
   const staffList = useMemo(() => {
     const inactiveNames = new Set(
       (users || [])
         .filter((u) => u.status === 'Inactive' && u.name)
         .map((u) => u.name.toLowerCase().trim())
     );
+    const adminNames = new Set(
+      (users || [])
+        .filter((u) => (u.role || '').toLowerCase() === 'admin' && u.name)
+        .map((u) => u.name.toLowerCase().trim())
+    );
     const list = new Set();
     const addIfActive = (name) => {
       if (!name) return;
       const clean = name.trim();
-      if (!inactiveNames.has(clean.toLowerCase())) {
+      const lower = clean.toLowerCase();
+      if (!inactiveNames.has(lower) && !adminNames.has(lower)) {
         list.add(clean);
       }
     };
 
-    users?.filter(u => u.status === 'Active').forEach((u) => addIfActive(u.name));
+    users
+      ?.filter((u) => u.status === 'Active' && (u.role || '').toLowerCase() !== 'admin')
+      .forEach((u) => addIfActive(u.name));
     tours?.forEach((t) => addIfActive(t.staffName));
     cruises?.forEach((c) => addIfActive(c.staff));
     hotels?.forEach((h) => addIfActive(h.staff));

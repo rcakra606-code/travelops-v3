@@ -128,6 +128,10 @@ export const OvertimeFormModal = ({
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
               >
                 <option value="" disabled>Select Staff</option>
+                {formData.staff &&
+                  !activeStaff.some((s) => s.name === formData.staff) && (
+                    <option value={formData.staff}>{formData.staff}</option>
+                  )}
                 {activeStaff.map(s => (
                   <option key={s.id || s.name} value={s.name}>
                     {s.name} {s.department ? `(${s.department})` : ''}

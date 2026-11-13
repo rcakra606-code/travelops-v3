@@ -305,16 +305,22 @@ const Cruise = () => {
   const currentUserRole = user?.role || '';
 
   const activeStaff = useMemo(
-    () => (users || []).filter((u) => u.status === 'Active'),
+    () =>
+      (users || []).filter(
+        (u) =>
+          u.status === 'Active' &&
+          (u.role || '').toLowerCase() !== 'admin'
+      ),
     [users]
   );
 
   const defaultStaffName = useMemo(() => {
+    if ((currentUserRole || '').toLowerCase() === 'admin') return '';
     if (currentUserName && activeStaff.some((u) => u.name === currentUserName)) {
       return currentUserName;
     }
-    return currentUserName || '';
-  }, [currentUserName, activeStaff]);
+    return '';
+  }, [currentUserName, currentUserRole, activeStaff]);
 
   const isAdmin = currentUserRole === 'Admin';
   const isManager = currentUserRole === 'Manager';
@@ -3219,7 +3225,9 @@ const Cruise = () => {
                     <label style={{ marginBottom: 0 }}>
                       Consultant (Staff Handling) <span style={{ color: '#ef4444' }}>*</span>
                     </label>
-                    {currentUserName && formData.staff !== currentUserName && (
+                    {currentUserName &&
+                      activeStaff.some((u) => u.name === currentUserName) &&
+                      formData.staff !== currentUserName && (
                       <button
                         type="button"
                         onClick={() => setFormData((prev) => ({ ...prev, staff: currentUserName }))}

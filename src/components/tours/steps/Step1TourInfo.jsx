@@ -393,7 +393,7 @@ const Step1TourInfo = ({ data, updateData, errors = {}, clearError }) => {
         <div className="input-group">
           <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>PIC Consultant (Staff)</span>
-            {user?.name && data.staffName !== user.name && (
+            {user?.name && (user.role || '').toLowerCase() !== 'admin' && data.staffName !== user.name && (
               <button
                 type="button"
                 onClick={() => updateData({ staffName: user.name })}
@@ -413,8 +413,19 @@ const Step1TourInfo = ({ data, updateData, errors = {}, clearError }) => {
           </label>
           <select name="staffName" value={data.staffName || ''} onChange={handleChange}>
             <option value="">Select Staff</option>
+            {data.staffName &&
+              !users.some(
+                (u) =>
+                  u.status === 'Active' &&
+                  (u.role || '').toLowerCase() !== 'admin' &&
+                  u.name === data.staffName
+              ) && <option value={data.staffName}>{data.staffName}</option>}
             {users
-              .filter((u) => u.status === 'Active')
+              .filter(
+                (u) =>
+                  u.status === 'Active' &&
+                  (u.role || '').toLowerCase() !== 'admin'
+              )
               .map((u) => (
                 <option key={u.id} value={u.name}>
                   {u.name} ({u.role})
