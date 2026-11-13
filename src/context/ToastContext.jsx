@@ -12,7 +12,8 @@ export const ToastProvider = ({ children }) => {
   const addToast = useCallback((type, message, duration = 4000) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const newToast = { id, type, message, duration };
-    setToasts((prev) => [...prev, newToast]);
+    // Keep maximum 4 concurrent toasts to prevent UI layout overcrowding
+    setToasts((prev) => [...prev.slice(-3), newToast]);
 
     if (duration > 0) {
       setTimeout(() => {

@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 import { Upload, X, Check, FileSpreadsheet, AlertCircle, DownloadCloud } from 'lucide-react';
 
@@ -45,6 +44,7 @@ const CsvImportUtility = ({ onImport, templateHeaders }) => {
             }
           });
         } else {
+          const ExcelJS = (await import('exceljs')).default;
           const workbook = new ExcelJS.Workbook();
           const arrayBuffer = await selected.arrayBuffer();
           await workbook.xlsx.load(arrayBuffer);
@@ -97,6 +97,7 @@ const CsvImportUtility = ({ onImport, templateHeaders }) => {
   const handleDownloadTemplate = async () => {
     if (!templateHeaders) return;
     
+    const ExcelJS = (await import('exceljs')).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Template');
     worksheet.addRow(templateHeaders);

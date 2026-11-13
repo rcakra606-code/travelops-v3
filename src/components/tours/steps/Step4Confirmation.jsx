@@ -11,19 +11,25 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
   const [showSettlementModal, setShowSettlementModal] = useState(false);
 
   const fin = data.financials || {};
+  const isConsortium = data.tourType === 'Consortium';
   const basicPrice =
     fin.basicTourPrice !== undefined ? Number(fin.basicTourPrice) || 0 : Number(fin.totalSales) || 0;
+  const airportTax = Number(fin.airportTax || 0);
+  const tipping = Number(fin.tipping || 0);
+  const miscCharge = Number(fin.miscCharge || 0);
+  const ppn = Number(fin.ppn || 0);
   const discSupplier = Number(fin.discountSupplier || 0);
   const discBranch = Number(fin.discountBranch || 0);
   const profitVal = Number(fin.profit || 0);
+  const totalAddons = isConsortium ? airportTax + tipping + miscCharge + ppn : 0;
   const totalSellingPrice =
     fin.totalSellingPrice !== undefined
       ? Number(fin.totalSellingPrice) || 0
-      : Number(fin.totalOmset || basicPrice - discSupplier - discBranch);
+      : Number(fin.totalOmset || basicPrice + totalAddons - discSupplier - discBranch);
   const totalNettPrice =
     fin.totalNettPrice !== undefined
       ? Number(fin.totalNettPrice) || 0
-      : Number(fin.cost || basicPrice - discSupplier - profitVal);
+      : Number(fin.cost || totalSellingPrice - profitVal);
   const depositAmount = Number(fin.depositAmount || 0);
   const sisaPelunasan = Math.max(0, totalSellingPrice - depositAmount);
   const hasDeposit = Boolean(fin.depositNumber && fin.depositNumber.trim() !== '');
@@ -46,10 +52,10 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
       >
         <div>
           <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)' }}>
-            Step 4: Review &amp; Confirm Booking
+            Step 5: Review &amp; Confirm Booking
           </h2>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Double-check itinerary details, passenger pricing, and deposit receipt before saving.
+            Periksa kembali detail itinerary, tipe tour, kalkulasi pax, profit, dan bukti DP sebelum menyimpan.
           </p>
         </div>
 
@@ -119,6 +125,20 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
             Tour &amp; Schedule Details
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '0.55rem', fontSize: '0.85rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Jenis Tour:</span>
+            <span style={{ fontWeight: '700', color: data.tourType === 'Consortium' ? '#f59e0b' : data.tourType === 'Incentive' ? '#8b5cf6' : '#0284c7' }}>
+              {data.tourType || 'Series'} Tour
+            </span>
+
+            {data.supplier && (
+              <>
+                <span style={{ color: 'var(--text-muted)' }}>Supplier Mitra:</span>
+                <span style={{ fontWeight: '700', color: 'var(--primary)' }}>
+                  {data.supplier}
+                </span>
+              </>
+            )}
+
             <span style={{ color: 'var(--text-muted)' }}>Tour Code:</span>
             <span className="font-mono" style={{ fontWeight: '700', color: 'var(--primary)' }}>
               {data.tourCode || '-'}
@@ -162,16 +182,20 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
               {data.status}
             </span>
 
-            <span style={{ color: 'var(--text-muted)' }}>Form Claim MDR:</span>
-            <span>
-              {data.claimMdr ? (
-                <span style={{ color: emeraldColor, fontWeight: '700', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <CheckCircle2 size={13} /> Checked
+            {(!data.tourType || data.tourType === 'Series') && (
+              <>
+                <span style={{ color: 'var(--text-muted)' }}>Form Claim MDR:</span>
+                <span>
+                  {data.claimMdr ? (
+                    <span style={{ color: emeraldColor, fontWeight: '700', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <CheckCircle2 size={13} /> Checked
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--text-subtle)', fontSize: '0.8rem' }}>Unchecked</span>
+                  )}
                 </span>
-              ) : (
-                <span style={{ color: 'var(--text-subtle)', fontSize: '0.8rem' }}>Unchecked</span>
-              )}
-            </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -193,6 +217,34 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
             <span className="font-mono" style={{ fontWeight: '600' }}>
               Rp {formatCurrency(basicPrice)}
             </span>
+
+            {isConsortium && (
+              <>
+                <span style={{ color: 'var(--text-muted)' }}>Airport Tax &amp; Fuel:</span>
+                <span className="font-mono" style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                  + Rp {formatCurrency(airportTax)}
+                </span>
+
+                <span style={{ color: 'var(--text-muted)' }}>Tipping Guide/Driver:</span>
+                <span className="font-mono" style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                  + Rp {formatCurrency(tipping)}
+                </span>
+
+                {miscCharge > 0 && (
+                  <>
+                    <span style={{ color: 'var(--text-muted)' }}>Misc Charges:</span>
+                    <span className="font-mono" style={{ fontWeight: '600' }}>
+                      + Rp {formatCurrency(miscCharge)}
+                    </span>
+                  </>
+                )}
+
+                <span style={{ color: 'var(--text-muted)' }}>PPN (Pajak):</span>
+                <span className="font-mono" style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                  + Rp {formatCurrency(ppn)}
+                </span>
+              </>
+            )}
 
             <span style={{ color: 'var(--text-muted)' }}>Discount Supplier:</span>
             <span className="font-mono" style={{ fontWeight: '600', color: amberColor }}>
@@ -276,7 +328,10 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
                 <th>Traveler Name</th>
                 <th>Contact</th>
                 <th>Harga Dasar</th>
-                <th>Disc. Supplier</th>
+                {isConsortium && <th>Airport Tax</th>}
+                {isConsortium && <th>Tipping</th>}
+                {isConsortium && <th>PPN</th>}
+                <th>Disc. Supp</th>
                 <th>Disc. Branch</th>
                 <th>Profit</th>
                 <th>Selling Price</th>
@@ -287,11 +342,17 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
               {(data.paxInfo || []).map((pax, idx) => {
                 const pBasic =
                   Number(pax.basicPrice !== undefined && pax.basicPrice !== '' ? pax.basicPrice : pax.sellingPrice) || 0;
+                const pAirportTax = Number(pax.airportTax) || 0;
+                const pTipping = Number(pax.tipping) || 0;
+                const pMiscCharge = Number(pax.miscCharge) || 0;
+                const pPpn = Number(pax.ppn) || 0;
                 const pDiscSupplier = Number(pax.discountSupplier) || 0;
                 const pDiscBranch = Number(pax.discountBranch) || 0;
                 const pProfit = Number(pax.profit) || 0;
-                const pSellingPrice = pBasic - pDiscSupplier - pDiscBranch;
-                const pNettPrice = pBasic - pDiscSupplier - pProfit;
+
+                const pAddons = isConsortium ? pAirportTax + pTipping + pMiscCharge + pPpn : 0;
+                const pSellingPrice = pBasic + pAddons - pDiscSupplier - pDiscBranch;
+                const pNettPrice = pSellingPrice - pProfit;
                 const fullName = `${pax.firstName || ''} ${pax.lastName || ''}`.trim();
 
                 return (
@@ -306,6 +367,21 @@ const Step4Confirmation = ({ data, onBackToFinancials }) => {
                       </div>
                     </td>
                     <td className="font-mono">Rp {formatCurrency(pBasic)}</td>
+                    {isConsortium && (
+                      <td className="font-mono" style={{ color: 'var(--primary)' }}>
+                        Rp {formatCurrency(pAirportTax)}
+                      </td>
+                    )}
+                    {isConsortium && (
+                      <td className="font-mono" style={{ color: 'var(--primary)' }}>
+                        Rp {formatCurrency(pTipping)}
+                      </td>
+                    )}
+                    {isConsortium && (
+                      <td className="font-mono" style={{ color: 'var(--primary)' }}>
+                        Rp {formatCurrency(pPpn)}
+                      </td>
+                    )}
                     <td className="font-mono" style={{ color: amberColor }}>
                       - Rp {formatCurrency(pDiscSupplier)}
                     </td>

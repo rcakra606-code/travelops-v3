@@ -7,26 +7,32 @@ const Step3Financials = ({ data, updateData, errors, setErrors, onGoToPassengers
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
+  const isConsortium = data.tourType === 'Consortium';
   const paxPricingActive = hasPerPaxPricing(data.paxInfo);
   const financials = paxPricingActive
-    ? computeFinancialsFromPax(data.paxInfo, data.financials || {})
+    ? computeFinancialsFromPax(data.paxInfo, data.financials || {}, data.tourType || 'Series')
     : data.financials || {};
 
   const basicPrice =
     financials.basicTourPrice !== undefined
       ? Number(financials.basicTourPrice) || 0
       : Number(financials.totalSales) || 0;
+  const airportTax = Number(financials.airportTax || 0);
+  const tipping = Number(financials.tipping || 0);
+  const miscCharge = Number(financials.miscCharge || 0);
+  const ppn = Number(financials.ppn || 0);
   const discSupplier = Number(financials.discountSupplier || 0);
   const discBranch = Number(financials.discountBranch || 0);
   const profitVal = Number(financials.profit || 0);
+  const totalAddons = isConsortium ? airportTax + tipping + miscCharge + ppn : 0;
   const totalSellingPrice =
     financials.totalSellingPrice !== undefined
       ? Number(financials.totalSellingPrice) || 0
-      : basicPrice - discSupplier - discBranch;
+      : basicPrice + totalAddons - discSupplier - discBranch;
   const totalNettPrice =
     financials.totalNettPrice !== undefined
       ? Number(financials.totalNettPrice) || 0
-      : basicPrice - discSupplier - profitVal;
+      : totalSellingPrice - profitVal;
   const depositAmount = Number(financials.depositAmount || 0);
   const sisaPelunasan = totalSellingPrice - depositAmount;
   const sisaCostAgent = totalNettPrice - depositAmount;
@@ -40,12 +46,17 @@ const Step3Financials = ({ data, updateData, errors, setErrors, onGoToPassengers
 
     const fin = { ...(data.financials || {}), [field]: parsedVal };
     const basic = field === 'basicTourPrice' ? parsedVal : Number(fin.basicTourPrice) || 0;
+    const at = field === 'airportTax' ? parsedVal : Number(fin.airportTax) || 0;
+    const tip = field === 'tipping' ? parsedVal : Number(fin.tipping) || 0;
+    const misc = field === 'miscCharge' ? parsedVal : Number(fin.miscCharge) || 0;
+    const taxPpn = field === 'ppn' ? parsedVal : Number(fin.ppn) || 0;
     const dSupp = field === 'discountSupplier' ? parsedVal : Number(fin.discountSupplier) || 0;
     const dBranch = field === 'discountBranch' ? parsedVal : Number(fin.discountBranch) || 0;
     const prof = field === 'profit' ? parsedVal : Number(fin.profit) || 0;
 
-    const nextSelling = basic - dSupp - dBranch;
-    const nextNett = basic - dSupp - prof;
+    const addons = isConsortium ? at + tip + misc + taxPpn : 0;
+    const nextSelling = basic + addons - dSupp - dBranch;
+    const nextNett = nextSelling - prof;
     const depAmt = Number(fin.depositAmount || 0);
 
     updateData({
@@ -53,6 +64,10 @@ const Step3Financials = ({ data, updateData, errors, setErrors, onGoToPassengers
         ...fin,
         basicTourPrice: basic,
         totalSales: basic,
+        airportTax: at,
+        tipping: tip,
+        miscCharge: misc,
+        ppn: taxPpn,
         discountSupplier: dSupp,
         discountBranch: dBranch,
         discount: dSupp + dBranch,
@@ -104,7 +119,7 @@ const Step3Financials = ({ data, updateData, errors, setErrors, onGoToPassengers
       >
         <div>
           <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)' }}>
-            Step 3: Financials, Deposit &amp; Invoice
+            Step 4: Financials, Deposit &amp; Invoice
           </h2>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Review group revenue, supplier/branch discounts, deposit receipt, and settlement balance.
@@ -160,6 +175,35 @@ const Step3Financials = ({ data, updateData, errors, setErrors, onGoToPassengers
               : 'Enter group totals directly below (or enter per-traveler in Step 2)'}
           </span>
         </div>
+
+        {/* Consortium Addons Pill Strip */}
+        {isConsortium && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.85rem',
+              padding: '0.75rem 1rem',
+              marginBottom: '1rem',
+              borderRadius: '10px',
+              background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              fontSize: '0.8rem'
+            }}
+          >
+            <span style={{ fontWeight: '700', color: isLight ? '#b45309' : '#fbbf24' }}>
+              Komponen Tambahan Konsorsium:
+            </span>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <span>Airport Tax: <strong className="font-mono">Rp {formatCurrency(airportTax)}</strong></span>
+              <span>Tipping: <strong className="font-mono">Rp {formatCurrency(tipping)}</strong></span>
+              {miscCharge > 0 && <span>Misc: <strong className="font-mono">Rp {formatCurrency(miscCharge)}</strong></span>}
+              <span>PPN: <strong className="font-mono">Rp {formatCurrency(ppn)}</strong></span>
+            </div>
+          </div>
+        )}
 
         {/* 4 Breakdown Boxes (Editable when no per-pax prices, Read-Only Summary when per-pax prices exist) */}
         <div

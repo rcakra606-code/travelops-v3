@@ -119,7 +119,7 @@ export const UserProvider = ({ children }) => {
         logSystemAction(currentUser, 'Update User', `Reset password for user ${id}`);
       }
 
-      // Update travelops_users directly for other fields
+      // Update user profile fields through secure admin endpoint
       const dbUpdates = {};
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.email !== undefined) dbUpdates.email = updates.email;
@@ -129,12 +129,32 @@ export const UserProvider = ({ children }) => {
       if (updates.mustChangePassword !== undefined) dbUpdates.must_change_password = updates.mustChangePassword;
 
       if (Object.keys(dbUpdates).length > 0) {
-        const { error } = await supabase
-          .from('travelops_users')
-          .update(dbUpdates)
-          .eq('id', id);
+        let savedViaBackend = false;
+        try {
+          const headers = await getAuthHeaders();
+          const response = await fetch(`/api/admin/users/${id}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(dbUpdates)
+          });
+          const resData = await response.json().catch(() => ({}));
+          if (response.ok && resData.success) {
+            savedViaBackend = true;
+          }
+        } catch {
+          savedViaBackend = false;
+        }
 
-        if (error) throw error;
+        // Fallback to direct client update if backend is offline
+        if (!savedViaBackend) {
+          const { error } = await supabase
+            .from('travelops_users')
+            .update(dbUpdates)
+            .eq('id', id);
+
+          if (error) throw error;
+        }
+
         logSystemAction(currentUser, 'Update User', `Updated user ${id}`);
       }
 

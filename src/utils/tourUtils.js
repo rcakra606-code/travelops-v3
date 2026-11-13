@@ -1,10 +1,32 @@
-export const normalizeFinancials = (fin = {}) => {
+export const normalizeFinancials = (fin = {}, tourType = 'Series') => {
   const basicTourPrice = Number(fin.basicTourPrice !== undefined ? fin.basicTourPrice : (fin.totalSales || 0));
+  const airportTax = Number(fin.airportTax || 0);
+  const tipping = Number(fin.tipping || 0);
+  const miscCharge = Number(fin.miscCharge || 0);
+  const ppn = Number(fin.ppn || 0);
   const discountSupplier = Number(fin.discountSupplier !== undefined ? fin.discountSupplier : (fin.discount || 0));
   const discountBranch = Number(fin.discountBranch || 0);
   const profit = Number(fin.profit || 0);
-  const totalSellingPrice = Number(fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : (fin.totalOmset !== undefined ? fin.totalOmset : (basicTourPrice - discountSupplier - discountBranch)));
-  const totalNettPrice = Number(fin.totalNettPrice !== undefined ? fin.totalNettPrice : (fin.cost !== undefined ? fin.cost : (basicTourPrice - discountSupplier - profit)));
+
+  const isConsortium = tourType === 'Consortium';
+  const totalAddons = isConsortium ? (airportTax + tipping + miscCharge + ppn) : 0;
+
+  const totalSellingPrice = Number(
+    fin.totalSellingPrice !== undefined
+      ? fin.totalSellingPrice
+      : (fin.totalOmset !== undefined
+          ? fin.totalOmset
+          : (basicTourPrice + totalAddons - discountSupplier - discountBranch))
+  );
+
+  const totalNettPrice = Number(
+    fin.totalNettPrice !== undefined
+      ? fin.totalNettPrice
+      : (fin.cost !== undefined
+          ? fin.cost
+          : (totalSellingPrice - profit))
+  );
+
   const depositNumber = fin.depositNumber ? String(fin.depositNumber).trim() : '';
   const depositAmount = Number(fin.depositAmount || 0);
   const invoiceNumber = fin.invoiceNumber ? String(fin.invoiceNumber).trim() : '';
@@ -14,6 +36,10 @@ export const normalizeFinancials = (fin = {}) => {
     ...fin,
     basicTourPrice,
     totalSales: basicTourPrice,
+    airportTax,
+    tipping,
+    miscCharge,
+    ppn,
     discountSupplier,
     discountBranch,
     discount: discountSupplier + discountBranch,

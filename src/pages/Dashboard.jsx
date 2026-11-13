@@ -7,7 +7,8 @@ import {
   DollarSign, Map, FileText, Phone, Plane, Building, Ship, Compass,
   AlertCircle, Clock, CheckCircle2, Settings2, Eye, EyeOff,
   ArrowUp, ArrowDown, RotateCcw, Plus, ChevronRight, Sparkles,
-  Search, X, Share2, Calendar, User, ExternalLink, TrendingUp
+  Search, X, Share2, Calendar, User, ExternalLink, TrendingUp,
+  Briefcase, Network
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import SkeletonLoader from '../components/SkeletonLoader';
@@ -24,6 +25,7 @@ const DEFAULT_WIDGETS = [
   { id: 'welcome', name: 'Welcome Hero Banner', visible: true, size: '12' },
   { id: 'quick_actions', name: 'Quick Actions Launcher', visible: true, size: '12' },
   { id: 'stats', name: 'Key Summary Cards', visible: true, size: '12' },
+  { id: 'tour_insights', name: 'Tour Schema Insights (Series, Incentive, Consortium)', visible: true, size: '12' },
   { id: 'chart', name: 'Revenue Forecast Chart', visible: true, size: '12' },
   { id: 'upcoming', name: 'Upcoming Trips & Services', visible: true, size: '8' },
   { id: 'alerts', name: 'Needs Attention Today', visible: true, size: '4' }
@@ -134,10 +136,30 @@ const Dashboard = () => {
 
   const [widgets, setWidgets] = useState(() => {
     try {
+      const savedV3 = localStorage.getItem('travelops_dashboard_widgets_v3');
+      if (savedV3) {
+        const parsed = JSON.parse(savedV3);
+        if (Array.isArray(parsed) && parsed.length === DEFAULT_WIDGETS.length) {
+          return parsed;
+        }
+      }
       const savedV2 = localStorage.getItem('travelops_dashboard_widgets_v2');
       if (savedV2) {
         const parsed = JSON.parse(savedV2);
-        if (Array.isArray(parsed) && parsed.length === DEFAULT_WIDGETS.length) {
+        if (Array.isArray(parsed)) {
+          const hasTourInsights = parsed.some((w) => w.id === 'tour_insights');
+          if (!hasTourInsights) {
+            const statsIdx = parsed.findIndex((w) => w.id === 'stats');
+            const insertAt = statsIdx >= 0 ? statsIdx + 1 : 3;
+            parsed.splice(insertAt, 0, {
+              id: 'tour_insights',
+              name: 'Tour Schema Insights (Series, Incentive, Consortium)',
+              visible: true,
+              size: '12'
+            });
+            localStorage.setItem('travelops_dashboard_widgets_v3', JSON.stringify(parsed));
+            return parsed;
+          }
           return parsed;
         }
       }
@@ -196,7 +218,7 @@ const Dashboard = () => {
 
   const saveWidgets = (newWidgets) => {
     setWidgets([...newWidgets]);
-    localStorage.setItem('travelops_dashboard_widgets_v2', JSON.stringify(newWidgets));
+    localStorage.setItem('travelops_dashboard_widgets_v3', JSON.stringify(newWidgets));
   };
 
   const moveWidget = (index, direction) => {
@@ -316,6 +338,135 @@ const Dashboard = () => {
 
     return { revBuckets, tripBuckets, docBuckets, telBuckets };
   }, [tours, cruises, hotels, documents, telecoms, today]);
+
+  // Detailed Insights by Tour Type (Series, Incentive, Consortium)
+  const tourSchemaInsights = useMemo(() => {
+    let seriesOmset = 0;
+    let seriesProfit = 0;
+    let seriesPax = 0;
+    let seriesCount = 0;
+    let seriesMdrClaimed = 0;
+
+    let incentiveOmset = 0;
+    let incentiveProfit = 0;
+    let incentivePax = 0;
+    let incentiveCount = 0;
+    const incentiveSuppliers = {};
+
+    let consortiumOmset = 0;
+    let consortiumProfit = 0;
+    let consortiumPax = 0;
+    let consortiumCount = 0;
+    let consortiumAirportTax = 0;
+    let consortiumTipping = 0;
+    let consortiumPpn = 0;
+    let consortiumMisc = 0;
+    const consortiumSuppliers = {};
+
+    (tours || []).forEach((t) => {
+      if (t.status === 'Cancel' || t.status === 'Cancelled') return;
+
+      const type =
+        t.tourType ||
+        (t.category === 'Consortium'
+          ? 'Consortium'
+          : t.category === 'Corporate / Incentive'
+            ? 'Incentive'
+            : 'Series');
+      const fin = t.financials || {};
+      const omset = Number(
+        fin.totalSellingPrice !== undefined
+          ? fin.totalSellingPrice
+          : fin.totalOmset || 0
+      );
+      const profit = Number(fin.profit || 0);
+      const pax = Number(t.paxCount || t.paxInfo?.length || 1);
+      const sup = (t.supplier && String(t.supplier).trim()) || '';
+
+      if (type === 'Series') {
+        seriesCount += 1;
+        seriesPax += pax;
+        seriesOmset += omset;
+        seriesProfit += profit;
+        if (t.claimMdr || t.internals?.claimMdr) seriesMdrClaimed += 1;
+      } else if (type === 'Incentive') {
+        incentiveCount += 1;
+        incentivePax += pax;
+        incentiveOmset += omset;
+        incentiveProfit += profit;
+        if (sup) {
+          incentiveSuppliers[sup] = (incentiveSuppliers[sup] || 0) + pax;
+        }
+      } else if (type === 'Consortium') {
+        consortiumCount += 1;
+        consortiumPax += pax;
+        consortiumOmset += omset;
+        consortiumProfit += profit;
+        consortiumAirportTax += Number(fin.airportTax || 0);
+        consortiumTipping += Number(fin.tipping || 0);
+        consortiumPpn += Number(fin.ppn || 0);
+        consortiumMisc += Number(fin.miscCharge || 0);
+        if (sup) {
+          consortiumSuppliers[sup] = (consortiumSuppliers[sup] || 0) + pax;
+        }
+      }
+    });
+
+    const totalTourOmset = seriesOmset + incentiveOmset + consortiumOmset;
+    const totalTourProfit = seriesProfit + incentiveProfit + consortiumProfit;
+    const totalTourPax = seriesPax + incentivePax + consortiumPax;
+    const totalTourCount = seriesCount + incentiveCount + consortiumCount;
+    const consortiumTotalFees =
+      consortiumAirportTax + consortiumTipping + consortiumPpn + consortiumMisc;
+
+    const topIncentiveSupplier =
+      Object.entries(incentiveSuppliers).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Direct';
+    const topConsortiumSupplier =
+      Object.entries(consortiumSuppliers).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Direct';
+
+    return {
+      total: {
+        omset: totalTourOmset,
+        profit: totalTourProfit,
+        margin: totalTourOmset > 0 ? ((totalTourProfit / totalTourOmset) * 100).toFixed(1) : '0.0',
+        pax: totalTourPax,
+        count: totalTourCount
+      },
+      series: {
+        count: seriesCount,
+        pax: seriesPax,
+        omset: seriesOmset,
+        profit: seriesProfit,
+        margin: seriesOmset > 0 ? ((seriesProfit / seriesOmset) * 100).toFixed(1) : '0.0',
+        share: totalTourOmset > 0 ? Math.round((seriesOmset / totalTourOmset) * 100) : 0,
+        mdrClaimed: seriesMdrClaimed,
+        mdrPending: Math.max(0, seriesCount - seriesMdrClaimed)
+      },
+      incentive: {
+        count: incentiveCount,
+        pax: incentivePax,
+        omset: incentiveOmset,
+        profit: incentiveProfit,
+        margin: incentiveOmset > 0 ? ((incentiveProfit / incentiveOmset) * 100).toFixed(1) : '0.0',
+        share: totalTourOmset > 0 ? Math.round((incentiveOmset / totalTourOmset) * 100) : 0,
+        topSupplier: topIncentiveSupplier
+      },
+      consortium: {
+        count: consortiumCount,
+        pax: consortiumPax,
+        omset: consortiumOmset,
+        profit: consortiumProfit,
+        margin: consortiumOmset > 0 ? ((consortiumProfit / consortiumOmset) * 100).toFixed(1) : '0.0',
+        share: totalTourOmset > 0 ? Math.round((consortiumOmset / totalTourOmset) * 100) : 0,
+        topSupplier: topConsortiumSupplier,
+        airportTax: consortiumAirportTax,
+        tipping: consortiumTipping,
+        ppn: consortiumPpn,
+        misc: consortiumMisc,
+        totalFees: consortiumTotalFees
+      }
+    };
+  }, [tours]);
 
   // Forecast Chart Data + Period Summary (groups 90d by week for clean X-axis!)
   const { chartData, forecastSummary } = useMemo(() => {
@@ -627,22 +778,44 @@ const Dashboard = () => {
   const alerts = useMemo(() => {
     const list = [];
 
-    // 1. Tours departing in <= 7 days without an invoice number
+    // 1. Tours departing in <= 7 days without an invoice number (or Series without MDR claim)
     (tours || []).forEach((t) => {
       if (t.departureDate && t.status !== 'Cancel' && t.status !== 'Cancelled') {
         const diff = getDayDiffFromToday(t.departureDate, today);
+        const tourType =
+          t.tourType ||
+          (t.category === 'Consortium'
+            ? 'Consortium'
+            : t.category === 'Corporate / Incentive'
+              ? 'Incentive'
+              : 'Series');
         if (diff !== null && diff >= 0 && diff <= 7) {
           if (!t.financials?.invoiceNumber || t.financials.invoiceNumber.trim() === '') {
             list.push({
               id: `tour-inv-${t.id}`,
-              module: 'Tour',
-              title: `Trip ${t.bookingCode || t.tourCode || t.id} (${t.country || 'Tour'}) departs soon and needs an invoice`,
+              module: `${tourType} Tour`,
+              title: `${tourType} ${t.bookingCode || t.tourCode || t.id} (${t.country || 'Tour'}) departs soon and needs an invoice`,
               type: diff <= 2 ? 'danger' : 'warning',
               date: t.departureDate,
               diffDays: diff,
               actionPath: '/tours',
-              actionState: { openTab: 'database' }
+              actionState: { openTab: tourType.toLowerCase() }
             });
+          }
+          if (tourType === 'Series') {
+            const hasMdr = Boolean(t.claimMdr || t.internals?.claimMdr);
+            if (!hasMdr) {
+              list.push({
+                id: `tour-mdr-${t.id}`,
+                module: 'Series MDR',
+                title: `Series ${t.bookingCode || t.tourCode || t.id} (${t.country || 'Tour'}) has unclaimed Form Claim MDR`,
+                type: 'warning',
+                date: t.departureDate,
+                diffDays: diff,
+                actionPath: '/tours',
+                actionState: { openTab: 'series' }
+              });
+            }
           }
         }
       }
@@ -1074,6 +1247,225 @@ const Dashboard = () => {
             </div>
           ))}
         </React.Fragment>
+      );
+    }
+
+    if (widget.id === 'tour_insights') {
+      const ins = tourSchemaInsights;
+      return (
+        <div
+          key="tour_insights"
+          className={`card bento-card-glass bento-col-${widget.size} flex flex-col gap-5 p-5`}
+          style={{ padding: '1.75rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.35rem' }}
+        >
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="m-0 font-extrabold text-base sm:text-lg text-text-main flex items-center gap-2">
+                  <Sparkles size={18} className="text-primary" /> Tour Ecosystem Insights
+                </h3>
+                <span className="badge badge-primary text-[11px] font-bold">
+                  3 Modul Skema Aktif
+                </span>
+              </div>
+              <p className="m-0 text-xs text-text-muted mt-1">
+                Performa finansial &amp; operasional tersegregasi antara Series, Corporate Incentive, dan Consortium.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/tours', { state: { openTab: 'reporting' } })}
+              className="btn btn-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1.5"
+            >
+              Comprehensive Reports <ChevronRight size={13} />
+            </button>
+          </div>
+
+          {/* 3 Main Segmented Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Card 1: Series */}
+            <div
+              className="flex flex-col justify-between p-4 rounded-xl border border-sky-500/25 border-l-4 border-l-sky-500 bg-sky-500/[0.04] dark:bg-sky-500/[0.06] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+              style={{ padding: '1.35rem 1.5rem', borderLeft: '4px solid #00a8ff' }}
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="inline-flex items-center gap-1.5 font-bold text-sky-500 text-xs uppercase tracking-wider">
+                    <Compass size={16} /> Series Tours
+                  </div>
+                  <span className="badge bg-sky-500/15 text-sky-600 dark:text-sky-400 text-[11px] font-bold">
+                    {ins.series.share}% Omset Share
+                  </span>
+                </div>
+
+                <div className="font-mono text-xl sm:text-2xl font-extrabold text-text-main mt-2.5">
+                  {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.series.omset)}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-text-muted mt-1">
+                  <span>{ins.series.count} bookings · {ins.series.pax} pax</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.series.profit)}`} ({ins.series.margin}%)
+                  </span>
+                </div>
+
+                {/* Series MDR Tracker */}
+                <div className="mt-3 pt-2.5 border-t border-dashed border-border text-xs flex items-center justify-between">
+                  <span className="text-text-muted">Claim Form MDR:</span>
+                  <span className={`badge ${ins.series.mdrPending === 0 ? 'badge-success' : 'badge-warning'} text-[11px]`}>
+                    {ins.series.mdrClaimed}/{ins.series.count} Claimed
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/tours', { state: { openTab: 'series' } })}
+                  className="text-sky-500 hover:text-sky-600 font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
+                >
+                  Buka Modul Series <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Card 2: Incentive */}
+            <div
+              className="flex flex-col justify-between p-4 rounded-xl border border-purple-500/25 border-l-4 border-l-purple-500 bg-purple-500/[0.04] dark:bg-purple-500/[0.06] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+              style={{ padding: '1.35rem 1.5rem', borderLeft: '4px solid #8b5cf6' }}
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="inline-flex items-center gap-1.5 font-bold text-purple-500 text-xs uppercase tracking-wider">
+                    <Briefcase size={16} /> Incentive Tours
+                  </div>
+                  <span className="badge bg-purple-500/15 text-purple-600 dark:text-purple-400 text-[11px] font-bold">
+                    {ins.incentive.share}% Omset Share
+                  </span>
+                </div>
+
+                <div className="font-mono text-xl sm:text-2xl font-extrabold text-text-main mt-2.5">
+                  {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.incentive.omset)}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-text-muted mt-1">
+                  <span>{ins.incentive.count} bookings · {ins.incentive.pax} pax</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.incentive.profit)}`} ({ins.incentive.margin}%)
+                  </span>
+                </div>
+
+                {/* Top Partner Supplier */}
+                <div className="mt-3 pt-2.5 border-t border-dashed border-border text-xs flex items-center justify-between">
+                  <span className="text-text-muted">Top Partner Wholesaler:</span>
+                  <strong className="text-purple-600 dark:text-purple-400 truncate max-w-[150px]">{ins.incentive.topSupplier}</strong>
+                </div>
+              </div>
+
+              <div className="mt-3.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/tours', { state: { openTab: 'incentive' } })}
+                  className="text-purple-500 hover:text-purple-600 font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
+                >
+                  Buka Modul Incentive <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Card 3: Consortium */}
+            <div
+              className="flex flex-col justify-between p-4 rounded-xl border border-emerald-500/25 border-l-4 border-l-emerald-500 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+              style={{ padding: '1.35rem 1.5rem', borderLeft: '4px solid #10b981' }}
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="inline-flex items-center gap-1.5 font-bold text-emerald-500 text-xs uppercase tracking-wider">
+                    <Network size={16} /> Consortium Tours
+                  </div>
+                  <span className="badge bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">
+                    {ins.consortium.share}% Omset Share
+                  </span>
+                </div>
+
+                <div className="font-mono text-xl sm:text-2xl font-extrabold text-text-main mt-2.5">
+                  {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.consortium.omset)}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-text-muted mt-1">
+                  <span>{ins.consortium.count} bookings · {ins.consortium.pax} pax</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.profit)}`} ({ins.consortium.margin}%)
+                  </span>
+                </div>
+
+                {/* Consortium Taxes & Fees Breakdown Strip */}
+                <div
+                  className="mt-3 pt-2.5 border-t border-dashed border-border text-xs space-y-1"
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+                >
+                  <div className="flex items-center justify-between text-text-muted">
+                    <span>Airport Tax &amp; Fuel:</span>
+                    <strong className="text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.airportTax)}`}</strong>
+                  </div>
+                  <div className="flex items-center justify-between text-text-muted">
+                    <span>Tipping Guide &amp; Driver:</span>
+                    <strong className="text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.tipping)}`}</strong>
+                  </div>
+                  <div className="flex items-center justify-between text-text-muted">
+                    <span>PPN 1.1% &amp; Misc:</span>
+                    <strong className="text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.ppn + ins.consortium.misc)}`}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/tours', { state: { openTab: 'consortium' } })}
+                  className="text-emerald-500 hover:text-emerald-600 font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
+                >
+                  Buka Modul Consortium <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Summary Strip */}
+          <div
+            className="p-3.5 sm:p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 flex flex-wrap items-center justify-between gap-3 text-xs"
+            style={{ padding: '1rem 1.4rem' }}
+          >
+            <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+              <div>
+                <span className="text-text-muted">Total Tour Net Profit: </span>
+                <strong className="text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                  {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.total.profit)}
+                </strong>
+                <span className="text-text-muted" style={{ marginLeft: '0.45rem' }}>
+                  (Overall Margin: <strong className="text-text-main">{ins.total.margin}%</strong>)
+                </span>
+              </div>
+              <div className="hidden sm:block h-4 w-px bg-border/60"></div>
+              <div>
+                <span className="text-text-muted">Consortium Taxes &amp; Surcharges: </span>
+                <strong className="text-primary font-bold">
+                  {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.consortium.totalFees)}
+                </strong>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/tours', { state: { openTab: 'database' } })}
+              className="text-primary hover:text-primary-dark font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
+            >
+              View All Database <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
       );
     }
 

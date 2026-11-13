@@ -257,6 +257,51 @@ app.put('/api/admin/users/:id/password', requireAdmin, async (req, res) => {
   }
 });
 
+// Update User Profile & Privileges (Admin Only)
+app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, email, role, status, is_locked, isLocked, must_change_password, mustChangePassword } = req.body;
+
+  try {
+    const dbUpdates = {};
+    if (name !== undefined) dbUpdates.name = name;
+    if (role !== undefined) dbUpdates.role = role;
+    if (status !== undefined) dbUpdates.status = status;
+    if (is_locked !== undefined) dbUpdates.is_locked = is_locked;
+    if (isLocked !== undefined) dbUpdates.is_locked = isLocked;
+    if (must_change_password !== undefined) dbUpdates.must_change_password = must_change_password;
+    if (mustChangePassword !== undefined) dbUpdates.must_change_password = mustChangePassword;
+
+    // If email is being changed, update auth user first
+    if (email) {
+      dbUpdates.email = email;
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(id, { email });
+      } catch (authErr) {
+        console.warn(`[Admin User Update] Supabase Auth email update notice: ${authErr.message}`);
+      }
+    }
+
+    if (Object.keys(dbUpdates).length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid update fields provided.' });
+    }
+
+    const { data: updatedUser, error: updateError } = await supabaseAdmin
+      .from('travelops_users')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.status(200).json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // Delete User
 app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
@@ -340,7 +385,7 @@ app.get('/api/public/track/:code', async (req, res) => {
     const { data: tours } = await client
       .from('travelops_tours')
       .select('*')
-      .or(`id.eq.${sanitizedCode}`)
+      .or(`id.eq.${sanitizedCode},internals->>bookingCode.eq.${sanitizedCode},internals->>tourCode.eq.${sanitizedCode}`)
       .limit(1);
 
     if (tours && tours.length > 0) {

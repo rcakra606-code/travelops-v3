@@ -6,8 +6,12 @@ export const createEmptyPax = (seedOffset = 0) => ({
   email: '',
   phone: '',
   basicPrice: '',
-  sellingPrice: '',
+  airportTax: '',
+  tipping: '',
+  miscCharge: '',
+  ppn: '',
   profit: '',
+  sellingPrice: '',
   discountSupplier: '',
   discountBranch: '',
   discount: '',
@@ -29,16 +33,24 @@ export const hasPerPaxPricing = (paxList = []) => {
   if (!Array.isArray(paxList) || paxList.length === 0) return false;
   return paxList.some((pax) => {
     const bp = Number(pax.basicPrice !== undefined && pax.basicPrice !== '' ? pax.basicPrice : pax.sellingPrice) || 0;
+    const at = Number(pax.airportTax) || 0;
+    const tip = Number(pax.tipping) || 0;
+    const misc = Number(pax.miscCharge) || 0;
+    const ppn = Number(pax.ppn) || 0;
     const ds = Number(pax.discountSupplier) || 0;
     const db = Number(pax.discountBranch) || 0;
     const legacyDisc = pax.discount && !pax.discountSupplier && !pax.discountBranch ? Number(pax.discount) || 0 : 0;
     const pf = Number(pax.profit) || 0;
-    return bp > 0 || ds > 0 || db > 0 || legacyDisc > 0 || pf > 0;
+    return bp > 0 || at > 0 || tip > 0 || misc > 0 || ppn > 0 || ds > 0 || db > 0 || legacyDisc > 0 || pf > 0;
   });
 };
 
-export const computeFinancialsFromPax = (paxList = [], currentFinancials = {}) => {
+export const computeFinancialsFromPax = (paxList = [], currentFinancials = {}, tourType = 'Series') => {
   let totalBasicPrice = 0;
+  let totalAirportTax = 0;
+  let totalTipping = 0;
+  let totalMiscCharge = 0;
+  let totalPpn = 0;
   let totalDiscountSupplier = 0;
   let totalDiscountBranch = 0;
   let totalProfit = 0;
@@ -46,20 +58,34 @@ export const computeFinancialsFromPax = (paxList = [], currentFinancials = {}) =
   if (Array.isArray(paxList)) {
     paxList.forEach((pax) => {
       const bp = Number(pax.basicPrice !== undefined && pax.basicPrice !== '' ? pax.basicPrice : pax.sellingPrice) || 0;
+      const at = Number(pax.airportTax) || 0;
+      const tip = Number(pax.tipping) || 0;
+      const misc = Number(pax.miscCharge) || 0;
+      const ppn = Number(pax.ppn) || 0;
       const ds = Number(pax.discountSupplier) || 0;
       const db = Number(pax.discountBranch) || 0;
       const legacyDisc = pax.discount && !pax.discountSupplier && !pax.discountBranch ? Number(pax.discount) || 0 : 0;
       const pf = Number(pax.profit) || 0;
 
       totalBasicPrice += bp;
+      totalAirportTax += at;
+      totalTipping += tip;
+      totalMiscCharge += misc;
+      totalPpn += ppn;
       totalDiscountSupplier += ds + legacyDisc;
       totalDiscountBranch += db;
       totalProfit += pf;
     });
   }
 
-  const totalSellingPrice = totalBasicPrice - totalDiscountSupplier - totalDiscountBranch;
-  const totalNettPrice = totalBasicPrice - totalDiscountSupplier - totalProfit;
+  const isConsortium = tourType === 'Consortium';
+  const totalAddons = isConsortium
+    ? totalAirportTax + totalTipping + totalMiscCharge + totalPpn
+    : 0;
+
+  const totalSellingPrice = totalBasicPrice + totalAddons - totalDiscountSupplier - totalDiscountBranch;
+  // Net price represents modal / cost to wholesaler / supplier
+  const totalNettPrice = totalSellingPrice - totalProfit;
   const depositAmount = Number(currentFinancials.depositAmount || 0);
   const sisaPelunasan = totalSellingPrice - depositAmount;
 
@@ -67,6 +93,10 @@ export const computeFinancialsFromPax = (paxList = [], currentFinancials = {}) =
     ...currentFinancials,
     basicTourPrice: totalBasicPrice,
     totalSales: totalBasicPrice,
+    airportTax: totalAirportTax,
+    tipping: totalTipping,
+    miscCharge: totalMiscCharge,
+    ppn: totalPpn,
     discountSupplier: totalDiscountSupplier,
     discountBranch: totalDiscountBranch,
     discount: totalDiscountSupplier + totalDiscountBranch,

@@ -95,7 +95,7 @@ const PublicTracker = () => {
       const { data: tours } = await supabase
         .from('travelops_tours')
         .select('*')
-        .or(`id.eq.${cleanCode}`)
+        .or(`id.eq.${cleanCode},internals->>bookingCode.eq.${cleanCode},internals->>tourCode.eq.${cleanCode}`)
         .limit(1);
 
       if (tours && tours.length > 0) {
@@ -291,7 +291,7 @@ const PublicTracker = () => {
         minHeight: '100vh',
         background: 'var(--bg-dark)',
         color: 'var(--text-main)',
-        padding: '1.5rem 1rem 3rem'
+        padding: '2rem 1.5rem 3.5rem'
       }}
     >
       {/* Friendly Brand Top Header */}

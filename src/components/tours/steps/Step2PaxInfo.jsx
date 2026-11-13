@@ -23,7 +23,7 @@ const Step2PaxInfo = ({ data, updateData }) => {
       paxInfo: nextPaxList
     };
     if (hasPerPaxPricing(nextPaxList)) {
-      patch.financials = computeFinancialsFromPax(nextPaxList, data.financials);
+      patch.financials = computeFinancialsFromPax(nextPaxList, data.financials, data.tourType || 'Series');
     }
     updateData(patch);
   };
@@ -72,6 +72,10 @@ const Step2PaxInfo = ({ data, updateData }) => {
     if (paxList.length <= 1) return;
     const source = paxList[0];
     const srcBasic = source.basicPrice !== undefined && source.basicPrice !== '' ? source.basicPrice : source.sellingPrice;
+    const srcAirportTax = source.airportTax;
+    const srcTipping = source.tipping;
+    const srcMiscCharge = source.miscCharge;
+    const srcPpn = source.ppn;
     const srcSupp = source.discountSupplier;
     const srcBranch = source.discountBranch;
     const srcProfit = source.profit;
@@ -84,6 +88,10 @@ const Step2PaxInfo = ({ data, updateData }) => {
             ...pax,
             basicPrice: srcBasic,
             sellingPrice: srcBasic,
+            airportTax: srcAirportTax,
+            tipping: srcTipping,
+            miscCharge: srcMiscCharge,
+            ppn: srcPpn,
             profit: srcProfit,
             discountSupplier: srcSupp,
             discountBranch: srcBranch,
@@ -91,12 +99,22 @@ const Step2PaxInfo = ({ data, updateData }) => {
           }
     );
 
-    const nextFinancials = computeFinancialsFromPax(updated, data.financials);
+    const nextFinancials = computeFinancialsFromPax(updated, data.financials, data.tourType || 'Series');
     updateData({
       paxInfo: updated,
       financials: nextFinancials
     });
     toast.success(`Applied Passenger 1 pricing across all ${updated.length} travelers!`);
+  };
+
+  const handleCalculatePpn = (index) => {
+    const pBasic = Number(paxList[index].basicPrice || paxList[index].sellingPrice || 0);
+    if (!pBasic) {
+      toast.warning('Isi Harga Dasar terlebih dahulu untuk menghitung PPN 1.1%');
+      return;
+    }
+    const calculatedPpn = Math.round(pBasic * 0.011);
+    handleCurrencyChange(index, 'ppn', String(calculatedPpn));
   };
 
   const handleAdjustPaxCount = (delta) => {
@@ -115,7 +133,7 @@ const Step2PaxInfo = ({ data, updateData }) => {
   };
 
   // Group live totals
-  const liveTotals = computeFinancialsFromPax(paxList, data.financials);
+  const liveTotals = computeFinancialsFromPax(paxList, data.financials, data.tourType || 'Series');
   const anyCollapsed = paxList.some((_, idx) => Boolean(collapsedMap[idx]));
 
   return (
@@ -133,10 +151,10 @@ const Step2PaxInfo = ({ data, updateData }) => {
       >
         <div>
           <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)' }}>
-            Step 2: Traveler Manifest &amp; Per-Pax Pricing
+            Step 3: Traveler Manifest &amp; Per-Pax Pricing
           </h2>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Add traveler details and individual pricing — or leave pricing blank here to enter a group lump-sum in Step 3.
+            Add traveler details and individual pricing — or leave pricing blank here to enter a group lump-sum in Step 4.
           </p>
         </div>
 
@@ -276,12 +294,18 @@ const Step2PaxInfo = ({ data, updateData }) => {
       {paxList.map((pax, index) => {
         const pBasic =
           Number(pax.basicPrice !== undefined && pax.basicPrice !== '' ? pax.basicPrice : pax.sellingPrice) || 0;
+        const pAirportTax = Number(pax.airportTax) || 0;
+        const pTipping = Number(pax.tipping) || 0;
+        const pMiscCharge = Number(pax.miscCharge) || 0;
+        const pPpn = Number(pax.ppn) || 0;
         const pDiscSupplier = Number(pax.discountSupplier) || 0;
         const pDiscBranch = Number(pax.discountBranch) || 0;
         const pProfit = Number(pax.profit) || 0;
 
-        const pSellingPrice = pBasic - pDiscSupplier - pDiscBranch;
-        const pNettPrice = pBasic - pDiscSupplier - pProfit;
+        const isConsortium = data.tourType === 'Consortium';
+        const pAddons = isConsortium ? pAirportTax + pTipping + pMiscCharge + pPpn : 0;
+        const pSellingPrice = pBasic + pAddons - pDiscSupplier - pDiscBranch;
+        const pNettPrice = pSellingPrice - pProfit;
 
         const fullName = `${pax.firstName || ''} ${pax.lastName || ''}`.trim();
         const isCollapsed = Boolean(collapsedMap[index]);
@@ -423,8 +447,81 @@ const Step2PaxInfo = ({ data, updateData }) => {
                     />
                   </div>
 
+                  {/* Consortium Specific Additions */}
+                  {data.tourType === 'Consortium' && (
+                    <>
+                      <div className="input-group">
+                        <label>
+                          <span>Airport Tax &amp; Fuel Surcharge</span>{' '}
+                          <span style={{ color: 'var(--danger)' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formatCurrency(pax.airportTax)}
+                          onChange={(e) => handleCurrencyChange(index, 'airportTax', e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div className="input-group">
+                        <label>
+                          <span>Tipping Guide &amp; Driver</span>{' '}
+                          <span style={{ color: 'var(--danger)' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formatCurrency(pax.tipping)}
+                          onChange={(e) => handleCurrencyChange(index, 'tipping', e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div className="input-group">
+                        <label>Misc Charge (Visa / Asuransi / Handling)</label>
+                        <input
+                          type="text"
+                          value={formatCurrency(pax.miscCharge)}
+                          onChange={(e) => handleCurrencyChange(index, 'miscCharge', e.target.value)}
+                          placeholder="0 (Optional)"
+                        />
+                      </div>
+
+                      <div className="input-group">
+                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>
+                            PPN (Pajak) <span style={{ color: 'var(--danger)' }}>*</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCalculatePpn(index)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: 0,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              color: 'var(--primary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Hitung 1.1%
+                          </button>
+                        </label>
+                        <input
+                          type="text"
+                          value={formatCurrency(pax.ppn)}
+                          onChange={(e) => handleCurrencyChange(index, 'ppn', e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div className="input-group">
-                    <label>Nominal Profit</label>
+                    <label>
+                      <span>Nominal Profit</span>{' '}
+                      <span style={{ color: 'var(--primary)', fontSize: '0.72rem' }}>(Keuntungan)</span>
+                    </label>
                     <input
                       type="text"
                       value={formatCurrency(pax.profit)}
@@ -470,14 +567,21 @@ const Step2PaxInfo = ({ data, updateData }) => {
                   }}
                 >
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Selling Price (After Disc): </span>
+                    <span style={{ color: 'var(--text-muted)' }}>Selling Price (Omset): </span>
                     <strong className="font-mono" style={{ color: 'var(--primary)', fontSize: '0.9rem' }}>
                       Rp {formatCurrency(pSellingPrice)}
                     </strong>
                   </div>
                   <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Nett Price (Cost): </span>
+                    <span style={{ color: 'var(--text-muted)' }}>Profit (Margin): </span>
+                    <strong className="font-mono" style={{ color: 'var(--success)', fontSize: '0.9rem' }}>
+                      Rp {formatCurrency(pProfit)}
+                    </strong>
+                  </div>
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Nett Price (Modal): </span>
                     <strong
                       className="font-mono"
                       style={{ color: isLight ? '#047857' : '#34d399', fontSize: '0.9rem' }}

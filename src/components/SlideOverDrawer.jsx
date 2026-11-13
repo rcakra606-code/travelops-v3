@@ -53,6 +53,9 @@ const SlideOverDrawer = ({
       {/* Drawer Panel */}
       <div
         className="slide-drawer-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || 'Slide-over Details Drawer'}
         style={{
           width: `min(${width}, 100vw)`,
           background: isLight ? '#ffffff' : 'var(--bg-surface)',

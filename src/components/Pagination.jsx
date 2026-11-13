@@ -1,6 +1,14 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, itemsPerPage }) => {
+const Pagination = ({ 
+  currentPage, 
+  totalPages, 
+  onPageChange, 
+  totalItems, 
+  itemsPerPage, 
+  onItemsPerPageChange,
+  pageSizeOptions = [10, 15, 25, 50, 100]
+}) => {
   if (totalPages <= 1 && totalItems === 0) return null;
 
   const getPageNumbers = () => {
@@ -35,9 +43,37 @@ const Pagination = ({ currentPage, totalPages, onPageChange, totalItems, itemsPe
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', borderBottomLeftRadius: '1rem', borderBottomRightRadius: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-        Showing {totalItems > 0 ? startItem : 0} to {endItem} of {totalItems} entries
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', borderBottomLeftRadius: '1rem', borderBottomRightRadius: '1rem', flexWrap: 'wrap', gap: '0.85rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.835rem' }}>
+          Menampilkan <strong style={{ color: 'var(--text-main)' }}>{totalItems > 0 ? startItem : 0}</strong> - <strong style={{ color: 'var(--text-main)' }}>{endItem}</strong> dari total <strong style={{ color: 'var(--primary)' }}>{totalItems}</strong> data
+        </div>
+
+        {onItemsPerPageChange && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.815rem', color: 'var(--text-muted)' }}>
+            <span>Baris per halaman:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+              style={{
+                background: 'var(--bg-dark)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '0.2rem 0.5rem',
+                fontSize: '0.815rem',
+                cursor: 'pointer'
+              }}
+              aria-label="Pilih jumlah baris per halaman"
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>
+                  {size} baris
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       
       <div style={{ display: 'flex', gap: '0.25rem' }}>

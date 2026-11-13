@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Globe, Users, Sparkles, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar, Globe, Users, Sparkles, Lock, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 import { useUsers } from '../../../context/UserContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
@@ -126,7 +126,7 @@ const Step1TourInfo = ({ data, updateData, errors = {}, clearError }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)' }}>
-            Step 1: Tour &amp; Schedule Details
+            Step 2: Tour &amp; Schedule Details
           </h2>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Enter core group itinerary codes, travel dates, destination, and assigned consultant.
@@ -334,21 +334,46 @@ const Step1TourInfo = ({ data, updateData, errors = {}, clearError }) => {
           )}
         </div>
 
-        {/* Category */}
-        <div className="input-group">
-          <label>Trip Category</label>
-          <select
-            name="category"
-            value={data.category || 'Leisure'}
-            onChange={handleChange}
-          >
-            {TOUR_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Category or Supplier */}
+        {data.tourType === 'Incentive' || data.tourType === 'Consortium' ? (
+          <div className="input-group">
+            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Building2 size={14} color="var(--primary)" />
+                Supplier / Wholesaler Mitra{' '}
+                <span style={{ color: 'var(--danger)' }}>*</span>
+              </span>
+              {errors.supplier && (
+                <span style={{ color: 'var(--danger)', fontSize: '0.72rem', fontWeight: '700' }}>
+                  {errors.supplier}
+                </span>
+              )}
+            </label>
+            <input
+              type="text"
+              name="supplier"
+              value={data.supplier || ''}
+              onChange={handleChange}
+              placeholder=""
+              style={errors.supplier ? { borderColor: 'var(--danger)' } : undefined}
+            />
+          </div>
+        ) : (
+          <div className="input-group">
+            <label>Trip Category</label>
+            <select
+              name="category"
+              value={data.category || 'Leisure'}
+              onChange={handleChange}
+            >
+              {TOUR_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Number of Pax */}
         <div className="input-group">
@@ -409,147 +434,149 @@ const Step1TourInfo = ({ data, updateData, errors = {}, clearError }) => {
           </select>
         </div>
 
-        {/* Form Claim MDR Checkbox */}
-        <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-          <div
-            style={{
-              background: data.claimMdr
-                ? isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.08)'
-                : isLight ? '#f8fbff' : 'rgba(255, 255, 255, 0.02)',
-              border: `1px solid ${data.claimMdr ? 'rgba(16, 185, 129, 0.4)' : 'var(--border)'}`,
-              borderRadius: '12px',
-              padding: '1rem 1.2rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.45rem',
-              transition: 'all 0.2s'
-            }}
-          >
-            <label
-              onClick={(e) => {
-                if (isMdrLocked) {
-                  e.preventDefault();
-                  toast.warning(
-                    'Locked: Only an Admin can uncheck a verified Form Claim MDR.'
-                  );
-                }
-              }}
+        {/* Form Claim MDR Checkbox - Only for Series */}
+        {(!data.tourType || data.tourType === 'Series') && (
+          <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+            <div
               style={{
+                background: data.claimMdr
+                  ? isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.08)'
+                  : isLight ? '#f8fbff' : 'rgba(255, 255, 255, 0.02)',
+                border: `1px solid ${data.claimMdr ? 'rgba(16, 185, 129, 0.4)' : 'var(--border)'}`,
+                borderRadius: '12px',
+                padding: '1rem 1.2rem',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '0.7rem',
-                cursor: isMdrLocked ? 'not-allowed' : 'pointer',
-                userSelect: 'none',
-                margin: 0,
-                flexWrap: 'wrap'
+                flexDirection: 'column',
+                gap: '0.45rem',
+                transition: 'all 0.2s'
               }}
             >
-              <input
-                type="checkbox"
-                checked={Boolean(data.claimMdr)}
-                disabled={isMdrLocked}
-                onChange={(e) => {
-                  const isChecked = e.target.checked;
-                  if (isChecked) {
-                    const nowIso = new Date().toISOString();
-                    updateData({
-                      claimMdr: true,
-                      claimMdrAt: nowIso,
-                      claimMdrBy: data.staffName || user?.name || 'Staff'
-                    });
-                  } else {
-                    if (!isAdmin) {
-                      toast.warning(
-                        'Locked: Only an Admin can uncheck a verified Form Claim MDR.'
-                      );
-                      return;
-                    }
-                    updateData({
-                      claimMdr: false,
-                      claimMdrAt: null,
-                      claimMdrBy: null
-                    });
+              <label
+                onClick={(e) => {
+                  if (isMdrLocked) {
+                    e.preventDefault();
+                    toast.warning(
+                      'Locked: Only an Admin can uncheck a verified Form Claim MDR.'
+                    );
                   }
                 }}
                 style={{
-                  width: '18px',
-                  height: '18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.7rem',
                   cursor: isMdrLocked ? 'not-allowed' : 'pointer',
-                  accentColor: '#10b981'
-                }}
-              />
-              <span
-                style={{
-                  fontWeight: '700',
-                  fontSize: '0.92rem',
-                  color: data.claimMdr
-                    ? isLight ? '#047857' : '#34d399'
-                    : 'var(--text-main)'
+                  userSelect: 'none',
+                  margin: 0,
+                  flexWrap: 'wrap'
                 }}
               >
-                Form Claim MDR
-              </span>
-
-              {data.claimMdr && (
-                <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
-                  <CheckCircle2 size={12} /> Verified / Checked
-                </span>
-              )}
-
-              {isMdrLocked && (
-                <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
-                  <Lock size={11} /> Locked (Admin only to uncheck)
-                </span>
-              )}
-            </label>
-
-            <div style={{ marginLeft: '1.85rem', fontSize: '0.78rem' }}>
-              {data.claimMdr ? (
-                <div
+                <input
+                  type="checkbox"
+                  checked={Boolean(data.claimMdr)}
+                  disabled={isMdrLocked}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    if (isChecked) {
+                      const nowIso = new Date().toISOString();
+                      updateData({
+                        claimMdr: true,
+                        claimMdrAt: nowIso,
+                        claimMdrBy: data.staffName || user?.name || 'Staff'
+                      });
+                    } else {
+                      if (!isAdmin) {
+                        toast.warning(
+                          'Locked: Only an Admin can uncheck a verified Form Claim MDR.'
+                        );
+                        return;
+                      }
+                      updateData({
+                        claimMdr: false,
+                        claimMdrAt: null,
+                        claimMdrBy: null
+                      });
+                    }
+                  }}
                   style={{
-                    color: isLight ? '#047857' : '#34d399',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    flexWrap: 'wrap'
+                    width: '18px',
+                    height: '18px',
+                    cursor: isMdrLocked ? 'not-allowed' : 'pointer',
+                    accentColor: '#10b981'
+                  }}
+                />
+                <span
+                  style={{
+                    fontWeight: '700',
+                    fontSize: '0.92rem',
+                    color: data.claimMdr
+                      ? isLight ? '#047857' : '#34d399'
+                      : 'var(--text-main)'
                   }}
                 >
-                  <span>
-                    Timestamp:{' '}
-                    <strong className="font-mono">
-                      {(() => {
-                        try {
-                          const d = new Date(data.claimMdrAt || new Date());
-                          return (
-                            d.toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric'
-                            }) +
-                            ' ' +
-                            d.toLocaleTimeString('id-ID', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })
-                          );
-                        } catch {
-                          return data.claimMdrAt;
-                        }
-                      })()}
-                    </strong>
-                  </span>
-                  {data.claimMdrBy && (
-                    <span style={{ color: 'var(--text-muted)' }}>· PIC: {data.claimMdrBy}</span>
-                  )}
-                </div>
-              ) : (
-                <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <AlertCircle size={13} /> Check once Form Claim MDR is completed. Timestamp &amp; PIC are recorded automatically.
+                  Form Claim MDR
                 </span>
-              )}
+
+                {data.claimMdr && (
+                  <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                    <CheckCircle2 size={12} /> Verified / Checked
+                  </span>
+                )}
+
+                {isMdrLocked && (
+                  <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+                    <Lock size={11} /> Locked (Admin only to uncheck)
+                  </span>
+                )}
+              </label>
+
+              <div style={{ marginLeft: '1.85rem', fontSize: '0.78rem' }}>
+                {data.claimMdr ? (
+                  <div
+                    style={{
+                      color: isLight ? '#047857' : '#34d399',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <span>
+                      Timestamp:{' '}
+                      <strong className="font-mono">
+                        {(() => {
+                          try {
+                            const d = new Date(data.claimMdrAt || new Date());
+                            return (
+                              d.toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              }) +
+                              ' ' +
+                              d.toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            );
+                          } catch {
+                            return data.claimMdrAt;
+                          }
+                        })()}
+                      </strong>
+                    </span>
+                    {data.claimMdrBy && (
+                      <span style={{ color: 'var(--text-muted)' }}>· PIC: {data.claimMdrBy}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <AlertCircle size={13} /> Check once Form Claim MDR is completed. Timestamp &amp; PIC are recorded automatically.
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

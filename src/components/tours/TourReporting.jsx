@@ -1,7 +1,8 @@
 import { Fragment, useMemo, useState } from 'react';
 import {
   BarChart, UserCheck, CalendarDays, ChevronDown, ChevronRight,
-  Activity, FileText, Clock, ArrowUpRight
+  Activity, FileText, Clock, ArrowUpRight, Compass, Briefcase,
+  Network, Building2, Receipt
 } from 'lucide-react';
 import { useTours } from '../../context/TourContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -10,6 +11,14 @@ import ExportMenu from '../ExportMenu';
 
 const calcMarginPct = (profit, omset) =>
   omset > 0 ? Number(((profit / omset) * 100).toFixed(1)) : 0;
+
+const resolveTourType = (t) =>
+  t.tourType ||
+  (t.category === 'Consortium'
+    ? 'Consortium'
+    : t.category === 'Corporate / Incentive'
+      ? 'Incentive'
+      : 'Series');
 
 const parseMonthLabel = (dateStr) => {
   if (!dateStr) return null;
@@ -28,7 +37,7 @@ const TourReporting = ({ onDrillToBookings }) => {
   const isLight = theme === 'light';
 
   const [selectedYear, setSelectedYear] = useState('all');
-  const [reportType, setReportType] = useState('monthly');
+  const [reportType, setReportType] = useState('tour_type');
   const [expandedKeys, setExpandedKeys] = useState({});
 
   const toggleExpand = (key) => {
@@ -109,6 +118,291 @@ const TourReporting = ({ onDrillToBookings }) => {
 
   const monthlyReport = useMemo(() => buildMonthlyRows(activeTours), [activeTours]);
   const pastDateReport = useMemo(() => buildMonthlyRows(pastTours), [pastTours]);
+
+  // Executive summary of the 3 tour types
+  const typeSummary = useMemo(() => {
+    let seriesOmset = 0;
+    let seriesProfit = 0;
+    let seriesPax = 0;
+    let seriesCount = 0;
+
+    let incentiveOmset = 0;
+    let incentiveProfit = 0;
+    let incentivePax = 0;
+    let incentiveCount = 0;
+
+    let consortiumOmset = 0;
+    let consortiumProfit = 0;
+    let consortiumPax = 0;
+    let consortiumCount = 0;
+    let consortiumFeesTotal = 0;
+
+    activeTours.forEach((t) => {
+      const type = resolveTourType(t);
+      const fin = t.financials || {};
+      const omset = Number(fin.totalSellingPrice ?? fin.totalOmset ?? 0);
+      const profit = Number(fin.profit || 0);
+      const pax = Number(t.paxCount || 0);
+
+      if (type === 'Series') {
+        seriesOmset += omset;
+        seriesProfit += profit;
+        seriesPax += pax;
+        seriesCount += 1;
+      } else if (type === 'Incentive') {
+        incentiveOmset += omset;
+        incentiveProfit += profit;
+        incentivePax += pax;
+        incentiveCount += 1;
+      } else if (type === 'Consortium') {
+        consortiumOmset += omset;
+        consortiumProfit += profit;
+        consortiumPax += pax;
+        consortiumCount += 1;
+        const fees =
+          Number(fin.airportTax || 0) +
+          Number(fin.tipping || 0) +
+          Number(fin.miscCharge || 0) +
+          Number(fin.ppn || 0);
+        consortiumFeesTotal += fees;
+      }
+    });
+
+    const totalOmset = seriesOmset + incentiveOmset + consortiumOmset;
+    return {
+      series: {
+        count: seriesCount,
+        pax: seriesPax,
+        omset: seriesOmset,
+        profit: seriesProfit,
+        margin: calcMarginPct(seriesProfit, seriesOmset),
+        share: totalOmset > 0 ? Math.round((seriesOmset / totalOmset) * 100) : 0
+      },
+      incentive: {
+        count: incentiveCount,
+        pax: incentivePax,
+        omset: incentiveOmset,
+        profit: incentiveProfit,
+        margin: calcMarginPct(incentiveProfit, incentiveOmset),
+        share: totalOmset > 0 ? Math.round((incentiveOmset / totalOmset) * 100) : 0
+      },
+      consortium: {
+        count: consortiumCount,
+        pax: consortiumPax,
+        omset: consortiumOmset,
+        profit: consortiumProfit,
+        margin: calcMarginPct(consortiumProfit, consortiumOmset),
+        feesTotal: consortiumFeesTotal,
+        share: totalOmset > 0 ? Math.round((consortiumOmset / totalOmset) * 100) : 0
+      }
+    };
+  }, [activeTours]);
+
+  // Report 1: Tour Type Breakdown (Series, Incentive, Consortium)
+  const tourTypeReport = useMemo(() => {
+    const map = {
+      Series: { groupKey: 'Series', tours: 0, pax: 0, omset: 0, profit: 0, months: {} },
+      Incentive: { groupKey: 'Incentive', tours: 0, pax: 0, omset: 0, profit: 0, months: {} },
+      Consortium: { groupKey: 'Consortium', tours: 0, pax: 0, omset: 0, profit: 0, months: {} }
+    };
+
+    activeTours.forEach((t) => {
+      const type = resolveTourType(t);
+      if (!map[type]) {
+        map[type] = { groupKey: type, tours: 0, pax: 0, omset: 0, profit: 0, months: {} };
+      }
+      const omset = Number(t.financials?.totalSellingPrice ?? t.financials?.totalOmset ?? 0);
+      const profit = Number(t.financials?.profit || 0);
+      const pax = Number(t.paxCount || 0);
+
+      map[type].tours += 1;
+      map[type].pax += pax;
+      map[type].omset += omset;
+      map[type].profit += profit;
+
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (mInfo) {
+        if (!map[type].months[mInfo.sortKey]) {
+          map[type].months[mInfo.sortKey] = {
+            label: mInfo.label,
+            sortKey: mInfo.sortKey,
+            tours: 0,
+            pax: 0,
+            omset: 0,
+            profit: 0
+          };
+        }
+        map[type].months[mInfo.sortKey].tours += 1;
+        map[type].months[mInfo.sortKey].pax += pax;
+        map[type].months[mInfo.sortKey].omset += omset;
+        map[type].months[mInfo.sortKey].profit += profit;
+      }
+    });
+
+    return Object.values(map)
+      .filter((row) => row.tours > 0 || ['Series', 'Incentive', 'Consortium'].includes(row.groupKey))
+      .map((row) => ({
+        ...row,
+        marginPct: calcMarginPct(row.profit, row.omset)
+      }));
+  }, [activeTours]);
+
+  // Report 2: Consortium Taxes & Additional Fees Audit
+  const consortiumFeesReport = useMemo(() => {
+    let totalAirportTax = 0;
+    let totalTipping = 0;
+    let totalMisc = 0;
+    let totalPpn = 0;
+    let totalBasic = 0;
+    let totalProfit = 0;
+    let consortiumToursCount = 0;
+    let consortiumPaxCount = 0;
+
+    const airportTaxMonths = {};
+    const tippingMonths = {};
+    const ppnMonths = {};
+    const miscMonths = {};
+    const basicMonths = {};
+
+    activeTours.forEach((t) => {
+      const type = resolveTourType(t);
+      if (type !== 'Consortium') return;
+
+      consortiumToursCount += 1;
+      const pax = Number(t.paxCount || 0);
+      consortiumPaxCount += pax;
+      const fin = t.financials || {};
+      const at = Number(fin.airportTax || 0);
+      const tip = Number(fin.tipping || 0);
+      const misc = Number(fin.miscCharge || 0);
+      const p = Number(fin.ppn || 0);
+      const basic = Number(fin.basicTourPrice !== undefined ? fin.basicTourPrice : fin.totalSales || 0);
+      const prf = Number(fin.profit || 0);
+
+      totalAirportTax += at;
+      totalTipping += tip;
+      totalMisc += misc;
+      totalPpn += p;
+      totalBasic += basic;
+      totalProfit += prf;
+
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (mInfo) {
+        const addMonth = (container, val) => {
+          if (!container[mInfo.sortKey]) {
+            container[mInfo.sortKey] = {
+              label: mInfo.label,
+              sortKey: mInfo.sortKey,
+              tours: 0,
+              pax: 0,
+              omset: 0,
+              profit: 0
+            };
+          }
+          container[mInfo.sortKey].tours += 1;
+          container[mInfo.sortKey].pax += pax;
+          container[mInfo.sortKey].omset += val;
+          container[mInfo.sortKey].profit += 0;
+        };
+        addMonth(airportTaxMonths, at);
+        addMonth(tippingMonths, tip);
+        addMonth(ppnMonths, p);
+        addMonth(miscMonths, misc);
+        addMonth(basicMonths, basic);
+      }
+    });
+
+    return [
+      {
+        groupKey: 'Airport Tax & Fuel Surcharge (Wajib)',
+        tours: consortiumToursCount,
+        pax: consortiumPaxCount,
+        omset: totalAirportTax,
+        profit: 0,
+        marginPct: 0,
+        months: airportTaxMonths
+      },
+      {
+        groupKey: 'Tipping Guide & Driver (Wajib)',
+        tours: consortiumToursCount,
+        pax: consortiumPaxCount,
+        omset: totalTipping,
+        profit: 0,
+        marginPct: 0,
+        months: tippingMonths
+      },
+      {
+        groupKey: 'PPN 1.1% (Wajib)',
+        tours: consortiumToursCount,
+        pax: consortiumPaxCount,
+        omset: totalPpn,
+        profit: 0,
+        marginPct: 0,
+        months: ppnMonths
+      },
+      {
+        groupKey: 'Misc Charges & Add-ons (Optional)',
+        tours: consortiumToursCount,
+        pax: consortiumPaxCount,
+        omset: totalMisc,
+        profit: 0,
+        marginPct: 0,
+        months: miscMonths
+      },
+      {
+        groupKey: 'Basic Tour Price (Base Package)',
+        tours: consortiumToursCount,
+        pax: consortiumPaxCount,
+        omset: totalBasic,
+        profit: totalProfit,
+        marginPct: calcMarginPct(totalProfit, totalBasic),
+        months: basicMonths
+      }
+    ];
+  }, [activeTours]);
+
+  // Report 3: Supplier Partner Matrix (Incentive & Consortium)
+  const supplierReport = useMemo(() => {
+    const map = {};
+    activeTours.forEach((t) => {
+      const type = resolveTourType(t);
+      if (type === 'Series' && !t.supplier) return;
+      const sup = (t.supplier && String(t.supplier).trim()) || 'Direct / No Supplier';
+      const omset = Number(t.financials?.totalSellingPrice ?? t.financials?.totalOmset ?? 0);
+      const profit = Number(t.financials?.profit || 0);
+      const pax = Number(t.paxCount || 0);
+
+      if (!map[sup]) {
+        map[sup] = { groupKey: sup, tours: 0, pax: 0, omset: 0, profit: 0, months: {} };
+      }
+      map[sup].tours += 1;
+      map[sup].pax += pax;
+      map[sup].omset += omset;
+      map[sup].profit += profit;
+
+      const mInfo = parseMonthLabel(t.departureDate);
+      if (mInfo) {
+        if (!map[sup].months[mInfo.sortKey]) {
+          map[sup].months[mInfo.sortKey] = {
+            label: `${mInfo.label} (${type})`,
+            sortKey: mInfo.sortKey,
+            tours: 0,
+            pax: 0,
+            omset: 0,
+            profit: 0
+          };
+        }
+        map[sup].months[mInfo.sortKey].tours += 1;
+        map[sup].months[mInfo.sortKey].pax += pax;
+        map[sup].months[mInfo.sortKey].omset += omset;
+        map[sup].months[mInfo.sortKey].profit += profit;
+      }
+    });
+
+    return Object.values(map)
+      .sort((a, b) => b.omset - a.omset)
+      .map((row) => ({ ...row, marginPct: calcMarginPct(row.profit, row.omset) }));
+  }, [activeTours]);
 
   const staffReport = useMemo(() => {
     const map = {};
@@ -234,6 +528,36 @@ const TourReporting = ({ onDrillToBookings }) => {
   }, [activeTours]);
 
   const REPORT_TABS = [
+    {
+      id: 'tour_type',
+      label: 'By Tour Type',
+      title: 'Tour Type Performance (Series, Incentive, Consortium)',
+      groupHeader: 'Tour Type',
+      icon: Compass,
+      color: '#00a8ff',
+      rows: tourTypeReport,
+      breakdownType: 'months'
+    },
+    {
+      id: 'consortium_fees',
+      label: 'Consortium Taxes & Fees',
+      title: 'Consortium Cost & Tax Component Audit',
+      groupHeader: 'Fee / Tax Component',
+      icon: Receipt,
+      color: '#10b981',
+      rows: consortiumFeesReport,
+      breakdownType: 'months'
+    },
+    {
+      id: 'supplier',
+      label: 'By Supplier',
+      title: 'Supplier Partner Performance (Incentive & Consortium)',
+      groupHeader: 'Supplier Partner',
+      icon: Building2,
+      color: '#f97316',
+      rows: supplierReport,
+      breakdownType: 'months'
+    },
     {
       id: 'monthly',
       label: 'Monthly Trend',
@@ -380,6 +704,133 @@ const TourReporting = ({ onDrillToBookings }) => {
         </div>
       </div>
 
+      {/* 3 Tour Type Executive Summary Cards */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '1rem',
+          marginBottom: '1.4rem'
+        }}
+      >
+        {/* Series Card */}
+        <div
+          className="card"
+          style={{
+            padding: '1.1rem 1.25rem',
+            borderLeft: '4px solid #00a8ff',
+            background: isLight ? '#fbfdff' : 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: '0.74rem',
+                fontWeight: '800',
+                color: '#00a8ff',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+            >
+              <Compass size={14} /> Series Tours
+            </span>
+            <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
+              {typeSummary.series.share}% Omset Share
+            </span>
+          </div>
+          <div style={{ fontSize: '1.45rem', fontWeight: '800', color: 'var(--text-main)', marginTop: '0.35rem' }}>
+            Rp {formatCurrency(typeSummary.series.omset)}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+            <span>{typeSummary.series.count} tours · {typeSummary.series.pax} pax</span>
+            <span style={{ color: emeraldColor, fontWeight: '700' }}>
+              Rp {formatCurrency(typeSummary.series.profit)} ({typeSummary.series.margin}%)
+            </span>
+          </div>
+        </div>
+
+        {/* Incentive Card */}
+        <div
+          className="card"
+          style={{
+            padding: '1.1rem 1.25rem',
+            borderLeft: '4px solid #8b5cf6',
+            background: isLight ? '#fdfcff' : 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: '0.74rem',
+                fontWeight: '800',
+                color: '#8b5cf6',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+            >
+              <Briefcase size={14} /> Incentive Tours
+            </span>
+            <span className="badge" style={{ fontSize: '0.68rem', background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6' }}>
+              {typeSummary.incentive.share}% Omset Share
+            </span>
+          </div>
+          <div style={{ fontSize: '1.45rem', fontWeight: '800', color: 'var(--text-main)', marginTop: '0.35rem' }}>
+            Rp {formatCurrency(typeSummary.incentive.omset)}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+            <span>{typeSummary.incentive.count} tours · {typeSummary.incentive.pax} pax</span>
+            <span style={{ color: emeraldColor, fontWeight: '700' }}>
+              Rp {formatCurrency(typeSummary.incentive.profit)} ({typeSummary.incentive.margin}%)
+            </span>
+          </div>
+        </div>
+
+        {/* Consortium Card */}
+        <div
+          className="card"
+          style={{
+            padding: '1.1rem 1.25rem',
+            borderLeft: '4px solid #10b981',
+            background: isLight ? '#f9fefb' : 'var(--bg-card)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: '0.74rem',
+                fontWeight: '800',
+                color: '#10b981',
+                textTransform: 'uppercase',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+            >
+              <Network size={14} /> Consortium Tours
+            </span>
+            <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>
+              {typeSummary.consortium.share}% Omset Share
+            </span>
+          </div>
+          <div style={{ fontSize: '1.45rem', fontWeight: '800', color: 'var(--text-main)', marginTop: '0.35rem' }}>
+            Rp {formatCurrency(typeSummary.consortium.omset)}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+            <span>{typeSummary.consortium.count} tours · {typeSummary.consortium.pax} pax</span>
+            <span style={{ color: emeraldColor, fontWeight: '700' }}>
+              Rp {formatCurrency(typeSummary.consortium.profit)} ({typeSummary.consortium.margin}%)
+            </span>
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', borderTop: '1px dashed var(--border)', paddingTop: '0.3rem' }}>
+            Taxes &amp; Surcharges: <strong style={{ color: 'var(--primary)' }}>Rp {formatCurrency(typeSummary.consortium.feesTotal)}</strong>
+          </div>
+        </div>
+      </div>
+
       {/* Report Mode Selector Cards */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         {REPORT_TABS.map((rt) => {
@@ -484,7 +935,29 @@ const TourReporting = ({ onDrillToBookings }) => {
                             {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                           </td>
                           <td style={{ fontWeight: '700' }}>
-                            {reportType === 'status' ? (
+                            {reportType === 'tour_type' ? (
+                              <span
+                                className="badge"
+                                style={{
+                                  background:
+                                    row.groupKey === 'Series'
+                                      ? 'rgba(0, 168, 255, 0.15)'
+                                      : row.groupKey === 'Incentive'
+                                        ? 'rgba(139, 92, 246, 0.15)'
+                                        : 'rgba(16, 185, 129, 0.15)',
+                                  color:
+                                    row.groupKey === 'Series'
+                                      ? 'var(--primary)'
+                                      : row.groupKey === 'Incentive'
+                                        ? '#8b5cf6'
+                                        : '#10b981',
+                                  fontWeight: '800',
+                                  padding: '0.2rem 0.65rem'
+                                }}
+                              >
+                                {row.groupKey}
+                              </span>
+                            ) : reportType === 'status' ? (
                               <span
                                 className={`badge ${
                                   row.groupKey === 'Confirm'
@@ -502,6 +975,10 @@ const TourReporting = ({ onDrillToBookings }) => {
                                   row.groupKey === 'Invoiced' ? 'badge-success' : 'badge-danger'
                                 }`}
                               >
+                                {row.groupKey}
+                              </span>
+                            ) : reportType === 'consortium_fees' ? (
+                              <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>
                                 {row.groupKey}
                               </span>
                             ) : (
@@ -537,6 +1014,15 @@ const TourReporting = ({ onDrillToBookings }) => {
                                 onClick={() => {
                                   if (reportType === 'past_date') {
                                     onDrillToBookings('past', '');
+                                  } else if (reportType === 'tour_type') {
+                                    onDrillToBookings('active', row.groupKey);
+                                  } else if (reportType === 'consortium_fees') {
+                                    onDrillToBookings('active', 'Consortium');
+                                  } else if (reportType === 'supplier') {
+                                    onDrillToBookings(
+                                      'active',
+                                      row.groupKey === 'Direct / No Supplier' ? '' : row.groupKey
+                                    );
                                   } else if (reportType === 'invoicing' && row.groupKey === 'Not Invoiced') {
                                     onDrillToBookings('followup', '');
                                   } else if (reportType === 'staff') {

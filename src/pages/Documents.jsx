@@ -5,6 +5,7 @@ import TopNav from '../components/TopNav';
 import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
+import FloatingBulkBar from '../components/FloatingBulkBar';
 import {
   DocumentFormModal,
   DocumentShippingModal,
@@ -2128,7 +2129,7 @@ const Documents = () => {
 
                 {/* Theme-Aware Documents Table */}
                 <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
+                  <div className="table-sticky-wrapper">
                     <table className="data-table">
                       <thead
                         style={{
@@ -2586,6 +2587,77 @@ const Documents = () => {
                     totalItems={totalItems}
                     itemsPerPage={itemsPerPage}
                   />
+
+                  {/* Floating Bulk Action Bar */}
+                  <FloatingBulkBar
+                    count={selectedIds.length}
+                    itemLabel="dokumen"
+                    onClear={() => setSelectedIds([])}
+                  >
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Sent')}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(245, 158, 11, 0.16)',
+                        color: '#f59e0b',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      <Truck size={14} /> Mark Dispatched
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Final')}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(16, 185, 129, 0.16)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      <CheckCircle2 size={14} /> Mark Process Done
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Delivered')}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(56, 189, 248, 0.16)',
+                        color: 'var(--primary)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      <Inbox size={14} /> Mark Delivered
+                    </button>
+
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={handleBulkDelete}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          fontSize: '0.78rem',
+                          gap: '0.3rem',
+                          fontWeight: 700
+                        }}
+                      >
+                        <Trash2 size={14} /> Delete Selected
+                      </button>
+                    )}
+                  </FloatingBulkBar>
                 </div>
               </div>
             )}

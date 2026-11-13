@@ -270,7 +270,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
             <span className="pulse-dot pulse-dot-green" />
             <span>All systems online</span>
           </div>
-          <span className="font-mono" style={{ fontSize: '0.7rem' }}>v3.4</span>
+          <span className="font-mono" style={{ fontSize: '0.7rem' }}>V4.0</span>
         </div>
       </div>
     </aside>

@@ -1,4 +1,5 @@
 import './mobile.css';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { TourProvider } from './context/TourContext';
@@ -17,10 +18,12 @@ import { ThemeProvider } from './context/ThemeContext';
 import AutoLogout from './components/AutoLogout';
 import ReminderEngine from './components/ReminderEngine';
 import ForcePasswordChange from './components/ForcePasswordChange';
+import GlobalErrorBoundary from './components/GlobalErrorBoundary';
 
 import AnimatedRoutes from './components/AnimatedRoutes';
 import CommandPalette from './components/CommandPalette';
 import AiCopilot from './components/AiCopilot';
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import { ToastProvider } from './context/ToastContext';
 import ToastNotification from './components/ToastNotification';
 
@@ -53,19 +56,47 @@ const AppProviders = composeProviders(
 );
 
 function App() {
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger if user is actively typing in an input or textarea
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) {
+        return;
+      }
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+      }
+    };
+
+    const handleCustomOpen = () => setShowShortcuts(true);
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('open-keyboard-shortcuts', handleCustomOpen);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('open-keyboard-shortcuts', handleCustomOpen);
+    };
+  }, []);
+
   return (
-    <AppProviders>
-      <AutoLogout>
-        <ForcePasswordChange />
-        <Router>
-          <ReminderEngine />
-          <CommandPalette />
-          <AiCopilot />
-          <ToastNotification />
-          <AnimatedRoutes />
-        </Router>
-      </AutoLogout>
-    </AppProviders>
+    <GlobalErrorBoundary>
+      <AppProviders>
+        <AutoLogout>
+          <ForcePasswordChange />
+          <Router>
+            <ReminderEngine />
+            <CommandPalette />
+            <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+            <AiCopilot />
+            <ToastNotification />
+            <AnimatedRoutes />
+          </Router>
+        </AutoLogout>
+      </AppProviders>
+    </GlobalErrorBoundary>
   );
 }
 

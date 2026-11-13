@@ -121,10 +121,10 @@ const Login = () => {
             TravelOps
           </h1>
           <span
-            className="badge badge-primary"
+            className="badge badge-primary font-bold"
             style={{ fontSize: '0.68rem', padding: '0.12rem 0.5rem' }}
           >
-            v3.4
+            V4
           </span>
         </div>
 

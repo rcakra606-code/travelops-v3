@@ -1,5 +1,3 @@
-import ExcelJS from 'exceljs';
-
 /**
  * Extracts and prepares display data from tour object
  */
@@ -19,13 +17,27 @@ export const prepareSettlementData = (tour) => {
   const depDate = tour.departureDate ? `${tour.departureDate} ${tour.returnDate ? '- ' + tour.returnDate : ''}` : '-';
 
   // Financial calculations
+  const tourType =
+    tour.tourType ||
+    (tour.category === 'Consortium'
+      ? 'Consortium'
+      : tour.category === 'Corporate / Incentive'
+        ? 'Incentive'
+        : 'Series');
+  const supplier = tour.supplier || '';
+  const airportTax = Number(fin.airportTax || 0);
+  const tipping = Number(fin.tipping || 0);
+  const miscCharge = Number(fin.miscCharge || 0);
+  const ppn = Number(fin.ppn || 0);
+  const totalSurcharges = tourType === 'Consortium' ? airportTax + tipping + miscCharge + ppn : 0;
+
   const basicPrice = Number(fin.basicTourPrice !== undefined ? fin.basicTourPrice : (fin.totalSales || 0));
   const discSupplier = Number(fin.discountSupplier !== undefined ? fin.discountSupplier : (fin.discount || 0));
   const discBranch = Number(fin.discountBranch || 0);
   const totalDisc = discSupplier + discBranch;
   const profit = Number(fin.profit || 0);
-  const totalSellingPrice = Number(fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : (basicPrice - totalDisc));
-  const totalNettPrice = Number(fin.totalNettPrice !== undefined ? fin.totalNettPrice : (basicPrice - discSupplier - profit));
+  const totalSellingPrice = Number(fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : (basicPrice + totalSurcharges - totalDisc));
+  const totalNettPrice = Number(fin.totalNettPrice !== undefined ? fin.totalNettPrice : (totalSellingPrice - profit));
   const depositAmount = Number(fin.depositAmount || 0);
   const depositNumber = fin.depositNumber ? String(fin.depositNumber).trim() : (tour.depositNumber || '-');
   const invoiceNumber = fin.invoiceNumber ? String(fin.invoiceNumber).trim() : (tour.invoiceNumber || '-');
@@ -43,6 +55,13 @@ export const prepareSettlementData = (tour) => {
   const staffName = tour.staffName || tour.internals?.staffName || 'OPERATIONAL STAFF';
 
   return {
+    tourType,
+    supplier,
+    airportTax,
+    tipping,
+    miscCharge,
+    ppn,
+    totalSurcharges,
     paxNames,
     groupName,
     depDate,
@@ -89,6 +108,7 @@ const applyBoxBorder = (worksheet, startRow, startCol, endRow, endCol) => {
  * Focus: Selling Price, Discount, Total Selling Price, Deposit, Sisa Pelunasan Tamu
  */
 export const exportPassengerConfirmationExcel = async (tour) => {
+  const ExcelJS = (await import('exceljs')).default;
   const data = prepareSettlementData(tour);
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet('Pelunasan Passenger');
@@ -143,6 +163,22 @@ export const exportPassengerConfirmationExcel = async (tour) => {
   ws.getCell(`B${r}`).value = ':';
   ws.mergeCells(`C${r}:G${r}`);
   ws.getCell(`C${r}`).value = data.depDate;
+  ws.getCell(`C${r}`).font = { name: 'Calibri', size: 10, bold: true };
+  r++;
+
+  // Tour Type & Supplier
+  ws.getCell(`A${r}`).value = 'Jenis Tour';
+  ws.getCell(`B${r}`).value = ':';
+  ws.mergeCells(`C${r}:G${r}`);
+  ws.getCell(`C${r}`).value = `${data.tourType || 'Series'} Tour${data.supplier ? ' (Mitra: ' + data.supplier + ')' : ''}`;
+  ws.getCell(`C${r}`).font = { name: 'Calibri', size: 10, bold: true };
+  r++;
+
+  // Tour Type & Supplier
+  ws.getCell(`A${r}`).value = 'Jenis Tour';
+  ws.getCell(`B${r}`).value = ':';
+  ws.mergeCells(`C${r}:G${r}`);
+  ws.getCell(`C${r}`).value = `${data.tourType || 'Series'} Tour${data.supplier ? ' (Mitra: ' + data.supplier + ')' : ''}`;
   ws.getCell(`C${r}`).font = { name: 'Calibri', size: 10, bold: true };
   r++;
 
@@ -207,17 +243,64 @@ export const exportPassengerConfirmationExcel = async (tour) => {
   ws.getCell(`G${r}`).font = { color: { argb: 'FFDC2626' } };
   r++;
 
-  // Apt Tax Int'l
-  ws.getCell(`A${r}`).value = "Apt tax Int'l";
-  ws.getCell(`B${r}`).value = ':';
-  ws.getCell(`C${r}`).value = `${data.paxCount} Paxs x IDR`;
-  ws.getCell(`C${r}`).alignment = { horizontal: 'right' };
-  ws.getCell(`D${r}`).value = 0;
-  ws.getCell(`D${r}`).numFmt = '#,##0.00';
-  ws.getCell(`F${r}`).value = '= IDR';
-  ws.getCell(`G${r}`).value = 0;
-  ws.getCell(`G${r}`).numFmt = '#,##0.00';
-  r++;
+  if (data.tourType === 'Consortium') {
+    // Apt Tax & Fuel Surcharge
+    ws.getCell(`A${r}`).value = "Apt Tax & Fuel";
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`C${r}`).value = `${data.paxCount} Paxs x IDR`;
+    ws.getCell(`C${r}`).alignment = { horizontal: 'right' };
+    ws.getCell(`D${r}`).value = data.paxCount > 0 ? Math.round(data.airportTax / data.paxCount) : data.airportTax;
+    ws.getCell(`D${r}`).numFmt = '#,##0.00';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = data.airportTax;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+
+    // Tipping
+    ws.getCell(`A${r}`).value = "Tipping Guide/Driver";
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`C${r}`).value = `${data.paxCount} Paxs x IDR`;
+    ws.getCell(`C${r}`).alignment = { horizontal: 'right' };
+    ws.getCell(`D${r}`).value = data.paxCount > 0 ? Math.round(data.tipping / data.paxCount) : data.tipping;
+    ws.getCell(`D${r}`).numFmt = '#,##0.00';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = data.tipping;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+
+    // PPN
+    ws.getCell(`A${r}`).value = "PPN (1.1%)";
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`C${r}`).value = `Ketentuan Resmi PPN`;
+    ws.getCell(`C${r}`).alignment = { horizontal: 'right' };
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = data.ppn;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+
+    if (data.miscCharge > 0) {
+      ws.getCell(`A${r}`).value = "Misc Charge";
+      ws.getCell(`B${r}`).value = ':';
+      ws.getCell(`C${r}`).value = `Biaya Tambahan`;
+      ws.getCell(`C${r}`).alignment = { horizontal: 'right' };
+      ws.getCell(`F${r}`).value = '= IDR';
+      ws.getCell(`G${r}`).value = data.miscCharge;
+      ws.getCell(`G${r}`).numFmt = '#,##0.00';
+      r++;
+    }
+  } else {
+    // Apt Tax Int'l
+    ws.getCell(`A${r}`).value = "Apt tax Int'l";
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`C${r}`).value = `${data.paxCount} Paxs x IDR`;
+    ws.getCell(`C${r}`).alignment = { horizontal: 'right' };
+    ws.getCell(`D${r}`).value = 0;
+    ws.getCell(`D${r}`).numFmt = '#,##0.00';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = 0;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+  }
 
   // Total Biaya Tour
   ws.getCell(`A${r}`).value = 'Total Biaya Tour';
@@ -355,6 +438,7 @@ export const exportPassengerConfirmationExcel = async (tour) => {
  * Focus: Cost / Nett Price, Nominal Profit, Tagihan Invoice Agen, Deposit, Sisa Cost/Invoice
  */
 export const exportAgentConfirmationExcel = async (tour) => {
+  const ExcelJS = (await import('exceljs')).default;
   const data = prepareSettlementData(tour);
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet('Agent Confirmation');
@@ -405,6 +489,14 @@ export const exportAgentConfirmationExcel = async (tour) => {
   ws.getCell(`B${r}`).value = ':';
   ws.mergeCells(`C${r}:G${r}`);
   ws.getCell(`C${r}`).value = data.depDate;
+  ws.getCell(`C${r}`).font = { name: 'Calibri', size: 10, bold: true };
+  r++;
+
+  // Tour Type & Supplier
+  ws.getCell(`A${r}`).value = 'Jenis Tour';
+  ws.getCell(`B${r}`).value = ':';
+  ws.mergeCells(`C${r}:G${r}`);
+  ws.getCell(`C${r}`).value = `${data.tourType || 'Series'} Tour${data.supplier ? ' (Mitra: ' + data.supplier + ')' : ''}`;
   ws.getCell(`C${r}`).font = { name: 'Calibri', size: 10, bold: true };
   r++;
 
@@ -492,12 +584,45 @@ export const exportAgentConfirmationExcel = async (tour) => {
   ws.getCell(`A${r}`).font = { name: 'Calibri', size: 10, bold: true, underline: true };
   r++;
 
-  ws.getCell(`A${r}`).value = 'Apt Tax & Visa Group';
-  ws.getCell(`B${r}`).value = ':';
-  ws.getCell(`F${r}`).value = '= IDR';
-  ws.getCell(`G${r}`).value = 0;
-  ws.getCell(`G${r}`).numFmt = '#,##0.00';
-  r += 2;
+  if (data.tourType === 'Consortium') {
+    ws.getCell(`A${r}`).value = 'Apt Tax & Fuel Surcharge';
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = data.airportTax;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+
+    ws.getCell(`A${r}`).value = 'Tipping Guide & Driver';
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = data.tipping;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+
+    ws.getCell(`A${r}`).value = 'PPN (1.1%)';
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = data.ppn;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r++;
+
+    if (data.miscCharge > 0) {
+      ws.getCell(`A${r}`).value = 'Misc Charge';
+      ws.getCell(`B${r}`).value = ':';
+      ws.getCell(`F${r}`).value = '= IDR';
+      ws.getCell(`G${r}`).value = data.miscCharge;
+      ws.getCell(`G${r}`).numFmt = '#,##0.00';
+      r++;
+    }
+    r++;
+  } else {
+    ws.getCell(`A${r}`).value = 'Apt Tax & Visa Group';
+    ws.getCell(`B${r}`).value = ':';
+    ws.getCell(`F${r}`).value = '= IDR';
+    ws.getCell(`G${r}`).value = 0;
+    ws.getCell(`G${r}`).numFmt = '#,##0.00';
+    r += 2;
+  }
 
   // TOTAL COST INVOICE
   ws.mergeCells(`A${r}:E${r}`);

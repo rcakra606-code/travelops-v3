@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
+import RoleRoute from './RoleRoute';
 import PageWrapper from './PageWrapper';
 
 const Login = lazy(() => import('../pages/Login'));
@@ -26,29 +27,65 @@ const PublicTracker = lazy(() => import('../pages/PublicTracker'));
 const LoadingFallback = () => (
   <div
     style={{
+      minHeight: '100vh',
+      background: 'var(--bg-dark)',
+      padding: '24px 28px',
       display: 'flex',
       flexDirection: 'column',
-      gap: '0.85rem',
-      height: '100vh',
-      justifyContent: 'center',
-      alignItems: 'center',
-      background: 'var(--bg-dark)',
-      color: 'var(--text-main)'
+      gap: '20px'
     }}
+    aria-busy="true"
+    aria-label="Loading workspace..."
   >
+    {/* Header Skeleton */}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="shimmer-skeleton" style={{ width: '220px', height: '28px' }} />
+        <div className="shimmer-skeleton" style={{ width: '320px', height: '14px' }} />
+      </div>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="shimmer-skeleton" style={{ width: '110px', height: '36px', borderRadius: '8px' }} />
+        <div className="shimmer-skeleton" style={{ width: '130px', height: '36px', borderRadius: '8px' }} />
+      </div>
+    </div>
+
+    {/* Metric Cards Skeleton */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+      {[1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          className="shimmer-skeleton"
+          style={{ height: '96px', borderRadius: '14px', border: '1px solid var(--border)' }}
+        />
+      ))}
+    </div>
+
+    {/* Table / Content Wireframe Skeleton */}
     <div
-      className="spin"
       style={{
-        width: '40px',
-        height: '40px',
-        border: '3.5px solid var(--primary-glow)',
-        borderTopColor: 'var(--primary)',
-        borderRadius: '50%'
+        flex: 1,
+        minHeight: '380px',
+        background: 'var(--bg-card)',
+        borderRadius: '16px',
+        border: '1px solid var(--border)',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px'
       }}
-    />
-    <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-muted)' }}>
-      Loading your workspace...
-    </span>
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <div className="shimmer-skeleton" style={{ width: '200px', height: '36px', borderRadius: '8px' }} />
+        <div className="shimmer-skeleton" style={{ width: '160px', height: '36px', borderRadius: '8px' }} />
+      </div>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div
+          key={i}
+          className="shimmer-skeleton"
+          style={{ width: '100%', height: '42px', borderRadius: '8px' }}
+        />
+      ))}
+    </div>
   </div>
 );
 
@@ -67,7 +104,7 @@ const AnimatedRoutes = () => {
           <Route path="/calendar" element={<ProtectedRoute><PageWrapper><OperationsCalendar /></PageWrapper></ProtectedRoute>} />
           <Route path="/tours" element={<ProtectedRoute><PageWrapper><ToursManager /></PageWrapper></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><PageWrapper><KnowledgeBase /></PageWrapper></ProtectedRoute>} />
-          <Route path="/users" element={<ProtectedRoute><PageWrapper><UserManager /></PageWrapper></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute><RoleRoute allowedRoles={['Admin']}><PageWrapper><UserManager /></PageWrapper></RoleRoute></ProtectedRoute>} />
           <Route path="/sales" element={<ProtectedRoute><PageWrapper><SalesInput /></PageWrapper></ProtectedRoute>} />
           <Route path="/documents" element={<ProtectedRoute><PageWrapper><Documents /></PageWrapper></ProtectedRoute>} />
           <Route path="/telecom" element={<ProtectedRoute><PageWrapper><Telecom /></PageWrapper></ProtectedRoute>} />
@@ -78,7 +115,7 @@ const AnimatedRoutes = () => {
           <Route path="/corporate" element={<ProtectedRoute><PageWrapper><Corporate /></PageWrapper></ProtectedRoute>} />
           <Route path="/staff-performance" element={<ProtectedRoute><PageWrapper><StaffPerformance /></PageWrapper></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><PageWrapper><Settings /></PageWrapper></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><RoleRoute allowedRoles={['Admin']}><PageWrapper><Settings /></PageWrapper></RoleRoute></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

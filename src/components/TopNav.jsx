@@ -5,7 +5,7 @@ import { useTours } from '../context/TourContext';
 import {
   LogOut, Menu, Moon, Sun, Bell, AlertCircle, Info, Search,
   ChevronDown, CheckCircle2, Plus, Clock, ChevronRight,
-  Plane, Building, FileText, User, Globe, ExternalLink
+  Plane, Building, FileText, User, Globe, ExternalLink, Keyboard
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 
@@ -132,7 +132,7 @@ const TopNav = ({ toggleSidebar }) => {
       className="top-nav"
       style={{
         height: '64px',
-        padding: '0 1.25rem',
+        padding: '0 2rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -365,6 +365,37 @@ const TopNav = ({ toggleSidebar }) => {
             </div>
           )}
         </div>
+
+        {/* Keyboard Shortcuts Help Button */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-keyboard-shortcuts'))}
+          style={{
+            background: 'transparent',
+            border: '1px solid transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            transition: 'all 0.15s'
+          }}
+          title="Pintasan Keyboard (Tekan ?)"
+          aria-label="Pintasan Keyboard"
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = hoverBg;
+            e.currentTarget.style.color = 'var(--primary)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'var(--text-muted)';
+          }}
+        >
+          <Keyboard size={18} />
+        </button>
 
         {/* Notification Bell */}
         <div style={{ position: 'relative' }} ref={notifRef}>

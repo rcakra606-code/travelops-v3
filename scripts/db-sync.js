@@ -53,12 +53,26 @@ export async function syncDatabase() {
         // Enable RLS
         await client.query(`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY;`);
         
+        const SENSITIVE_TABLES = [
+          'travelops_users',
+          'travelops_logs',
+          'travelops_settings',
+          'travelops_sales',
+          'travelops_corporate_accounts',
+          'travelops_corporate_sales',
+          'travelops_overtimes',
+          'travelops_productivity'
+        ];
+        const isSensitive = SENSITIVE_TABLES.includes(tableName);
+
         // Grant permissions complying with Supabase PostgREST requirements
-        await client.query(`GRANT SELECT ON public."${tableName}" TO anon;`);
+        if (!isSensitive) {
+          await client.query(`GRANT SELECT ON public."${tableName}" TO anon;`);
+          await client.query(`CREATE POLICY "Allow public read access to ${tableName}" ON public."${tableName}" FOR SELECT TO public USING (true);`);
+        }
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO authenticated;`);
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO service_role;`);
         
-        await client.query(`CREATE POLICY "Allow public read access to ${tableName}" ON public."${tableName}" FOR SELECT TO public USING (true);`);
         await client.query(`CREATE POLICY "Allow authenticated full access to ${tableName}" ON public."${tableName}" FOR ALL TO authenticated USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);`);
         
         console.log(`✅ Auto-Schema Sync: Table ${tableName} created and permissions granted successfully!`);

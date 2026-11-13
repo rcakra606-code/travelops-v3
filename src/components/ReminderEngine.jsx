@@ -92,6 +92,7 @@ const ReminderEngine = () => {
   };
 
   const runRemindersCheck = useCallback(async (isManual = false) => {
+    if (!user) return;
     const isEnabled = settings?.enableReminders !== false;
     if (!isEnabled && !isManual) return;
 
@@ -726,7 +727,7 @@ const ReminderEngine = () => {
     return () => window.removeEventListener('trigger-reminders-check', handleManualEvent);
   }, [runRemindersCheck]);
 
-  if (!showToast || logs.length === 0) return null;
+  if (!user || !showToast || logs.length === 0) return null;
 
   const targetRecipient = settings?.notificationEmail || user?.email || settings?.smtpUser || 'user email';
   const hasUrgentAlerts = alertSummary.admin > 0 || alertSummary.document > 0;

@@ -292,6 +292,14 @@ const TourSettlementModal = ({ tour, onClose }) => {
                     <td style={{ fontWeight: '700' }}>{data.groupName}</td>
                   </tr>
                   <tr>
+                    <td style={{ padding: '3px 0' }}>Tour Classification</td>
+                    <td style={{ textAlign: 'center' }}>:</td>
+                    <td>
+                      <span style={{ fontWeight: '700' }}>{data.tourType || 'Series'} Tour</span>
+                      {data.supplier ? ` (Mitra: ${data.supplier})` : ''}
+                    </td>
+                  </tr>
+                  <tr>
                     <td style={{ padding: '3px 0' }}>Departure Date</td>
                     <td style={{ textAlign: 'center' }}>:</td>
                     <td style={{ fontWeight: '700' }}>{data.depDate}</td>
@@ -391,13 +399,48 @@ const TourSettlementModal = ({ tour, onClose }) => {
                     </>
                   )}
 
-                  <tr>
-                    <td>Apt tax Int&apos;l</td>
-                    <td style={{ textAlign: 'center' }}>:</td>
-                    <td>{data.paxCount} Paxs x IDR 0.00</td>
-                    <td style={{ textAlign: 'right' }}>= IDR</td>
-                    <td style={{ textAlign: 'right' }}>0.00 (+)</td>
-                  </tr>
+                  {data.tourType === 'Consortium' ? (
+                    <>
+                      <tr>
+                        <td>Apt Tax &amp; Fuel Surcharge</td>
+                        <td style={{ textAlign: 'center' }}>:</td>
+                        <td>{data.paxCount} Paxs x IDR {formatCurrency(data.paxCount > 0 ? Math.round(data.airportTax / data.paxCount) : data.airportTax)}</td>
+                        <td style={{ textAlign: 'right' }}>= IDR</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(data.airportTax)} (+)</td>
+                      </tr>
+                      <tr>
+                        <td>Tipping Guide &amp; Driver</td>
+                        <td style={{ textAlign: 'center' }}>:</td>
+                        <td>{data.paxCount} Paxs x IDR {formatCurrency(data.paxCount > 0 ? Math.round(data.tipping / data.paxCount) : data.tipping)}</td>
+                        <td style={{ textAlign: 'right' }}>= IDR</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(data.tipping)} (+)</td>
+                      </tr>
+                      <tr>
+                        <td>PPN (1.1%)</td>
+                        <td style={{ textAlign: 'center' }}>:</td>
+                        <td>PPN Resmi Sesuai Ketentuan</td>
+                        <td style={{ textAlign: 'right' }}>= IDR</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(data.ppn)} (+)</td>
+                      </tr>
+                      {data.miscCharge > 0 && (
+                        <tr>
+                          <td>Misc Charge</td>
+                          <td style={{ textAlign: 'center' }}>:</td>
+                          <td>Biaya Tambahan Operasional</td>
+                          <td style={{ textAlign: 'right' }}>= IDR</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(data.miscCharge)} (+)</td>
+                        </tr>
+                      )}
+                    </>
+                  ) : (
+                    <tr>
+                      <td>Apt tax Int&apos;l</td>
+                      <td style={{ textAlign: 'center' }}>:</td>
+                      <td>{data.paxCount} Paxs x IDR 0.00</td>
+                      <td style={{ textAlign: 'right' }}>= IDR</td>
+                      <td style={{ textAlign: 'right' }}>0.00 (+)</td>
+                    </tr>
+                  )}
 
                   <tr style={{ fontWeight: '700' }}>
                     <td style={{ paddingTop: '6px' }}>

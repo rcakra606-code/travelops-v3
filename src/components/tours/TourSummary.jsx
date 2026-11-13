@@ -6,7 +6,8 @@ import {
 } from 'recharts';
 import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import {
-  Eye, EyeOff, Globe, ArrowUpRight, AlertCircle, Plane, Users, DollarSign, TrendingUp
+  Eye, EyeOff, Globe, ArrowUpRight, AlertCircle, Plane, Users, DollarSign, TrendingUp,
+  Compass, Briefcase, Network
 } from 'lucide-react';
 import { useTours } from '../../context/TourContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -217,6 +218,83 @@ const TourSummary = ({ onDrillToBookings }) => {
     return { regionMap: rMap, regionList: list };
   }, [validTours]);
 
+  // Tour Type Modules Breakdown (Series, Incentive, Consortium)
+  const tourTypeData = useMemo(() => {
+    let seriesCount = 0;
+    let seriesPax = 0;
+    let seriesOmset = 0;
+
+    let incentiveCount = 0;
+    let incentivePax = 0;
+    let incentiveOmset = 0;
+
+    let consortiumCount = 0;
+    let consortiumPax = 0;
+    let consortiumOmset = 0;
+
+    validTours.forEach((t) => {
+      const type =
+        t.tourType ||
+        (t.category === 'Consortium'
+          ? 'Consortium'
+          : t.category === 'Corporate / Incentive'
+            ? 'Incentive'
+            : 'Series');
+      const fin = t.financials || {};
+      const omset = Number(
+        fin.totalSellingPrice !== undefined ? fin.totalSellingPrice : fin.totalOmset || 0
+      );
+      const pax = Number(t.paxCount) || 0;
+
+      if (type === 'Series') {
+        seriesCount += 1;
+        seriesPax += pax;
+        seriesOmset += omset;
+      } else if (type === 'Incentive') {
+        incentiveCount += 1;
+        incentivePax += pax;
+        incentiveOmset += omset;
+      } else if (type === 'Consortium') {
+        consortiumCount += 1;
+        consortiumPax += pax;
+        consortiumOmset += omset;
+      }
+    });
+
+    return [
+      {
+        name: 'Series',
+        tours: seriesCount,
+        pax: seriesPax,
+        omset: seriesOmset,
+        color: '#00a8ff',
+        bg: isLight ? '#f0f9ff' : 'rgba(0, 168, 255, 0.08)',
+        borderColor: 'rgba(0, 168, 255, 0.3)',
+        Icon: Compass
+      },
+      {
+        name: 'Incentive',
+        tours: incentiveCount,
+        pax: incentivePax,
+        omset: incentiveOmset,
+        color: '#8b5cf6',
+        bg: isLight ? '#fbf8ff' : 'rgba(139, 92, 246, 0.08)',
+        borderColor: 'rgba(139, 92, 246, 0.3)',
+        Icon: Briefcase
+      },
+      {
+        name: 'Consortium',
+        tours: consortiumCount,
+        pax: consortiumPax,
+        omset: consortiumOmset,
+        color: '#10b981',
+        bg: isLight ? '#f0fdf4' : 'rgba(16, 185, 129, 0.08)',
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+        Icon: Network
+      }
+    ];
+  }, [validTours, isLight]);
+
   const topDepartureMonths = useMemo(
     () => [...paxByMonth].sort((a, b) => b.Participants - a.Participants).slice(0, 6),
     [paxByMonth]
@@ -418,6 +496,113 @@ const TourSummary = ({ onDrillToBookings }) => {
             {metrics.uninvoicedCount} uninvoiced · {metrics.unclaimedMdrCount} unclaimed MDR
           </div>
         </div>
+      </div>
+
+      {/* Tour Type Modules Strip (Series, Incentive, Consortium) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1rem',
+          marginBottom: '1.5rem'
+        }}
+      >
+        {tourTypeData.map((item) => {
+          const ItemIcon = item.Icon;
+          return (
+            <div
+              key={item.name}
+              className="card"
+              style={{
+                padding: '1.1rem 1.25rem',
+                border: `1px solid ${item.borderColor}`,
+                background: item.bg,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: '800',
+                      fontSize: '0.86rem',
+                      color: item.color,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}
+                  >
+                    <ItemIcon size={16} /> {item.name}
+                  </div>
+                  <span
+                    className="badge"
+                    style={{
+                      background: isLight ? '#ffffff' : 'rgba(255, 255, 255, 0.08)',
+                      color: item.color,
+                      fontWeight: '800',
+                      fontSize: '0.72rem',
+                      border: `1px solid ${item.borderColor}`
+                    }}
+                  >
+                    {item.tours} booking{item.tours === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div
+                  className="font-mono"
+                  style={{
+                    fontSize: '1.45rem',
+                    fontWeight: '800',
+                    color: 'var(--text-main)',
+                    marginTop: '0.6rem'
+                  }}
+                >
+                  {maskMoney(item.omset)}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted)',
+                    marginTop: '0.2rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  <Users size={12} color={item.color} />
+                  <strong>{item.pax}</strong> total travelers
+                </div>
+              </div>
+
+              {onDrillToBookings && (
+                <div style={{ marginTop: '0.9rem', paddingTop: '0.7rem', borderTop: '1px solid var(--border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => onDrillToBookings('active', item.name)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: item.color,
+                      fontWeight: '700',
+                      fontSize: '0.76rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    Explore {item.name} Bookings <ArrowUpRight size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Interactive World Destination Map (With Mobile Responsive Layout & Offline Fallback) */}

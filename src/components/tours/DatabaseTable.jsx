@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Eye, Edit2, Trash2, ArrowUpDown, X, Search, Copy, RotateCcw,
   Calendar, User, DollarSign, Plane, Share2, Lock, Clock, Users,
-  CheckCircle2, AlertCircle, FileText, Edit3, FileSpreadsheet, ExternalLink
+  CheckCircle2, AlertCircle, FileText, Edit3, FileSpreadsheet, ExternalLink,
+  Building2
 } from 'lucide-react';
 import { useTours } from '../../context/TourContext';
 import { useAuth } from '../../context/AuthContext';
@@ -21,6 +22,7 @@ import { useDataTable } from '../../hooks/useDataTable';
 import Pagination from '../Pagination';
 import ExportMenu from '../ExportMenu';
 import SlideOverDrawer from '../SlideOverDrawer';
+import FloatingBulkBar from '../FloatingBulkBar';
 import TourSettlementModal from './TourSettlementModal';
 
 const DatabaseTable = ({
@@ -28,7 +30,8 @@ const DatabaseTable = ({
   onDuplicate,
   customData,
   initialScope = 'active',
-  initialSearch = ''
+  initialSearch = '',
+  tourTypeFilter = 'All'
 }) => {
   const navigate = useNavigate();
   const { tours, deleteTour, updateTour } = useTours();
@@ -39,6 +42,22 @@ const DatabaseTable = ({
 
   const [scope, setScope] = useState(initialScope);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [tableDensity, setTableDensity] = useState(() => {
+    try {
+      return localStorage.getItem('travelops_tour_table_density') || 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+
+  const handleDensityChange = (newDensity) => {
+    setTableDensity(newDensity);
+    try {
+      localStorage.setItem('travelops_tour_table_density', newDensity);
+    } catch {
+      // ignore
+    }
+  };
 
   // Drawer & Modal states (store ID so live context updates reflect automatically)
   const [viewingTourId, setViewingTourId] = useState(null);
@@ -67,8 +86,34 @@ const DatabaseTable = ({
 
   // Flatten all tour records once so scope counts, global search, and live drawer stay in sync
   const allFlatTours = useMemo(() => {
-    return sourceRecords.map((t) => {
+    let raw = sourceRecords;
+    if (tourTypeFilter && tourTypeFilter !== 'All') {
+      raw = raw.filter((t) => {
+        const type =
+          t.tourType ||
+          (t.category === 'Consortium'
+            ? 'Consortium'
+            : t.category === 'Corporate / Incentive'
+              ? 'Incentive'
+              : 'Series');
+        return type === tourTypeFilter;
+      });
+    }
+
+    return raw.map((t) => {
+      const tourType =
+        t.tourType ||
+        (t.category === 'Consortium'
+          ? 'Consortium'
+          : t.category === 'Corporate / Incentive'
+            ? 'Incentive'
+            : 'Series');
+      const supplier = t.supplier || '';
       const fin = t.financials || {};
+      const airportTax = Number(fin.airportTax || 0);
+      const tipping = Number(fin.tipping || 0);
+      const miscCharge = Number(fin.miscCharge || 0);
+      const ppn = Number(fin.ppn || 0);
       const basicTourPrice = Number(
         fin.basicTourPrice !== undefined ? fin.basicTourPrice : fin.totalSales || 0
       );
@@ -77,19 +122,21 @@ const DatabaseTable = ({
       );
       const discountBranch = Number(fin.discountBranch || 0);
       const profit = Number(fin.profit || 0);
+      const isConsortium = tourType === 'Consortium';
+      const totalAddons = isConsortium ? airportTax + tipping + miscCharge + ppn : 0;
       const totalSellingPrice = Number(
         fin.totalSellingPrice !== undefined
           ? fin.totalSellingPrice
           : fin.totalOmset !== undefined
             ? fin.totalOmset
-            : basicTourPrice - discountSupplier - discountBranch
+            : basicTourPrice + totalAddons - discountSupplier - discountBranch
       );
       const totalNettPrice = Number(
         fin.totalNettPrice !== undefined
           ? fin.totalNettPrice
           : fin.cost !== undefined
             ? fin.cost
-            : basicTourPrice - discountSupplier - profit
+            : totalSellingPrice - profit
       );
       const depositNumber = fin.depositNumber
         ? String(fin.depositNumber).trim()
@@ -101,9 +148,10 @@ const DatabaseTable = ({
         : t.invoiceNumber || '';
       const hasInvoice = invNum !== '';
       const claimMdr = Boolean(
-        t.claimMdr !== undefined
-          ? t.claimMdr
-          : t.claim_mdr || t.internals?.claimMdr
+        tourType === 'Series' &&
+          (t.claimMdr !== undefined
+            ? t.claimMdr
+            : t.claim_mdr || t.internals?.claimMdr)
       );
       const claimMdrAt = t.claimMdrAt || t.claim_mdr_at || t.internals?.claimMdrAt || null;
       const claimMdrBy = t.claimMdrBy || t.claim_mdr_by || t.internals?.claimMdrBy || '';
@@ -111,13 +159,19 @@ const DatabaseTable = ({
       const isCancelled = t.status === 'Cancel' || t.status === 'Cancelled';
       const isPast = t.status === 'Past Date';
       const needsFollowUp =
-        !isCancelled && (!hasInvoice || sisaPelunasan > 0 || !claimMdr);
+        !isCancelled && (!hasInvoice || sisaPelunasan > 0 || (tourType === 'Series' && !claimMdr));
 
       const leadPaxName = getLeadPaxLabel(t.paxInfo);
       const paxSearchBlob = buildPaxSearchBlob(t.paxInfo);
 
       return {
         ...t,
+        tourType,
+        supplier,
+        airportTax,
+        tipping,
+        miscCharge,
+        ppn,
         basicTourPrice,
         discountSupplier,
         discountBranch,
@@ -143,7 +197,7 @@ const DatabaseTable = ({
         paxSearchBlob
       };
     });
-  }, [sourceRecords]);
+  }, [sourceRecords, tourTypeFilter]);
 
   const currentUserName = user?.name || '';
 
@@ -191,6 +245,8 @@ const DatabaseTable = ({
         [
           t.tourCode,
           t.bookingCode,
+          t.supplier,
+          t.tourType,
           t.depositNumber,
           t.invoiceNumber,
           t.country,
@@ -355,23 +411,36 @@ const DatabaseTable = ({
       case 'Confirm':
       case 'Confirmed':
         return (
-          <span className="badge badge-success">
-            <span className="pulse-dot pulse-dot-green" /> Confirm
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]" /> Confirm
           </span>
         );
       case 'Pending':
         return (
-          <span className="badge badge-warning">
-            <span className="pulse-dot pulse-dot-amber" /> Pending
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)]" /> Pending
           </span>
         );
       case 'Cancel':
       case 'Cancelled':
-        return <span className="badge badge-danger">Cancel</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Cancel
+          </span>
+        );
       case 'Past Date':
-        return <span className="badge badge-primary">Completed</span>;
+      case 'Completed':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> Completed
+          </span>
+        );
       default:
-        return <span className="badge badge-primary">{status}</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-border">
+            {status}
+          </span>
+        );
     }
   };
 
@@ -383,8 +452,7 @@ const DatabaseTable = ({
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.22rem', alignItems: 'flex-start' }}>
           <span
-            className="badge badge-success"
-            style={{ fontSize: '0.72rem', padding: '0.18rem 0.5rem', borderRadius: '6px' }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20"
           >
             <CheckCircle2 size={11} /> Invoiced
           </span>
@@ -432,8 +500,7 @@ const DatabaseTable = ({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
         <span
-          className="badge badge-danger"
-          style={{ fontSize: '0.72rem', padding: '0.18rem 0.5rem', borderRadius: '6px' }}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
         >
           <AlertCircle size={11} /> Uninvoiced
         </span>
@@ -472,6 +539,8 @@ const DatabaseTable = ({
 
   const exportColumns = [
     { header: 'Tour Code', key: 'tourCode', format: null },
+    { header: 'Jenis Tour', key: 'tourType', format: null },
+    { header: 'Supplier Mitra', key: 'supplier', format: null },
     { header: 'Booking Code', key: 'bookingCode', format: null },
     { header: 'Lead Traveler', key: 'leadPaxName', format: null },
     { header: 'Pax Count', key: 'paxCount', format: null },
@@ -483,16 +552,20 @@ const DatabaseTable = ({
     { header: 'Return Date', key: 'returnDate', format: null },
     { header: 'PIC Staff', key: 'staffName', format: null },
     { header: 'Status Booking', key: 'status', format: null },
-    { header: 'Status Form Claim MDR', key: 'claimMdrStatus', format: null },
-    { header: 'Tanggal & Jam Claim MDR', key: 'claimMdrAt', format: null },
-    { header: 'PIC Claim MDR', key: 'claimMdrBy', format: null },
     { header: 'Harga Dasar Tour', key: 'basicTourPrice', format: 'currency' },
+    { header: 'Airport Tax & Fuel', key: 'airportTax', format: 'currency' },
+    { header: 'Tipping Guide & Driver', key: 'tipping', format: 'currency' },
+    { header: 'Misc Charge', key: 'miscCharge', format: 'currency' },
+    { header: 'PPN', key: 'ppn', format: 'currency' },
     { header: 'Discount Supplier', key: 'discountSupplier', format: 'currency' },
     { header: 'Discount Branch', key: 'discountBranch', format: 'currency' },
     { header: 'Nominal Profit', key: 'profit', format: 'currency' },
     { header: 'Total Selling Price (Omset)', key: 'totalSellingPrice', format: 'currency' },
     { header: 'Sisa Pelunasan Tamu', key: 'sisaPelunasan', format: 'currency' },
     { header: 'Total Nett Price (Cost)', key: 'totalNettPrice', format: 'currency' },
+    { header: 'Status Form Claim MDR', key: 'claimMdrStatus', format: null },
+    { header: 'Tanggal & Jam Claim MDR', key: 'claimMdrAt', format: null },
+    { header: 'PIC Claim MDR', key: 'claimMdrBy', format: null },
     { header: 'Status Invoice', key: 'invoiceStatus', format: null },
     { header: 'Nomor Invoice', key: 'invoiceNumber', format: null }
   ];
@@ -779,17 +852,103 @@ const DatabaseTable = ({
           )}
         </div>
 
-        <ExportMenu
-          data={scopedAndSearchedTours}
-          columns={exportColumns}
-          filename={`Tours_${scope.toUpperCase()}`}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          {/* Table Density Switcher */}
+          <div
+            className="inline-flex items-center rounded-lg border border-border p-0.5 bg-slate-50 dark:bg-white/5 text-xs"
+            title="Kerapatan Tampilan Tabel"
+          >
+            <button
+              type="button"
+              onClick={() => handleDensityChange('comfortable')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all border-none cursor-pointer ${
+                tableDensity === 'comfortable'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-transparent text-text-muted hover:text-text-main'
+              }`}
+            >
+              Lega
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDensityChange('compact')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all border-none cursor-pointer ${
+                tableDensity === 'compact'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-transparent text-text-muted hover:text-text-main'
+              }`}
+            >
+              Ringkas
+            </button>
+          </div>
+
+          <ExportMenu
+            data={scopedAndSearchedTours}
+            columns={exportColumns}
+            filename={`Tours_${scope.toUpperCase()}`}
+          />
+        </div>
       </div>
+
+      {/* Active Filter Pills Bar */}
+      {(searchQuery || (scope !== 'active' && !customData) || (tourTypeFilter && tourTypeFilter !== 'All')) && (
+        <div className="flex items-center gap-2 flex-wrap text-xs pt-1">
+          <span className="text-text-muted text-[11px] font-semibold">Filter Aktif:</span>
+
+          {searchQuery && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
+              Kata Kunci: "{searchQuery}"
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="hover:opacity-75 cursor-pointer p-0 bg-transparent border-none text-current inline-flex items-center"
+                title="Hapus pencarian"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {scope !== 'active' && !customData && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-500/10 text-text-main border border-border font-medium">
+              Scope: {SCOPE_TABS.find((s) => s.id === scope)?.label || scope}
+              <button
+                type="button"
+                onClick={() => handleScopeSwitch('active')}
+                className="hover:opacity-75 cursor-pointer p-0 bg-transparent border-none text-current inline-flex items-center"
+                title="Kembali ke Active"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {tourTypeFilter && tourTypeFilter !== 'All' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-medium">
+              Modul: {tourTypeFilter} Tours
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              handleScopeSwitch('active');
+            }}
+            className="text-xs text-text-muted hover:text-danger cursor-pointer ml-1 underline bg-transparent border-none p-0"
+          >
+            Reset Semua
+          </button>
+        </div>
+      )}
 
       {/* Main Bookings Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="data-table" style={{ minWidth: '1340px' }}>
+        <div className="table-sticky-wrapper">
+          <table
+            className={`data-table ${tableDensity === 'compact' ? 'table-compact' : 'table-comfortable'}`}
+            style={{ minWidth: '1340px' }}
+          >
             <thead>
               <tr>
                 <th style={{ width: '42px', textAlign: 'center' }}>
@@ -934,7 +1093,10 @@ const DatabaseTable = ({
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
                       onClick={() => handleSort('claimMdr')}
                     >
-                      Claim MDR <ArrowUpDown size={12} style={{ marginLeft: '0.35rem', opacity: 0.7 }} />
+                      {tourTypeFilter === 'Incentive' || tourTypeFilter === 'Consortium'
+                        ? 'Supplier Mitra'
+                        : 'Claim MDR'}
+                      <ArrowUpDown size={12} style={{ marginLeft: '0.35rem', opacity: 0.7 }} />
                     </div>
                     <select
                       value={filters.claimMdrStatus || ''}
@@ -1006,11 +1168,35 @@ const DatabaseTable = ({
                         <div className="font-mono" style={{ fontWeight: '700', color: 'var(--primary)' }}>
                           {tour.tourCode || '-'}
                         </div>
-                        {tour.category && (
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                            {tour.category}
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              fontSize: '0.64rem',
+                              fontWeight: '700',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background:
+                                tour.tourType === 'Consortium'
+                                  ? 'rgba(245, 158, 11, 0.14)'
+                                  : tour.tourType === 'Incentive'
+                                    ? 'rgba(139, 92, 246, 0.14)'
+                                    : 'rgba(2, 132, 199, 0.14)',
+                              color:
+                                tour.tourType === 'Consortium'
+                                  ? '#f59e0b'
+                                  : tour.tourType === 'Incentive'
+                                    ? '#8b5cf6'
+                                    : '#0284c7'
+                            }}
+                          >
+                            {tour.tourType || 'Series'}
+                          </span>
+                          {tour.supplier && (
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                              · {tour.supplier}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Booking Code & DP */}
@@ -1110,76 +1296,87 @@ const DatabaseTable = ({
                       {/* Invoice Status */}
                       <td onClick={(e) => e.stopPropagation()}>{getInvoiceStatusBadge(tour)}</td>
 
-                      {/* Claim MDR */}
+                      {/* Claim MDR or Supplier */}
                       <td onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          <label
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (tour.claimMdr && !isAdmin) {
-                                toast.warning(
-                                  'Locked: Only an Admin can uncheck a verified Form Claim MDR.'
-                                );
-                              }
-                            }}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              cursor: canToggleClaimMdr(tour) ? 'pointer' : 'not-allowed',
-                              margin: 0,
-                              userSelect: 'none'
-                            }}
-                            title={
-                              tour.claimMdr
-                                ? `Verified ${formatClaimMdrDateTime(tour.claimMdrAt)}${tour.claimMdrBy ? ' by ' + tour.claimMdrBy : ''}`
-                                : 'Click to verify Form Claim MDR'
-                            }
-                          >
-                            <input
-                              type="checkbox"
-                              checked={Boolean(tour.claimMdr)}
-                              disabled={!canToggleClaimMdr(tour) || togglingMdrId === tour.id}
-                              onChange={(e) => handleToggleClaimMdr(tour, e)}
-                              style={{
-                                width: '16px',
-                                height: '16px',
-                                cursor: canToggleClaimMdr(tour) ? 'pointer' : 'not-allowed',
-                                accentColor: '#10b981'
+                        {tour.tourType === 'Incentive' || tour.tourType === 'Consortium' ? (
+                          <div>
+                            <div style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--text-main)' }}>
+                              {tour.supplier || '-'}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              Mitra Operator
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <label
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (tour.claimMdr && !isAdmin) {
+                                  toast.warning(
+                                    'Locked: Only an Admin can uncheck a verified Form Claim MDR.'
+                                  );
+                                }
                               }}
-                            />
-                            <span
                               style={{
-                                fontSize: '0.75rem',
-                                fontWeight: '700',
-                                color: tour.claimMdr ? emeraldText : 'var(--text-subtle)',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '4px'
+                                gap: '0.45rem',
+                                cursor: canToggleClaimMdr(tour) ? 'pointer' : 'not-allowed',
+                                margin: 0,
+                                userSelect: 'none'
                               }}
+                              title={
+                                tour.claimMdr
+                                  ? `Verified ${formatClaimMdrDateTime(tour.claimMdrAt)}${tour.claimMdrBy ? ' by ' + tour.claimMdrBy : ''}`
+                                  : 'Click to verify Form Claim MDR'
+                              }
                             >
-                              {tour.claimMdr ? (
-                                <>
-                                  Claimed
-                                  {!isAdmin && <Lock size={11} />}
-                                </>
-                              ) : (
-                                'Unclaimed'
-                              )}
-                            </span>
-                          </label>
-                          {tour.claimMdr && tour.claimMdrAt && (
-                            <div
-                              style={{
-                                fontSize: '0.66rem',
-                                color: emeraldText,
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {formatClaimMdrDateTime(tour.claimMdrAt)}
-                            </div>
-                          )}
-                        </div>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(tour.claimMdr)}
+                                disabled={!canToggleClaimMdr(tour) || togglingMdrId === tour.id}
+                                onChange={(e) => handleToggleClaimMdr(tour, e)}
+                                style={{
+                                  width: '16px',
+                                  height: '16px',
+                                  cursor: canToggleClaimMdr(tour) ? 'pointer' : 'not-allowed',
+                                  accentColor: '#10b981'
+                                }}
+                              />
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: '700',
+                                  color: tour.claimMdr ? emeraldText : 'var(--text-subtle)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                {tour.claimMdr ? (
+                                  <>
+                                    Claimed
+                                    {!isAdmin && <Lock size={11} />}
+                                  </>
+                                ) : (
+                                  'Unclaimed'
+                                )}
+                              </span>
+                            </label>
+                            {tour.claimMdr && tour.claimMdrAt && (
+                              <div
+                                style={{
+                                  fontSize: '0.66rem',
+                                  color: emeraldText,
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {formatClaimMdrDateTime(tour.claimMdrAt)}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* PIC Staff */}
@@ -1364,6 +1561,70 @@ const DatabaseTable = ({
         itemsPerPage={itemsPerPage}
       />
 
+      {/* Floating Bulk Action Bar */}
+      <FloatingBulkBar
+        count={selectedIds.size}
+        itemLabel="tour"
+        onClear={() => setSelectedIds(new Set())}
+      >
+        <button
+          type="button"
+          onClick={() => handleBulkStatusChange('Confirm')}
+          className="btn"
+          style={{
+            padding: '0.35rem 0.75rem',
+            fontSize: '0.78rem',
+            background: 'rgba(16, 185, 129, 0.16)',
+            color: emeraldText,
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            fontWeight: 700
+          }}
+        >
+          Mark Confirm
+        </button>
+        <button
+          type="button"
+          onClick={() => handleBulkStatusChange('Pending')}
+          className="btn"
+          style={{
+            padding: '0.35rem 0.75rem',
+            fontSize: '0.78rem',
+            background: 'rgba(245, 158, 11, 0.16)',
+            color: amberText,
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+            fontWeight: 700
+          }}
+        >
+          Mark Pending
+        </button>
+        <button
+          type="button"
+          onClick={() => handleBulkStatusChange('Cancel')}
+          className="btn"
+          style={{
+            padding: '0.35rem 0.75rem',
+            fontSize: '0.78rem',
+            background: 'rgba(239, 68, 68, 0.16)',
+            color: 'var(--danger)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            fontWeight: 700
+          }}
+        >
+          Mark Cancel
+        </button>
+
+        {canDelete && (
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            className="btn btn-danger"
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', gap: '0.3rem', fontWeight: 700 }}
+          >
+            <Trash2 size={13} /> Delete
+          </button>
+        )}
+      </FloatingBulkBar>
+
       {/* SEAMLESS SLIDE-OVER INSPECTOR DRAWER */}
       <SlideOverDrawer
         isOpen={Boolean(viewingTour)}
@@ -1509,10 +1770,39 @@ const DatabaseTable = ({
                   </div>
                   <div>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      Jenis Tour
+                    </span>
+                    <div style={{ marginTop: '0.2rem' }}>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          viewingTour.tourType === 'Consortium'
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                            : viewingTour.tourType === 'Incentive'
+                              ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                              : 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                        }`}
+                      >
+                        {viewingTour.tourType || 'Series'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                       Status
                     </span>
                     <div style={{ marginTop: '0.2rem' }}>{getStatusBadge(viewingTour.status)}</div>
                   </div>
+                  {viewingTour.supplier && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        Supplier / Wholesaler Partner
+                      </span>
+                      <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.15rem', fontSize: '0.86rem' }}>
+                        <Building2 size={13} style={{ verticalAlign: 'text-bottom', marginRight: '0.35rem', color: 'var(--primary)' }} />
+                        {viewingTour.supplier}
+                      </div>
+                    </div>
+                  )}
                   <div style={{ gridColumn: '1 / -1' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                       Travel Window
@@ -1532,72 +1822,114 @@ const DatabaseTable = ({
                   </div>
                 </div>
 
-                {/* Form Claim MDR Card */}
-                <div
-                  style={{
-                    background: viewingTour.claimMdr
-                      ? isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.08)'
-                      : isLight ? '#f8fbff' : 'rgba(255, 255, 255, 0.02)',
-                    border: `1px solid ${viewingTour.claimMdr ? 'rgba(16, 185, 129, 0.35)' : 'var(--border)'}`,
-                    borderRadius: '12px',
-                    padding: '0.9rem 1.1rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '0.65rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                    <label
-                      onClick={(e) => {
-                        if (viewingTour.claimMdr && !isAdmin) {
-                          e.preventDefault();
-                          toast.warning('Locked: Only an Admin can uncheck a verified Form Claim MDR.');
-                        }
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.55rem',
-                        cursor: canToggleClaimMdr(viewingTour) ? 'pointer' : 'not-allowed',
-                        margin: 0
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(viewingTour.claimMdr)}
-                        disabled={!canToggleClaimMdr(viewingTour) || togglingMdrId === viewingTour.id}
-                        onChange={(e) => handleToggleClaimMdr(viewingTour, e)}
-                        style={{
-                          width: '17px',
-                          height: '17px',
-                          cursor: canToggleClaimMdr(viewingTour) ? 'pointer' : 'not-allowed',
-                          accentColor: '#10b981'
+                {/* Form Claim MDR Card (Only for Series) vs Supplier Card (Incentive & Consortium) */}
+                {viewingTour.tourType === 'Series' ? (
+                  <div
+                    style={{
+                      background: viewingTour.claimMdr
+                        ? isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.08)'
+                        : isLight ? '#f8fbff' : 'rgba(255, 255, 255, 0.02)',
+                      border: `1px solid ${viewingTour.claimMdr ? 'rgba(16, 185, 129, 0.35)' : 'var(--border)'}`,
+                      borderRadius: '12px',
+                      padding: '0.9rem 1.1rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '0.65rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                      <label
+                        onClick={(e) => {
+                          if (viewingTour.claimMdr && !isAdmin) {
+                            e.preventDefault();
+                            toast.warning('Locked: Only an Admin can uncheck a verified Form Claim MDR.');
+                          }
                         }}
-                      />
-                      <span style={{ fontWeight: '700', fontSize: '0.88rem', color: viewingTour.claimMdr ? emeraldText : 'var(--text-main)' }}>
-                        Form Claim MDR
-                      </span>
-                    </label>
-                    {viewingTour.claimMdr ? (
-                      <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>
-                        Verified {!isAdmin && <Lock size={10} />}
-                      </span>
-                    ) : (
-                      <span className="badge badge-warning" style={{ fontSize: '0.68rem' }}>
-                        Unclaimed
-                      </span>
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.55rem',
+                          cursor: canToggleClaimMdr(viewingTour) ? 'pointer' : 'not-allowed',
+                          margin: 0
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(viewingTour.claimMdr)}
+                          disabled={!canToggleClaimMdr(viewingTour) || togglingMdrId === viewingTour.id}
+                          onChange={(e) => handleToggleClaimMdr(viewingTour, e)}
+                          style={{
+                            width: '17px',
+                            height: '17px',
+                            cursor: canToggleClaimMdr(viewingTour) ? 'pointer' : 'not-allowed',
+                            accentColor: '#10b981'
+                          }}
+                        />
+                        <span style={{ fontWeight: '700', fontSize: '0.88rem', color: viewingTour.claimMdr ? emeraldText : 'var(--text-main)' }}>
+                          Form Claim MDR
+                        </span>
+                      </label>
+                      {viewingTour.claimMdr ? (
+                        <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>
+                          Verified {!isAdmin && <Lock size={10} />}
+                        </span>
+                      ) : (
+                        <span className="badge badge-warning" style={{ fontSize: '0.68rem' }}>
+                          Unclaimed
+                        </span>
+                      )}
+                    </div>
+
+                    {viewingTour.claimMdr && viewingTour.claimMdrAt && (
+                      <div style={{ fontSize: '0.74rem', color: emeraldText }}>
+                        <span className="font-mono">{formatClaimMdrDateTime(viewingTour.claimMdrAt)}</span>
+                        {viewingTour.claimMdrBy ? ` · ${viewingTour.claimMdrBy}` : ''}
+                      </div>
                     )}
                   </div>
-
-                  {viewingTour.claimMdr && viewingTour.claimMdrAt && (
-                    <div style={{ fontSize: '0.74rem', color: emeraldText }}>
-                      <span className="font-mono">{formatClaimMdrDateTime(viewingTour.claimMdrAt)}</span>
-                      {viewingTour.claimMdrBy ? ` · ${viewingTour.claimMdrBy}` : ''}
+                ) : (
+                  <div
+                    style={{
+                      background: isLight ? '#f8fbff' : 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '12px',
+                      padding: '0.85rem 1.1rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '0.65rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <Building2
+                        size={18}
+                        style={{
+                          color: viewingTour.tourType === 'Consortium' ? '#10b981' : '#8b5cf6'
+                        }}
+                      />
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Mitra Supplier
+                        </span>
+                        <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                          {viewingTour.supplier || 'Direct / Tanpa Wholesaler'}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                    <span
+                      className={`badge ${
+                        viewingTour.tourType === 'Consortium'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                      } text-xs font-bold`}
+                    >
+                      MDR Nonaktif
+                    </span>
+                  </div>
+                )}
 
                 {/* Financials Breakdown */}
                 <div>
@@ -1658,6 +1990,38 @@ const DatabaseTable = ({
                         - Rp {formatCurrency(viewingTour.discountBranch)}
                       </div>
                     </div>
+
+                    {viewingTour.tourType === 'Consortium' && (
+                      <>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Airport Tax &amp; Fuel</span>
+                          <div className="font-mono" style={{ fontWeight: '600', marginTop: '0.15rem' }}>
+                            Rp {formatCurrency(viewingTour.airportTax)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Tipping Guide &amp; Driver</span>
+                          <div className="font-mono" style={{ fontWeight: '600', marginTop: '0.15rem' }}>
+                            Rp {formatCurrency(viewingTour.tipping)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>PPN (1.1%)</span>
+                          <div className="font-mono" style={{ fontWeight: '600', marginTop: '0.15rem' }}>
+                            Rp {formatCurrency(viewingTour.ppn)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Misc Charge</span>
+                          <div className="font-mono" style={{ fontWeight: '600', marginTop: '0.15rem' }}>
+                            Rp {formatCurrency(viewingTour.miscCharge)}
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
                       <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: '700' }}>

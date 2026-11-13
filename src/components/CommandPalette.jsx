@@ -79,9 +79,17 @@ const CommandPalette = () => {
   // Aggregate Search Results
   const getSearchResults = () => {
     const q = query.toLowerCase();
+    const isAdmin = user?.role === 'Admin';
     
     // Pages
-    const filteredPages = staticCommands.filter((cmd) => cmd.name.toLowerCase().includes(q)).map(cmd => ({ ...cmd, type: 'Page' }));
+    const availableCommands = staticCommands.filter(cmd => {
+      if ((cmd.path === '/users' || cmd.path === '/settings') && !isAdmin) {
+        return false;
+      }
+      return true;
+    });
+
+    const filteredPages = availableCommands.filter((cmd) => cmd.name.toLowerCase().includes(q)).map(cmd => ({ ...cmd, type: 'Page' }));
     
     // Tours
     const filteredTours = (tours || []).filter(t => 
@@ -170,7 +178,7 @@ const CommandPalette = () => {
       position: 'fixed', inset: 0, zIndex: 999999,
       background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-      paddingTop: '10vh'
+      padding: '10vh 1.25rem 2rem 1.25rem'
     }} onClick={() => setIsOpen(false)}>
       <div 
         className="card glass fade-in" 

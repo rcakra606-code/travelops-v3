@@ -1,3 +1,4 @@
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Stamp,
   Globe,
@@ -25,6 +26,8 @@ import {
   addDaysToDateStr,
   getDocumentStyles
 } from './documentConstants';
+import { useFormDraft } from '../../hooks/useFormDraft';
+import ConfirmModal from '../ConfirmModal';
 
 const DocumentFormModal = ({
   isOpen,
@@ -39,6 +42,62 @@ const DocumentFormModal = ({
   currentUserName = '',
   isLight
 }) => {
+  const isNewDoc = !editingDoc && !isDuplicateMode;
+  const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
+    'new_document',
+    formData,
+    setFormData,
+    isOpen && isNewDoc
+  );
+
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  const isDirty = useMemo(() => {
+    if (!isOpen) return false;
+    if (editingDoc) {
+      return (
+        formData.guestName !== (editingDoc.guestName || '') ||
+        formData.country !== (editingDoc.country || '') ||
+        formData.price !== (editingDoc.price ? String(editingDoc.price) : '') ||
+        formData.notes !== (editingDoc.notes || '') ||
+        formData.phoneNumber !== (editingDoc.phoneNumber || '')
+      );
+    }
+    return Boolean(
+      formData.guestName?.trim() ||
+      formData.country?.trim() ||
+      formData.phoneNumber?.trim() ||
+      formData.price?.trim() ||
+      formData.notes?.trim() ||
+      formData.bookingCode?.trim()
+    );
+  }, [isOpen, editingDoc, formData]);
+
+  const handleRequestClose = useCallback(() => {
+    if (isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      onClose();
+    }
+  }, [isDirty, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !showConfirmClose) {
+        e.stopPropagation();
+        handleRequestClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, showConfirmClose, handleRequestClose]);
+
+  const handleFormSubmit = (e) => {
+    clearDraft();
+    onSubmit(e);
+  };
+
   if (!isOpen) return null;
 
   const {
@@ -71,9 +130,10 @@ const DocumentFormModal = ({
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={handleRequestClose}>
       <div
         className="modal-content fade-in"
+        onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: '860px',
           background: 'var(--bg-card)',
@@ -122,7 +182,7 @@ const DocumentFormModal = ({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleRequestClose}
             style={{
               background: 'none',
               border: 'none',
@@ -134,9 +194,68 @@ const DocumentFormModal = ({
           </button>
         </div>
 
+        {/* Draft Recovery Alert */}
+        {hasSavedDraft && (
+          <div
+            style={{
+              margin: '1rem 1.5rem 0',
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              background: isLight ? 'rgba(2, 132, 199, 0.08)' : 'rgba(56, 189, 248, 0.12)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.825rem', color: isLight ? '#0369a1' : '#38bdf8' }}>
+              <Sparkles size={16} />
+              <span>
+                <strong>Draft Tersimpan Ditemukan</strong>
+                {draftSavedAt ? ` (disimpan pk ${draftSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}.
+                Pulihkan data pengisian sebelumnya?
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={restoreDraft}
+                style={{
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '4px 12px',
+                  fontSize: '0.785rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Pulihkan
+              </button>
+              <button
+                type="button"
+                onClick={clearDraft}
+                style={{
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '0.785rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Abaikan
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Form Body */}
         <form
-          onSubmit={onSubmit}
+          onSubmit={handleFormSubmit}
           style={{ padding: '1.4rem 1.5rem', overflowY: 'auto' }}
         >
           <div className="form-grid">
@@ -627,7 +746,7 @@ const DocumentFormModal = ({
             <button
               type="button"
               className="btn"
-              onClick={onClose}
+              onClick={handleRequestClose}
               style={{
                 background: 'var(--bg-surface)',
                 border: '1px solid var(--border)',
@@ -650,6 +769,20 @@ const DocumentFormModal = ({
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={showConfirmClose}
+        title="Tutup Formulir Dokumen?"
+        message="Ada data formulir yang belum disimpan. Yakin ingin menutup jendela ini? (Draft lokal Anda tetap tersimpan di sesi browser)."
+        confirmText="Tutup Formulir"
+        cancelText="Lanjut Mengisi"
+        confirmVariant="warning"
+        onConfirm={() => {
+          setShowConfirmClose(false);
+          onClose();
+        }}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </div>
   );
 };

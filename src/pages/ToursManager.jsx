@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  UploadCloud, Plus, PieChart, List, BarChart3, Edit3
+  UploadCloud, Plus, PieChart, List, BarChart3, Edit3, Compass, Briefcase, Network
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
@@ -12,10 +12,11 @@ import TourReporting from '../components/tours/TourReporting';
 import CsvImportUtility from '../components/CsvImportUtility';
 import { useTours } from '../context/TourContext';
 import { useToast } from '../context/ToastContext';
-import { useTheme } from '../context/ThemeContext';
 import { parseSpreadsheetAmount } from '../utils/tourHelpers';
 
 const IMPORT_TEMPLATE_HEADERS = [
+  'Tour Type',
+  'Supplier',
   'Tour Code',
   'Booking Code',
   'Nomor DP',
@@ -39,8 +40,6 @@ const ToursManager = () => {
   const location = useLocation();
   const { tours, bulkImportTours } = useTours();
   const { toast } = useToast();
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState(() => {
@@ -69,8 +68,22 @@ const ToursManager = () => {
   const tabStats = useMemo(() => {
     let activeCount = 0;
     let followUpCount = 0;
+    let seriesCount = 0;
+    let incentiveCount = 0;
+    let consortiumCount = 0;
 
     tours.forEach((t) => {
+      const type =
+        t.tourType ||
+        (t.category === 'Consortium'
+          ? 'Consortium'
+          : t.category === 'Corporate / Incentive'
+            ? 'Incentive'
+            : 'Series');
+      if (type === 'Series') seriesCount += 1;
+      else if (type === 'Incentive') incentiveCount += 1;
+      else if (type === 'Consortium') consortiumCount += 1;
+
       const isCancelled = t.status === 'Cancel' || t.status === 'Cancelled';
       const isPast = t.status === 'Past Date';
       if (!isCancelled && !isPast) activeCount += 1;
@@ -82,14 +95,17 @@ const ToursManager = () => {
         const sisa = Math.max(0, omset - dep);
         const hasInv = Boolean(fin.invoiceNumber && String(fin.invoiceNumber).trim() !== '');
         const hasMdr = Boolean(t.claimMdr || t.internals?.claimMdr);
-        if (!hasInv || sisa > 0 || !hasMdr) followUpCount += 1;
+        if (!hasInv || sisa > 0 || (type === 'Series' && !hasMdr)) followUpCount += 1;
       }
     });
 
     return {
       total: tours.length,
       activeCount,
-      followUpCount
+      followUpCount,
+      seriesCount,
+      incentiveCount,
+      consortiumCount
     };
   }, [tours]);
 
@@ -212,7 +228,19 @@ const ToursManager = () => {
           row['PIC Claim MDR'] ||
           (isClaimMdr ? row['PIC Staff'] || row['Staff Name'] || 'Staff' : null);
 
+        const rawTourType = row['Tour Type'] || row['Jenis Tour'] || row['Category'] || 'Series';
+        const normalizedTourType = ['Series', 'Incentive', 'Consortium'].includes(rawTourType)
+          ? rawTourType
+          : rawTourType.toLowerCase().includes('incentive') || rawTourType.toLowerCase().includes('corporate')
+            ? 'Incentive'
+            : rawTourType.toLowerCase().includes('consortium')
+              ? 'Consortium'
+              : 'Series';
+        const supplier = String(row['Supplier'] || row['Supplier Partner'] || '').trim();
+
         return {
+          tourType: normalizedTourType,
+          supplier,
           tourCode: row['Tour Code'] || '',
           bookingCode: row['Booking Code'] || '',
           country: row['Destination'] || row['Country'] || 'Unknown',
@@ -269,9 +297,10 @@ const ToursManager = () => {
             initialData={editingTour || duplicateSeed}
             prefillDate={!editingTour && !duplicateSeed ? location.state?.prefillDate : ''}
             onComplete={() => {
+              const target = editingTour?.tourType?.toLowerCase() || 'database';
               setEditingTour(null);
               setDuplicateSeed(null);
-              setActiveTab('database');
+              setActiveTab(['series', 'incentive', 'consortium'].includes(target) ? target : 'database');
             }}
             onCancel={() => {
               setEditingTour(null);
@@ -280,10 +309,44 @@ const ToursManager = () => {
             }}
           />
         );
+      case 'series':
+        return (
+          <DatabaseTable
+            key={`series-${tableSeed.key}`}
+            tourTypeFilter="Series"
+            onEdit={handleEditTour}
+            onDuplicate={handleDuplicateTour}
+            initialScope={tableSeed.scope}
+            initialSearch={tableSeed.search}
+          />
+        );
+      case 'incentive':
+        return (
+          <DatabaseTable
+            key={`incentive-${tableSeed.key}`}
+            tourTypeFilter="Incentive"
+            onEdit={handleEditTour}
+            onDuplicate={handleDuplicateTour}
+            initialScope={tableSeed.scope}
+            initialSearch={tableSeed.search}
+          />
+        );
+      case 'consortium':
+        return (
+          <DatabaseTable
+            key={`consortium-${tableSeed.key}`}
+            tourTypeFilter="Consortium"
+            onEdit={handleEditTour}
+            onDuplicate={handleDuplicateTour}
+            initialScope={tableSeed.scope}
+            initialSearch={tableSeed.search}
+          />
+        );
       case 'database':
         return (
           <DatabaseTable
-            key={tableSeed.key}
+            key={`all-${tableSeed.key}`}
+            tourTypeFilter="All"
             onEdit={handleEditTour}
             onDuplicate={handleDuplicateTour}
             initialScope={tableSeed.scope}
@@ -298,6 +361,7 @@ const ToursManager = () => {
         return (
           <DatabaseTable
             key={tableSeed.key}
+            tourTypeFilter="All"
             onEdit={handleEditTour}
             onDuplicate={handleDuplicateTour}
           />
@@ -369,43 +433,108 @@ const ToursManager = () => {
               />
             )}
 
-            <div className="tabs-container">
+            <div className="tabs-container flex items-center gap-1.5 mb-6 border-b border-border pb-1 overflow-x-auto scrollbar-none">
               <button
                 type="button"
-                className={`tab-btn ${activeTab === 'summary' ? 'active' : ''}`}
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'summary' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
                 onClick={() => {
                   setActiveTab('summary');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
               >
                 <PieChart size={15} /> Overview
               </button>
 
               <button
                 type="button"
-                className={`tab-btn ${activeTab === 'database' ? 'active' : ''}`}
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'series' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
+                onClick={() => {
+                  setActiveTab('series');
+                  setEditingTour(null);
+                  setDuplicateSeed(null);
+                }}
+              >
+                <Compass size={15} className={activeTab === 'series' ? 'text-primary' : 'text-sky-500'} /> Series
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'series'
+                      ? 'bg-sky-500/20 text-sky-600 dark:text-sky-400'
+                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
+                  }`}
+                >
+                  {tabStats.seriesCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'incentive' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
+                onClick={() => {
+                  setActiveTab('incentive');
+                  setEditingTour(null);
+                  setDuplicateSeed(null);
+                }}
+              >
+                <Briefcase size={15} className={activeTab === 'incentive' ? 'text-primary' : 'text-purple-500'} /> Incentive
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'incentive'
+                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
+                  }`}
+                >
+                  {tabStats.incentiveCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'consortium' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
+                onClick={() => {
+                  setActiveTab('consortium');
+                  setEditingTour(null);
+                  setDuplicateSeed(null);
+                }}
+              >
+                <Network size={15} className={activeTab === 'consortium' ? 'text-primary' : 'text-emerald-500'} /> Consortium
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'consortium'
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
+                  }`}
+                >
+                  {tabStats.consortiumCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'database' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
                 onClick={() => {
                   setActiveTab('database');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
               >
                 <List size={15} /> All Bookings
                 <span
-                  style={{
-                    padding: '0.06rem 0.45rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.7rem',
-                    fontWeight: '800',
-                    background:
-                      activeTab === 'database'
-                        ? 'rgba(0, 168, 255, 0.18)'
-                        : isLight ? '#eff8ff' : 'rgba(255, 255, 255, 0.07)',
-                    color: activeTab === 'database' ? 'var(--primary)' : 'var(--text-muted)'
-                  }}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    activeTab === 'database'
+                      ? 'bg-primary/20 text-primary'
+                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
+                  }`}
                 >
                   {tabStats.total}
                 </span>
@@ -413,22 +542,24 @@ const ToursManager = () => {
 
               <button
                 type="button"
-                className={`tab-btn ${activeTab === 'reporting' ? 'active' : ''}`}
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'reporting' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
                 onClick={() => {
                   setActiveTab('reporting');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
               >
                 <BarChart3 size={15} /> Reports &amp; Insights
               </button>
 
               <button
                 type="button"
-                className={`tab-btn ${activeTab === 'wizard' ? 'active' : ''}`}
+                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  activeTab === 'wizard' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
+                }`}
                 onClick={() => setActiveTab('wizard')}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
               >
                 {editingTour ? (
                   <>
