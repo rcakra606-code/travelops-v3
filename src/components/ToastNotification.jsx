@@ -1,5 +1,5 @@
 import { useToast } from '../context/ToastContext';
-import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X, RotateCcw } from 'lucide-react';
 
 const TOAST_ICONS = {
   success: <CheckCircle2 size={18} color="#10b981" />,
@@ -21,34 +21,72 @@ const ToastNotification = () => {
   if (!toasts || toasts.length === 0) return null;
 
   return (
-    <div className="toast-floating-container">
+    <div className="toast-floating-container" role="status" aria-live="polite">
       {toasts.map((t) => (
-        <div 
-          key={t.id} 
+        <div
+          key={t.id}
           className="toast-item-card"
           style={{
             borderColor: TOAST_BORDERS[t.type] || 'var(--border)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            {TOAST_ICONS[t.type] || TOAST_ICONS.info}
-            <span style={{ fontWeight: '600', lineHeight: '1.4' }}>{t.message}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: 0 }}>
+            <span style={{ flexShrink: 0, display: 'flex' }}>
+              {TOAST_ICONS[t.type] || TOAST_ICONS.info}
+            </span>
+            <span style={{ fontWeight: '600', lineHeight: '1.4', fontSize: '0.84rem' }}>{t.message}</span>
           </div>
-          <button
-            onClick={() => removeToast(t.id)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '2px',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-            title="Dismiss"
-          >
-            <X size={15} />
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+            {t.actionLabel && typeof t.onAction === 'function' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const fn = t.onAction;
+                  removeToast(t.id);
+                  try {
+                    await fn();
+                  } catch (err) {
+                    console.error('Toast action error:', err);
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  padding: '0.28rem 0.62rem',
+                  borderRadius: '7px',
+                  border: '1px solid rgba(56, 189, 248, 0.45)',
+                  background: 'rgba(56, 189, 248, 0.14)',
+                  color: 'var(--primary)',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <RotateCcw size={12} />
+                {t.actionLabel}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => removeToast(t.id)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              title="Tutup"
+              aria-label="Tutup notifikasi"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
       ))}
     </div>

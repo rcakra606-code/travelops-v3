@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Check, MapPin, Calendar, Users, Sparkles, Building2 } from 'lucide-react';
+import { Check, MapPin, Calendar, Users, Sparkles, Building2, AlertTriangle, CheckCircle2, Circle, UploadCloud } from 'lucide-react';
 import Step1TourType from './steps/Step1TourType';
 import Step1TourInfo from './steps/Step1TourInfo';
 import Step2PaxInfo from './steps/Step2PaxInfo';
@@ -170,7 +170,7 @@ const buildInitialWizardState = (initialData, prefillDate, defaultStaffName) => 
   };
 };
 
-const TourWizard = ({ initialData, prefillDate, onComplete, onCancel }) => {
+const TourWizard = ({ initialData, initialStep = 1, prefillDate, onOpenAiImport, onComplete, onCancel }) => {
   const { addTour, updateTour } = useTours();
   const { user } = useAuth();
   const { theme } = useTheme();
@@ -179,7 +179,7 @@ const TourWizard = ({ initialData, prefillDate, onComplete, onCancel }) => {
 
   const isEditingExisting = Boolean(initialData?.id);
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialStep);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [tourData, setTourData] = useState(() =>
@@ -355,6 +355,7 @@ const TourWizard = ({ initialData, prefillDate, onComplete, onCancel }) => {
 
       const cleanTourData = { ...tourData };
       delete cleanTourData._seedKey;
+      delete cleanTourData._aiMeta;
       const dataToSave = {
         ...cleanTourData,
         financials: syncedFinancials,
@@ -611,6 +612,138 @@ const TourWizard = ({ initialData, prefillDate, onComplete, onCancel }) => {
           ))}
         </div>
       </div>
+
+      {/* AI Auto-Fill Quick Launcher Banner (for Brand-New Manual Booking on Step 1) */}
+      {isBrandNewTour && currentStep === 1 && !tourData._aiMeta && onOpenAiImport && (
+        <div
+          className="fade-in"
+          style={{
+            marginBottom: '1.25rem',
+            padding: '0.85rem 1.15rem',
+            borderRadius: '12px',
+            background: 'var(--primary-soft)',
+            border: '1px solid var(--border-glow)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <Sparkles size={18} color="var(--primary)" style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>
+              <strong>Punya Formulir Pendaftaran (PDF / Foto)?</strong> Biarkan AI mengisi data peserta, kode tour, tanggal &amp; harga otomatis sebagai draft.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenAiImport}
+            className="btn btn-primary"
+            style={{ padding: '0.45rem 0.9rem', fontSize: '0.78rem' }}
+          >
+            <UploadCloud size={14} /> Upload &amp; Auto-Fill AI
+          </button>
+        </div>
+      )}
+
+      {/* AI DRAFT VERIFICATION & LIVE COMPLETION CHECKLIST PANEL */}
+      {tourData._aiMeta && (
+        <div
+          className="fade-in"
+          style={{
+            marginBottom: '1.25rem',
+            padding: '1rem 1.2rem',
+            borderRadius: '13px',
+            background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.72)',
+            border: '1px solid var(--border-glow)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span className="badge badge-primary" style={{ fontWeight: 800 }}>
+                <Sparkles size={12} /> DRAFT AI — Belum Disimpan ke Database
+              </span>
+              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                File: <strong style={{ color: 'var(--text-main)' }}>{tourData._aiMeta.fileName}</strong>
+              </span>
+            </div>
+            {onOpenAiImport && (
+              <button
+                type="button"
+                onClick={onOpenAiImport}
+                className="btn btn-secondary"
+                style={{ padding: '0.28rem 0.65rem', fontSize: '0.73rem' }}
+              >
+                <UploadCloud size={12} /> Ganti File PDF/Foto
+              </button>
+            )}
+          </div>
+
+          {/* Anomaly Warnings */}
+          {Array.isArray(tourData._aiMeta.warnings) && tourData._aiMeta.warnings.length > 0 && (
+            <div
+              style={{
+                padding: '0.7rem 0.9rem',
+                borderRadius: '9px',
+                background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                fontSize: '0.77rem'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '800', color: isLight ? '#b45309' : '#fbbf24', marginBottom: '0.3rem' }}>
+                <AlertTriangle size={14} /> Harap Cek Anomali Dokumen:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '1.1rem', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                {tourData._aiMeta.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Live Completion Checklist (Clickable step jumpers) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', marginRight: '0.15rem' }}>
+              Checklist Finalisasi:
+            </span>
+            {[
+              { label: 'Kode Booking', done: Boolean(tourData.bookingCode?.trim()), step: 2 },
+              { label: 'Destinasi & Tanggal', done: Boolean(tourData.country?.trim() && tourData.departureDate), step: 2 },
+              { label: 'PIC Staff', done: Boolean(tourData.staffName?.trim()), step: 2 },
+              { label: 'Daftar Peserta', done: Array.isArray(tourData.paxInfo) && tourData.paxInfo.some((p) => p.firstName?.trim()), step: 3 },
+              { label: 'Nomor DP / PAA', done: Boolean(tourData.financials?.depositNumber?.trim()), step: 4 },
+              { label: 'Profit / Nett Cost', done: Number(liveProfit) > 0, step: 4 }
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => setCurrentStep(item.step)}
+                title={`Klik untuk menuju Step ${item.step}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  padding: '0.22rem 0.6rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.72rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  border: `1px solid ${item.done ? 'rgba(16, 185, 129, 0.35)' : 'rgba(245, 158, 11, 0.38)'}`,
+                  background: item.done ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.1)',
+                  color: item.done ? (isLight ? '#047857' : '#34d399') : (isLight ? '#b45309' : '#fbbf24')
+                }}
+              >
+                {item.done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Real-time Financial Sticky Bar on Steps 2, 3, 4 */}
       {currentStep >= 2 && currentStep <= 4 && (

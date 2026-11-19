@@ -1,4 +1,5 @@
 import SlideOverDrawer from '../SlideOverDrawer';
+import WhatsAppQuickMenu from '../WhatsAppQuickMenu';
 import {
   Copy,
   Edit2,
@@ -54,6 +55,7 @@ const DocumentDossierDrawer = ({
       footer={
         previewDoc ? (
           <>
+            <WhatsAppQuickMenu moduleType="document" record={previewDoc} align="left" label="Template WA" />
             <button
               type="button"
               className="btn"

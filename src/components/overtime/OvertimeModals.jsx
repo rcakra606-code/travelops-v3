@@ -1,8 +1,12 @@
+import { useState, useMemo } from 'react';
 import { 
   Clock, User, FileText, CheckCircle2, 
   XCircle, Edit2, ShieldAlert, X
 } from 'lucide-react';
 import SlideOverDrawer from '../SlideOverDrawer';
+import DraftBanner from '../DraftBanner';
+import ConfirmModal from '../ConfirmModal';
+import { useFormDraft } from '../../hooks/useFormDraft';
 
 // 1. CONFIRM DELETE MODAL
 export const OvertimeConfirmDeleteModal = ({ isOpen, onClose, onConfirm, title, message }) => {
@@ -93,11 +97,42 @@ export const OvertimeFormModal = ({
   activeStaff = [],
   neonBlue = '#00d4ff'
 }) => {
+  const isNewMode = isOpen && !isEditing;
+  const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
+    'new_overtime',
+    formData,
+    setFormData,
+    isNewMode
+  );
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  const isDirty = useMemo(() => {
+    if (!isOpen) return false;
+    return Boolean(formData?.eventName?.trim() || formData?.hours || formData?.remarks?.trim());
+  }, [isOpen, formData]);
+
   if (!isOpen) return null;
 
+  const handleRequestClose = () => {
+    if (!isEditing && isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    clearDraft();
+    handleSubmit(e);
+  };
+
   return (
-    <div className="modal-overlay fade-in" style={{ zIndex: 1050 }}>
-      <div className="modal-content" style={{ maxWidth: '620px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+    <div className="modal-overlay fade-in" style={{ zIndex: 1050 }} onClick={handleRequestClose}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '620px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+      >
         <div className="modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: `${neonBlue}18`, color: neonBlue, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -112,10 +147,16 @@ export const OvertimeFormModal = ({
               </p>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose}><X size={22} /></button>
+          <button type="button" className="close-btn" onClick={handleRequestClose}><X size={22} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+        <form onSubmit={handleFormSubmit} style={{ padding: '1.5rem' }}>
+          <DraftBanner
+            hasSavedDraft={isNewMode && hasSavedDraft}
+            draftSavedAt={draftSavedAt}
+            onRestore={restoreDraft}
+            onDiscard={clearDraft}
+          />
           <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             
             {/* Staff Selector */}
@@ -227,7 +268,7 @@ export const OvertimeFormModal = ({
           </div>
 
           <div className="modal-footer" style={{ marginTop: '1.5rem', padding: '1rem 0 0 0', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <button type="button" className="btn" onClick={onClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '8px', padding: '0.65rem 1.25rem' }}>
+            <button type="button" className="btn" onClick={handleRequestClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '8px', padding: '0.65rem 1.25rem' }}>
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', borderRadius: '8px', padding: '0.65rem 1.5rem', fontWeight: '600' }}>
@@ -236,6 +277,19 @@ export const OvertimeFormModal = ({
           </div>
         </form>
       </div>
+      <ConfirmModal
+        isOpen={showConfirmClose}
+        title="Buang perubahan yang belum disimpan?"
+        message="Anda memiliki isian klaim lembur yang belum disimpan. Yakin ingin menutup jendela ini?"
+        confirmText="Tutup & Buang"
+        cancelText="Lanjutkan Mengisi"
+        variant="warning"
+        onConfirm={() => {
+          setShowConfirmClose(false);
+          onClose();
+        }}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </div>
   );
 };

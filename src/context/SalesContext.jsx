@@ -1,7 +1,9 @@
 import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { useAuth } from './AuthContext';
 
 const SalesContext = createContext(null);
+const LAST_UPDATE_SETTING_KEY = 'sales_targets_last_update';
 
 const getCurrentPeriodStr = () => {
   const now = new Date();
@@ -66,31 +68,59 @@ const pickImportField = (row, keys) => {
 };
 
 const loadSalesFromDb = async () => {
-  const { data, error } = await supabase
-    .from('travelops_sales_targets')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
+  const [salesRes, metaRes] = await Promise.all([
+    supabase
+      .from('travelops_sales_targets')
+      .select('*')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('travelops_settings')
+      .select('setting_value, updated_at')
+      .eq('setting_key', LAST_UPDATE_SETTING_KEY)
+      .maybeSingle()
+  ]);
 
-  return (data || []).map((s) => ({
+  if (salesRes.error) throw salesRes.error;
+
+  const mappedSales = (salesRes.data || []).map((s) => ({
     id: s.id,
     staffName: (s.staff_name || '').trim(),
     targetSales: Number(s.target_sales) || 0,
     targetProfit: Number(s.target_profit) || 0,
     achievementSales: Number(s.achievement_sales) || 0,
     achievementProfit: Number(s.achievement_profit) || 0,
-    period: (s.period || '').trim()
+    period: (s.period || '').trim(),
+    createdAt: s.created_at || null,
+    updatedAt: s.updated_at || s.created_at || null
   }));
+
+  let lastUpdatedMeta = null;
+  if (!metaRes.error && metaRes.data?.setting_value) {
+    const val = metaRes.data.setting_value;
+    lastUpdatedMeta = {
+      updatedAt: val.updatedAt || metaRes.data.updated_at || null,
+      updatedBy: val.updatedBy || 'Admin',
+      updatedRole: val.updatedRole || 'Admin',
+      period: val.period || '',
+      action: val.action || '',
+      note: val.note || ''
+    };
+  }
+
+  return { mappedSales, lastUpdatedMeta };
 };
 
 export const SalesProvider = ({ children }) => {
+  const { user } = useAuth();
   const [sales, setSales] = useState([]);
+  const [lastUpdatedMeta, setLastUpdatedMeta] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSales = useCallback(async () => {
     try {
-      const mapped = await loadSalesFromDb();
-      setSales(mapped);
+      const { mappedSales, lastUpdatedMeta: meta } = await loadSalesFromDb();
+      setSales(mappedSales);
+      setLastUpdatedMeta(meta);
     } catch (err) {
       console.error('Fetch sales targets error:', err);
     } finally {
@@ -101,8 +131,11 @@ export const SalesProvider = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
     loadSalesFromDb()
-      .then((mapped) => {
-        if (!cancelled) setSales(mapped);
+      .then(({ mappedSales, lastUpdatedMeta: meta }) => {
+        if (!cancelled) {
+          setSales(mappedSales);
+          setLastUpdatedMeta(meta);
+        }
       })
       .catch((err) => {
         console.error('Fetch sales targets error:', err);
@@ -114,6 +147,50 @@ export const SalesProvider = ({ children }) => {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Persist official Last Updated metadata for Sales & Target into travelops_settings
+   */
+  const recordSalesLastUpdate = useCallback(
+    async ({ updatedAt, updatedBy, updatedRole, period = '', action = '', note = '' } = {}) => {
+      const isoTime = updatedAt || new Date().toISOString();
+      const payload = {
+        updatedAt: isoTime,
+        updatedBy: (updatedBy || user?.name || 'Admin').trim(),
+        updatedRole: (updatedRole || user?.role || 'Admin').trim(),
+        period: String(period || '').trim(),
+        action: String(action || '').trim(),
+        note: String(note || '').trim()
+      };
+
+      const { error } = await supabase.from('travelops_settings').upsert({
+        setting_key: LAST_UPDATE_SETTING_KEY,
+        setting_value: payload,
+        updated_at: isoTime
+      });
+
+      if (error) throw error;
+      setLastUpdatedMeta(payload);
+      return payload;
+    },
+    [user?.name, user?.role]
+  );
+
+  // Best-effort auto stamp whenever Admin/Manager modifies sales & target data
+  const autoStampSalesUpdate = useCallback(
+    async ({ period = '', action = '' } = {}) => {
+      try {
+        await recordSalesLastUpdate({
+          period,
+          action,
+          note: lastUpdatedMeta?.note || ''
+        });
+      } catch (err) {
+        console.warn('Could not persist sales last-update metadata:', err?.message || err);
+      }
+    },
+    [recordSalesLastUpdate, lastUpdatedMeta]
+  );
 
   const addSale = async (saleData) => {
     try {
@@ -140,6 +217,10 @@ export const SalesProvider = ({ children }) => {
           })
           .eq('id', existing.id);
         if (updateErr) throw updateErr;
+        await autoStampSalesUpdate({
+          period: cleanPeriod,
+          action: `Update target/realisasi ${cleanStaff}`
+        });
         await fetchSales();
         return { id: existing.id, mode: 'updated' };
       }
@@ -157,6 +238,10 @@ export const SalesProvider = ({ children }) => {
         }
       ]);
       if (error) throw error;
+      await autoStampSalesUpdate({
+        period: cleanPeriod,
+        action: `Input data ${cleanStaff}`
+      });
       await fetchSales();
       return { id: newId, mode: 'created' };
     } catch (err) {
@@ -192,6 +277,12 @@ export const SalesProvider = ({ children }) => {
         .update(dbUpdates)
         .eq('id', id);
       if (error) throw error;
+
+      const existing = sales.find((s) => s.id === id);
+      await autoStampSalesUpdate({
+        period: dbUpdates.period || existing?.period || '',
+        action: `Update data ${dbUpdates.staff_name || existing?.staffName || 'konsultan'}`
+      });
       await fetchSales();
     } catch (err) {
       console.error('Update sale target error:', err);
@@ -201,11 +292,16 @@ export const SalesProvider = ({ children }) => {
 
   const deleteSale = async (id) => {
     try {
+      const existing = sales.find((s) => s.id === id);
       const { error } = await supabase
         .from('travelops_sales_targets')
         .delete()
         .eq('id', id);
       if (error) throw error;
+      await autoStampSalesUpdate({
+        period: existing?.period || '',
+        action: `Hapus data ${existing?.staffName || 'konsultan'}`
+      });
       await fetchSales();
     } catch (err) {
       console.error('Delete sale target error:', err);
@@ -221,6 +317,9 @@ export const SalesProvider = ({ children }) => {
         .delete()
         .in('id', ids);
       if (error) throw error;
+      await autoStampSalesUpdate({
+        action: `Hapus massal ${ids.length} data`
+      });
       await fetchSales();
     } catch (err) {
       console.error('Bulk delete sales error:', err);
@@ -264,73 +363,14 @@ export const SalesProvider = ({ children }) => {
         .from('travelops_sales_targets')
         .insert(toInsert);
       if (error) throw error;
+      await autoStampSalesUpdate({
+        period: targetPeriod,
+        action: `Salin ${toInsert.length} target dari ${sourcePeriod}`
+      });
       await fetchSales();
       return toInsert.length;
     } catch (err) {
       console.error('Clone period targets error:', err);
-      throw err;
-    }
-  };
-
-  const bulkSyncWorkspaceActuals = async (period, actualsMap) => {
-    if (!period || !actualsMap) return { updated: 0, created: 0 };
-    try {
-      const periodRows = sales.filter((s) => s.period === period);
-      const existingByLower = new Map();
-      periodRows.forEach((row) => {
-        existingByLower.set(row.staffName.toLowerCase(), row);
-      });
-
-      const updates = [];
-      const inserts = [];
-      const baseTs = Date.now();
-      let idx = 0;
-
-      Object.keys(actualsMap).forEach((staffName) => {
-        const entry = actualsMap[staffName];
-        if (!entry) return;
-        const liveSales = Math.round(Number(entry.sales) || 0);
-        const liveProfit = Math.round(Number(entry.profit) || 0);
-        const existing = existingByLower.get(staffName.toLowerCase());
-
-        if (existing) {
-          updates.push(
-            supabase
-              .from('travelops_sales_targets')
-              .update({
-                achievement_sales: liveSales,
-                achievement_profit: liveProfit
-              })
-              .eq('id', existing.id)
-          );
-        } else if (liveSales > 0 || liveProfit > 0) {
-          idx += 1;
-          inserts.push({
-            id: `TGT-${baseTs}-SYNC-${idx}`,
-            staff_name: staffName,
-            target_sales: 0,
-            target_profit: 0,
-            achievement_sales: liveSales,
-            achievement_profit: liveProfit,
-            period
-          });
-        }
-      });
-
-      if (updates.length > 0) {
-        await Promise.all(updates);
-      }
-      if (inserts.length > 0) {
-        const { error } = await supabase
-          .from('travelops_sales_targets')
-          .insert(inserts);
-        if (error) throw error;
-      }
-
-      await fetchSales();
-      return { updated: updates.length, created: inserts.length };
-    } catch (err) {
-      console.error('Bulk sync workspace actuals error:', err);
       throw err;
     }
   };
@@ -464,8 +504,13 @@ export const SalesProvider = ({ children }) => {
         if (error) throw error;
       }
 
+      const totalProcessed = toUpdate.length + toInsert.length;
+      await autoStampSalesUpdate({
+        period: defaultPeriod,
+        action: `Import Excel/CSV (${totalProcessed} data)`
+      });
       await fetchSales();
-      return toUpdate.length + toInsert.length;
+      return totalProcessed;
     } catch (err) {
       console.error('Bulk import sales error:', err);
       throw err;
@@ -476,14 +521,15 @@ export const SalesProvider = ({ children }) => {
     <SalesContext.Provider
       value={{
         sales,
+        lastUpdatedMeta,
         loading,
         addSale,
         updateSale,
         deleteSale,
         bulkDeleteSales,
         clonePeriodTargets,
-        bulkSyncWorkspaceActuals,
-        bulkImportSales
+        bulkImportSales,
+        recordSalesLastUpdate
       }}
     >
       {children}

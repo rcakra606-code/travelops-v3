@@ -10,6 +10,14 @@ import dns from 'dns';
 import { syncDatabase } from './scripts/db-sync.js';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from '@google/genai';
+import {
+  validateRegistrationFilePayload,
+  buildTourRegistrationPrompt
+} from './src/utils/tourRegistrationPrompt.js';
+import {
+  validateDocumentFilePayload,
+  buildDocumentRequestPrompt
+} from './src/utils/documentAiPrompt.js';
 
 // Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
 // which causes ENETUNREACH errors when connecting to smtp.gmail.com
@@ -758,6 +766,146 @@ IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without 
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to parse itinerary PDF'
+    });
+  }
+});
+
+// 1b. Parse Tour Registration Form (PDF / Image) into TourWizard Draft via Gemini Multimodal
+app.post('/api/tours/parse-registration-form', requireAuth, async (req, res) => {
+  try {
+    const { fileBase64, mimeType, fileName, staffList } = req.body || {};
+
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({
+        success: false,
+        error: 'GEMINI_API_KEY belum terkonfigurasi di server. Harap cek environment variables.'
+      });
+    }
+
+    const validation = validateRegistrationFilePayload(fileBase64, mimeType);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+
+    const cleanFileName = (fileName || 'Formulir_Pendaftaran.pdf')
+      .replace(/[^a-zA-Z0-9_\-. ]/g, '')
+      .trim();
+
+    const prompt = buildTourRegistrationPrompt(Array.isArray(staffList) ? staffList : []);
+
+    const response = await runWithModelFallback(async (model) => {
+      return await client.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: validation.mimeType,
+                  data: validation.cleanBase64
+                }
+              },
+              { text: prompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.1
+        }
+      });
+    });
+
+    const parsedData = cleanJsonOutput(response.text);
+    if (!parsedData || typeof parsedData !== 'object') {
+      throw new Error('AI tidak dapat mengekstrak data terstruktur dari dokumen ini.');
+    }
+
+    res.status(200).json({
+      success: true,
+      fileName: cleanFileName,
+      data: parsedData
+    });
+  } catch (error) {
+    console.error('Error parsing tour registration form with Gemini:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Gagal memproses Formulir Pendaftaran dengan AI.'
+    });
+  }
+});
+
+// 1c. Parse Visa / Document Request Form (Lark PDF / Image) into Document Draft(s) via Gemini Multimodal
+app.post('/api/documents/parse-request-form', requireAuth, async (req, res) => {
+  try {
+    const { fileBase64, mimeType, fileName, staffList } = req.body || {};
+
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({
+        success: false,
+        error: 'GEMINI_API_KEY belum terkonfigurasi di server. Harap cek environment variables.'
+      });
+    }
+
+    const validation = validateDocumentFilePayload(fileBase64, mimeType);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+
+    const cleanFileName = (fileName || 'Request_Visa_Document.pdf')
+      .replace(/[^a-zA-Z0-9_\-. ]/g, '')
+      .trim();
+
+    const prompt = buildDocumentRequestPrompt(Array.isArray(staffList) ? staffList : []);
+
+    const response = await runWithModelFallback(async (model) => {
+      return await client.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: validation.mimeType,
+                  data: validation.cleanBase64
+                }
+              },
+              { text: prompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.1
+        }
+      });
+    });
+
+    const parsedData = cleanJsonOutput(response.text);
+    if (!parsedData || typeof parsedData !== 'object') {
+      throw new Error('AI tidak dapat mengekstrak data terstruktur dari dokumen ini.');
+    }
+
+    res.status(200).json({
+      success: true,
+      fileName: cleanFileName,
+      data: parsedData
+    });
+  } catch (error) {
+    console.error('Error parsing document request form with Gemini:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Gagal memproses Formulir Request Dokumen dengan AI.'
     });
   }
 });

@@ -6,12 +6,15 @@ import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
 import FloatingBulkBar from '../components/FloatingBulkBar';
+import SkeletonLoader from '../components/SkeletonLoader';
+import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
 import {
   DocumentFormModal,
   DocumentShippingModal,
   DocumentReceiveModal,
   DocumentDossierDrawer
 } from '../components/documents/DocumentModals';
+import DocumentAiImportModal from '../components/documents/DocumentAiImportModal';
 import {
   MONTH_LABELS,
   CHART_COLORS,
@@ -122,6 +125,7 @@ const DocChartTooltip = ({ active, payload, label, isLight }) => {
 const Documents = () => {
   const {
     documents,
+    loading: docsLoading,
     addDocument,
     updateDocument,
     deleteDocument,
@@ -167,9 +171,13 @@ const Documents = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState(() =>
-    location.state?.openTab === 'database' ? 'database' : 'dashboard'
+    location.state?.openTab === 'database' || location.state?.openId ? 'database' : 'dashboard'
   );
   const [showImport, setShowImport] = useState(false);
+  const [showAiImportModal, setShowAiImportModal] = useState(false);
+  const [aiDraftMeta, setAiDraftMeta] = useState(null);
+  const [aiDraftQueue, setAiDraftQueue] = useState([]);
+  const [aiQueueTotal, setAiQueueTotal] = useState(0);
   const [selectedYear, setSelectedYear] = useState('All');
 
   // Table scope & bulk selection
@@ -181,7 +189,22 @@ const Documents = () => {
   const [editingDoc, setEditingDoc] = useState(null);
   const [isDuplicateMode, setIsDuplicateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewDocId, setPreviewDocId] = useState(null);
+  const [previewDocId, setPreviewDocId] = useState(() => location.state?.openId || null);
+
+  // React to deep-link / Quick Create navigation even when already mounted on /documents
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openNew) {
+      setEditingDoc(null);
+      setIsDuplicateMode(false);
+      setIsModalOpen(true);
+    } else if (location.state?.openId) {
+      setActiveTab('database');
+      setPreviewDocId(location.state.openId);
+    }
+  }
 
   const buildEmptyForm = (prefillEstDate = '') => {
     const todayStr = toDateInputStr(new Date());
@@ -236,8 +259,22 @@ const Documents = () => {
     if (window.innerWidth <= 768) setIsSidebarOpen(false);
   };
 
+  const stripDraftHelperKeys = (draft) => {
+    const clean = { ...draft };
+    delete clean._applicantIndex;
+    delete clean._applicantMeta;
+    return {
+      ...buildEmptyForm(''),
+      ...clean,
+      staff: clean.staff || defaultStaffName
+    };
+  };
+
   const handleOpenModal = (doc = null) => {
     setIsDuplicateMode(false);
+    setAiDraftMeta(null);
+    setAiDraftQueue([]);
+    setAiQueueTotal(0);
     if (doc) {
       setEditingDoc(doc);
       setFormData({
@@ -267,9 +304,28 @@ const Documents = () => {
     setIsModalOpen(true);
   };
 
+  const handleApplyAiDrafts = ({ drafts = [], meta = null }) => {
+    if (!Array.isArray(drafts) || drafts.length === 0) return;
+    setEditingDoc(null);
+    setIsDuplicateMode(false);
+    setAiDraftMeta(meta);
+    setAiQueueTotal(drafts.length);
+    setAiDraftQueue(drafts.slice(1));
+    setFormData(stripDraftHelperKeys(drafts[0]));
+    setIsModalOpen(true);
+    toast.info(
+      drafts.length > 1
+        ? `Draft AI dibuka untuk pemohon 1 dari ${drafts.length}. Periksa & simpan satu per satu.`
+        : 'Draft AI berhasil dimuat! Mohon periksa & lengkapi sebelum menyimpan.'
+    );
+  };
+
   const handleDuplicateApplicant = (doc) => {
     if (!doc) return;
     setEditingDoc(null);
+    setAiDraftMeta(null);
+    setAiDraftQueue([]);
+    setAiQueueTotal(0);
     setIsDuplicateMode(true);
     setFormData({
       docType: doc.docType || 'Tourist Visa',
@@ -298,6 +354,9 @@ const Documents = () => {
     setIsModalOpen(false);
     setEditingDoc(null);
     setIsDuplicateMode(false);
+    setAiDraftMeta(null);
+    setAiDraftQueue([]);
+    setAiQueueTotal(0);
   };
 
   const handleSubmit = async (e) => {
@@ -333,11 +392,22 @@ const Documents = () => {
       if (editingDoc) {
         await updateDocument(editingDoc.id, payload);
         toast.success(`Updated document for ${payload.guestName}.`);
+        handleCloseModal();
       } else {
         await addDocument(payload);
-        toast.success(`Added ${payload.docType} record for ${payload.guestName}.`);
+        if (aiDraftQueue.length > 0) {
+          const [nextDraft, ...restQueue] = aiDraftQueue;
+          const nextNum = aiQueueTotal - aiDraftQueue.length + 1;
+          setAiDraftQueue(restQueue);
+          setFormData(stripDraftHelperKeys(nextDraft));
+          toast.success(
+            `Tersimpan untuk ${payload.guestName}! Membuka draft pemohon ${nextNum}/${aiQueueTotal}...`
+          );
+        } else {
+          toast.success(`Added ${payload.docType} record for ${payload.guestName}.`);
+          handleCloseModal();
+        }
       }
-      handleCloseModal();
     } catch (err) {
       toast.error(err?.message || 'Failed to save document record.');
     } finally {
@@ -935,18 +1005,36 @@ const Documents = () => {
                 <button
                   type="button"
                   className="btn"
+                  onClick={() => setShowAiImportModal(true)}
+                  style={{
+                    background: 'var(--primary-soft)',
+                    border: '1px solid var(--border-glow)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontWeight: 700
+                  }}
+                  title="Upload PDF Request VISA/DOCUMENT (Lark) atau foto formulir untuk auto-fill draft"
+                >
+                  <Sparkles size={16} /> AI Auto-Fill (PDF / Foto)
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
                   onClick={() => window.dispatchEvent(new CustomEvent('open-ai-copilot'))}
                   style={{
-                    background: 'rgba(56, 189, 248, 0.12)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    color: 'var(--primary)',
+                    background: isLight ? '#ffffff' : 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.45rem'
                   }}
                   title="Ask TravelOps AI Copilot for visa embassy requirements, checklist, or client templates"
                 >
-                  <Sparkles size={17} /> AI Visa Assistant
+                  <Sparkles size={15} color="var(--primary)" /> AI Visa Assistant
                 </button>
 
                 <button
@@ -2134,6 +2222,9 @@ const Documents = () => {
                 </div>
 
                 {/* Theme-Aware Documents Table */}
+                {docsLoading && documents.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div
                   className="card"
                   style={{
@@ -2147,11 +2238,11 @@ const Documents = () => {
                     boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)'
                   }}
                 >
-                  <div className="table-sticky-wrapper">
+                  <div className="table-sticky-wrapper desktop-table-view">
                     <table className="data-table" style={{ width: '100%', minWidth: '1100px' }}>
                       <thead
                         style={{
-                          background: isLight ? '#f4f9ff' : 'rgba(15, 23, 42, 0.85)',
+                          background: 'var(--bg-surface)',
                           borderBottom: '1px solid var(--border)'
                         }}
                       >
@@ -2165,7 +2256,7 @@ const Documents = () => {
                               style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                             />
                           </th>
-                          <th>
+                          <th className="sticky-col-left">
                             <div
                               style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}
                               onClick={() => handleSort('guestName')}
@@ -2237,7 +2328,7 @@ const Documents = () => {
                               />
                             </div>
                           </th>
-                          <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                          <th className="sticky-col-right" style={{ textAlign: 'right' }}>ACTIONS</th>
                         </tr>
                       </thead>
 
@@ -2278,7 +2369,7 @@ const Documents = () => {
                                 />
                               </td>
 
-                              <td>
+                              <td className="sticky-col-left">
                                 <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
                                   {doc.guestName || '-'}
                                 </div>
@@ -2446,7 +2537,7 @@ const Documents = () => {
                                 {doc.staff || '-'}
                               </td>
 
-                              <td onClick={(e) => e.stopPropagation()}>
+                              <td className="sticky-col-right" onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.32rem' }}>
                                   <button
                                     type="button"
@@ -2598,6 +2689,81 @@ const Documents = () => {
                     </table>
                   </div>
 
+                  {/* Mobile Operational Card View (<= 768px) */}
+                  <div className="mobile-card-list">
+                    {paginatedData.length > 0 ? (
+                      paginatedData.map((doc) => {
+                        const statusMeta = getLogisticsStatusMeta(doc.shippingStatus, isLight);
+                        return (
+                          <div
+                            key={`mob-doc-${doc.id}`}
+                            onClick={() => setPreviewDocId(doc.id)}
+                            style={{
+                              padding: '0.95rem',
+                              borderRadius: '12px',
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.55rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                                  {doc.guestName || '-'}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                  {doc.docType || 'Visa'} · {doc.country || '-'}
+                                </div>
+                              </div>
+                              <span className={`badge ${statusMeta.badgeClass}`} style={{ fontSize: '0.7rem' }}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              {doc.appointmentDate && <span>🗓️ Visa: {formatDisplayDate(doc.appointmentDate, true)}</span>}
+                              {doc.estimatedDone && <span>⏳ Est: {formatDisplayDate(doc.estimatedDone, true)}</span>}
+                              <span>👤 {doc.staff || '-'}</span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingTop: '0.5rem',
+                                borderTop: '1px solid var(--border)'
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                {doc.awbNumber ? `AWB: ${doc.awbNumber}` : doc.bookingCode || 'No Ref'}
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <WhatsAppQuickMenu moduleType="document" record={doc} compact label="WA" />
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDocId(doc.id)}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                                >
+                                  Detail
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        Tidak ada dokumen yang cocok dengan filter ini.
+                      </div>
+                    )}
+                  </div>
+
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -2677,6 +2843,7 @@ const Documents = () => {
                     )}
                   </FloatingBulkBar>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -2684,6 +2851,13 @@ const Documents = () => {
       </div>
 
       {/* MODULAR DOCUMENT DIALOGS & DOSSIER DRAWER */}
+      <DocumentAiImportModal
+        isOpen={showAiImportModal}
+        onClose={() => setShowAiImportModal(false)}
+        activeStaff={activeStaff}
+        onApplyDrafts={handleApplyAiDrafts}
+      />
+
       <DocumentFormModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
@@ -2695,6 +2869,16 @@ const Documents = () => {
         onSubmit={handleSubmit}
         activeStaff={activeStaff}
         currentUserName={currentUserName}
+        aiDraftMeta={aiDraftMeta}
+        aiQueueInfo={
+          aiQueueTotal > 0
+            ? { current: aiQueueTotal - aiDraftQueue.length, total: aiQueueTotal }
+            : null
+        }
+        onOpenAiImport={() => {
+          handleCloseModal();
+          setShowAiImportModal(true);
+        }}
         isLight={isLight}
       />
 

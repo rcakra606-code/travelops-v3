@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, Edit2, Trash2, ArrowUpDown, X, Search, Copy, RotateCcw,
   Calendar, User, DollarSign, Plane, Share2, Lock, Clock, Users,
   CheckCircle2, AlertCircle, FileText, Edit3, FileSpreadsheet, ExternalLink,
-  Building2
+  Building2, Filter
 } from 'lucide-react';
 import { useTours } from '../../context/TourContext';
 import { useAuth } from '../../context/AuthContext';
@@ -23,6 +23,8 @@ import Pagination from '../Pagination';
 import ExportMenu from '../ExportMenu';
 import SlideOverDrawer from '../SlideOverDrawer';
 import FloatingBulkBar from '../FloatingBulkBar';
+import SkeletonLoader from '../SkeletonLoader';
+import WhatsAppQuickMenu from '../WhatsAppQuickMenu';
 import TourSettlementModal from './TourSettlementModal';
 
 const DatabaseTable = ({
@@ -31,17 +33,74 @@ const DatabaseTable = ({
   customData,
   initialScope = 'active',
   initialSearch = '',
+  initialOpenId = null,
   tourTypeFilter = 'All'
 }) => {
   const navigate = useNavigate();
-  const { tours, deleteTour, updateTour } = useTours();
+  const { tours, loading: toursLoading, deleteTour, updateTour } = useTours();
   const { user } = useAuth();
   const { theme } = useTheme();
   const { toast } = useToast();
   const isLight = theme === 'light';
 
-  const [scope, setScope] = useState(initialScope);
-  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const filterStorageKey = `travelops_tour_filters_${tourTypeFilter}`;
+  const [scope, setScope] = useState(() => {
+    if (initialOpenId) return 'all';
+    if (initialScope && initialScope !== 'active') return initialScope;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(filterStorageKey) || 'null');
+      return saved?.scope || initialScope;
+    } catch {
+      return initialScope;
+    }
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (initialSearch) return initialSearch;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(filterStorageKey) || 'null');
+      return saved?.searchQuery || '';
+    } catch {
+      return '';
+    }
+  });
+  const [quickChips, setQuickChips] = useState(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(filterStorageKey) || 'null');
+      return saved?.quickChips || {
+        onlyMine: false,
+        onlyBalanceDue: false,
+        onlyUninvoiced: false,
+        onlyUnclaimedMdr: false,
+        onlyDepartingSoon: false
+      };
+    } catch {
+      return {
+        onlyMine: false,
+        onlyBalanceDue: false,
+        onlyUninvoiced: false,
+        onlyUnclaimedMdr: false,
+        onlyDepartingSoon: false
+      };
+    }
+  });
+
+  useEffect(() => {
+    if (customData) return;
+    try {
+      sessionStorage.setItem(
+        filterStorageKey,
+        JSON.stringify({ scope, searchQuery, quickChips })
+      );
+    } catch {
+      // ignore
+    }
+  }, [filterStorageKey, scope, searchQuery, quickChips, customData]);
+
+  const toggleQuickChip = (key) => {
+    setQuickChips((prev) => ({ ...prev, [key]: !prev[key] }));
+    setCurrentPage(1);
+  };
+
   const [tableDensity, setTableDensity] = useState(() => {
     try {
       return localStorage.getItem('travelops_tour_table_density') || 'comfortable';
@@ -60,7 +119,7 @@ const DatabaseTable = ({
   };
 
   // Drawer & Modal states (store ID so live context updates reflect automatically)
-  const [viewingTourId, setViewingTourId] = useState(null);
+  const [viewingTourId, setViewingTourId] = useState(() => initialOpenId || null);
   const [drawerTab, setDrawerTab] = useState('overview'); // 'overview' | 'passengers' | 'history'
   const [settlementTour, setSettlementTour] = useState(null);
 
@@ -221,7 +280,7 @@ const DatabaseTable = ({
     return counts;
   }, [allFlatTours, currentUserName]);
 
-  // Apply Scope + Unified Search
+  // Apply Scope + Quick Filter Chips + Unified Search
   const scopedAndSearchedTours = useMemo(() => {
     let list = allFlatTours;
 
@@ -237,6 +296,31 @@ const DatabaseTable = ({
       } else if (scope === 'cancelled') {
         list = list.filter((t) => t.isCancelled);
       }
+    }
+
+    if (quickChips.onlyMine && currentUserName) {
+      list = list.filter((t) => t.staffName === currentUserName);
+    }
+    if (quickChips.onlyBalanceDue) {
+      list = list.filter((t) => !t.isCancelled && Number(t.sisaPelunasan || 0) > 0);
+    }
+    if (quickChips.onlyUninvoiced) {
+      list = list.filter((t) => !t.isCancelled && t.invoiceStatus !== 'Sudah');
+    }
+    if (quickChips.onlyUnclaimedMdr) {
+      list = list.filter((t) => !t.isCancelled && t.tourType === 'Series' && !t.claimMdr);
+    }
+    if (quickChips.onlyDepartingSoon) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      list = list.filter((t) => {
+        if (t.isCancelled || !t.departureDate) return false;
+        const dep = new Date(t.departureDate);
+        if (Number.isNaN(dep.getTime())) return false;
+        dep.setHours(0, 0, 0, 0);
+        const diff = Math.ceil((dep - today) / (1000 * 60 * 60 * 24));
+        return diff >= 0 && diff <= 14;
+      });
     }
 
     const q = searchQuery.trim().toLowerCase();
@@ -262,7 +346,7 @@ const DatabaseTable = ({
     }
 
     return list;
-  }, [allFlatTours, customData, scope, searchQuery, currentUserName]);
+  }, [allFlatTours, customData, scope, quickChips, searchQuery, currentUserName]);
 
   const {
     filters,
@@ -281,12 +365,21 @@ const DatabaseTable = ({
     [allFlatTours, viewingTourId]
   );
 
+  const hasQuickChipsActive = Object.values(quickChips).some(Boolean);
   const hasActiveFilters =
     Boolean(searchQuery.trim()) ||
+    hasQuickChipsActive ||
     Object.values(filters).some((v) => Boolean(v && String(v).trim()));
 
   const handleResetFilters = () => {
     setSearchQuery('');
+    setQuickChips({
+      onlyMine: false,
+      onlyBalanceDue: false,
+      onlyUninvoiced: false,
+      onlyUnclaimedMdr: false,
+      onlyDepartingSoon: false
+    });
     Object.keys(filters).forEach((k) => handleFilterChange(k, ''));
     setSelectedIds(new Set());
   };
@@ -355,7 +448,10 @@ const DatabaseTable = ({
       return;
     }
 
-    const nextClaimMdr = !tour.claimMdr;
+    const prevClaimMdr = Boolean(tour.claimMdr);
+    const prevClaimMdrAt = tour.claimMdrAt || null;
+    const prevClaimMdrBy = tour.claimMdrBy || null;
+    const nextClaimMdr = !prevClaimMdr;
     const nowIso = new Date().toISOString();
     setTogglingMdrId(tour.id);
 
@@ -367,9 +463,29 @@ const DatabaseTable = ({
         updatedBy: user?.name || 'Staff',
         userRole: user?.role
       });
-      toast.success(
-        nextClaimMdr ? 'Form Claim MDR verified & timestamped!' : 'Form Claim MDR unchecked.'
-      );
+      if (isAdmin) {
+        toast.success(
+          nextClaimMdr ? 'Form Claim MDR diverifikasi!' : 'Status Claim MDR dibatalkan.',
+          {
+            duration: 6000,
+            actionLabel: 'Undo',
+            onAction: async () => {
+              await updateTour(tour.id, {
+                claimMdr: prevClaimMdr,
+                claimMdrAt: prevClaimMdrAt,
+                claimMdrBy: prevClaimMdrBy,
+                updatedBy: user?.name || 'Admin',
+                userRole: user?.role
+              });
+              toast.info('Perubahan Claim MDR dikembalikan.');
+            }
+          }
+        );
+      } else {
+        toast.success(
+          nextClaimMdr ? 'Form Claim MDR verified & timestamped!' : 'Form Claim MDR unchecked.'
+        );
+      }
     } catch (err) {
       toast.error('Unable to update Form Claim MDR: ' + err.message);
     } finally {
@@ -942,7 +1058,106 @@ const DatabaseTable = ({
         </div>
       )}
 
+      {/* Quick Operational Filter Chips (Saved per session) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          flexWrap: 'wrap',
+          paddingTop: '0.15rem'
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            fontSize: '0.73rem',
+            fontWeight: '700',
+            color: 'var(--text-subtle)',
+            marginRight: '0.2rem'
+          }}
+        >
+          <Filter size={12} /> Filter Cepat:
+        </span>
+
+        {currentUserName && (
+          <button
+            type="button"
+            className={`quick-filter-chip ${quickChips.onlyMine ? 'active' : ''}`}
+            onClick={() => toggleQuickChip('onlyMine')}
+          >
+            Milik Saya
+          </button>
+        )}
+
+        <button
+          type="button"
+          className={`quick-filter-chip ${quickChips.onlyBalanceDue ? 'active' : ''}`}
+          onClick={() => toggleQuickChip('onlyBalanceDue')}
+        >
+          Belum Lunas
+        </button>
+
+        <button
+          type="button"
+          className={`quick-filter-chip ${quickChips.onlyUninvoiced ? 'active' : ''}`}
+          onClick={() => toggleQuickChip('onlyUninvoiced')}
+        >
+          Belum Invoice
+        </button>
+
+        {(tourTypeFilter === 'All' || tourTypeFilter === 'Series') && (
+          <button
+            type="button"
+            className={`quick-filter-chip ${quickChips.onlyUnclaimedMdr ? 'active' : ''}`}
+            onClick={() => toggleQuickChip('onlyUnclaimedMdr')}
+          >
+            MDR Unclaimed
+          </button>
+        )}
+
+        <button
+          type="button"
+          className={`quick-filter-chip ${quickChips.onlyDepartingSoon ? 'active' : ''}`}
+          onClick={() => toggleQuickChip('onlyDepartingSoon')}
+        >
+          Berangkat H-14
+        </button>
+
+        {hasQuickChipsActive && (
+          <button
+            type="button"
+            onClick={() =>
+              setQuickChips({
+                onlyMine: false,
+                onlyBalanceDue: false,
+                onlyUninvoiced: false,
+                onlyUnclaimedMdr: false,
+                onlyDepartingSoon: false
+              })
+            }
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--danger)',
+              fontSize: '0.73rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              marginLeft: '0.25rem'
+            }}
+          >
+            Hapus Chip
+          </button>
+        )}
+      </div>
+
       {/* Main Bookings Table */}
+      {toursLoading && allFlatTours.length === 0 ? (
+        <SkeletonLoader type="table" />
+      ) : (
       <div
         className="card"
         style={{
@@ -955,7 +1170,8 @@ const DatabaseTable = ({
           width: '100%'
         }}
       >
-        <div className="table-sticky-wrapper">
+        {/* Desktop Table View */}
+        <div className="table-sticky-wrapper desktop-table-view">
           <table
             className={`data-table ${tableDensity === 'compact' ? 'table-compact' : 'table-comfortable'}`}
             style={{ width: '100%', minWidth: '1280px' }}
@@ -978,7 +1194,7 @@ const DatabaseTable = ({
                   />
                 </th>
 
-                <th style={{ width: '135px', minWidth: '135px' }}>
+                <th className="sticky-col-left" style={{ width: '135px', minWidth: '135px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -1205,7 +1421,7 @@ const DatabaseTable = ({
                   </div>
                 </th>
 
-                <th style={{ width: '105px', minWidth: '105px', textAlign: 'center' }}>Actions</th>
+                <th className="sticky-col-right" style={{ width: '110px', minWidth: '110px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
 
@@ -1240,8 +1456,8 @@ const DatabaseTable = ({
                         />
                       </td>
 
-                      {/* Tour Code */}
-                      <td>
+                      {/* Tour Code (Frozen Left) */}
+                      <td className="sticky-col-left">
                         <div className="font-mono" style={{ fontWeight: '700', color: 'var(--primary)' }}>
                           {tour.tourCode || '-'}
                         </div>
@@ -1463,21 +1679,13 @@ const DatabaseTable = ({
                         </span>
                       </td>
 
-                      {/* Row Actions */}
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                      {/* Row Actions (Frozen Right) */}
+                      <td className="sticky-col-right" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: '0.32rem', justifyContent: 'center' }}>
                           <button
                             type="button"
+                            className="icon-action-btn view"
                             onClick={() => openInspector(tour, 'overview')}
-                            style={{
-                              background: isLight ? '#eff8ff' : 'rgba(0, 168, 255, 0.12)',
-                              color: 'var(--primary)',
-                              border: `1px solid ${isLight ? '#bae6fd' : 'rgba(0, 168, 255, 0.25)'}`,
-                              padding: '0.38rem',
-                              borderRadius: '7px',
-                              cursor: 'pointer',
-                              display: 'flex'
-                            }}
                             title="Inspect Details, Travelers & History"
                           >
                             <Eye size={14} />
@@ -1485,15 +1693,12 @@ const DatabaseTable = ({
 
                           <button
                             type="button"
+                            className="icon-action-btn"
                             onClick={() => setSettlementTour(tour)}
                             style={{
                               background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.12)',
                               color: emeraldText,
-                              border: '1px solid rgba(16, 185, 129, 0.28)',
-                              padding: '0.38rem',
-                              borderRadius: '7px',
-                              cursor: 'pointer',
-                              display: 'flex'
+                              borderColor: 'rgba(16, 185, 129, 0.28)'
                             }}
                             title="Bukti Pelunasan Tour (Excel / Print)"
                           >
@@ -1502,15 +1707,12 @@ const DatabaseTable = ({
 
                           <button
                             type="button"
+                            className="icon-action-btn"
                             onClick={() => handleCopyGuestLink(tour)}
                             style={{
                               background: isLight ? '#f0f9ff' : 'rgba(56, 189, 248, 0.1)',
                               color: isLight ? '#0284c7' : '#38bdf8',
-                              border: '1px solid rgba(56, 189, 248, 0.25)',
-                              padding: '0.38rem',
-                              borderRadius: '7px',
-                              cursor: 'pointer',
-                              display: 'flex'
+                              borderColor: 'rgba(56, 189, 248, 0.25)'
                             }}
                             title="Copy Guest Status Portal Link"
                           >
@@ -1520,15 +1722,12 @@ const DatabaseTable = ({
                           {onDuplicate && (
                             <button
                               type="button"
+                              className="icon-action-btn"
                               onClick={() => onDuplicate(tour)}
                               style={{
                                 background: isLight ? '#f5f3ff' : 'rgba(139, 92, 246, 0.12)',
                                 color: isLight ? '#6d28d9' : '#a78bfa',
-                                border: '1px solid rgba(139, 92, 246, 0.25)',
-                                padding: '0.38rem',
-                                borderRadius: '7px',
-                                cursor: 'pointer',
-                                display: 'flex'
+                                borderColor: 'rgba(139, 92, 246, 0.25)'
                               }}
                               title="Duplicate as New Booking Template"
                             >
@@ -1539,16 +1738,8 @@ const DatabaseTable = ({
                           {canEditRecord(tour.staffName) && (
                             <button
                               type="button"
+                              className="icon-action-btn edit"
                               onClick={() => onEdit(tour)}
-                              style={{
-                                background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.12)',
-                                color: amberText,
-                                border: '1px solid rgba(245, 158, 11, 0.28)',
-                                padding: '0.38rem',
-                                borderRadius: '7px',
-                                cursor: 'pointer',
-                                display: 'flex'
-                              }}
                               title="Edit Booking"
                             >
                               <Edit2 size={14} />
@@ -1558,20 +1749,12 @@ const DatabaseTable = ({
                           {canDelete && (
                             <button
                               type="button"
+                              className="icon-action-btn delete"
                               onClick={async () => {
                                 if (window.confirm('Delete this tour booking permanently?')) {
                                   await deleteTour(tour.id);
                                   toast.success('Tour booking deleted.');
                                 }
-                              }}
-                              style={{
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                color: 'var(--danger)',
-                                border: '1px solid rgba(239, 68, 68, 0.24)',
-                                padding: '0.38rem',
-                                borderRadius: '7px',
-                                cursor: 'pointer',
-                                display: 'flex'
                               }}
                               title="Delete Record"
                             >
@@ -1625,7 +1808,88 @@ const DatabaseTable = ({
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Operational Card View (<= 768px) */}
+        <div className="mobile-card-list">
+          {paginatedData.length > 0 ? (
+            paginatedData.map((tour) => (
+              <div
+                key={`mob-${tour.id}`}
+                onClick={() => openInspector(tour, 'overview')}
+                style={{
+                  padding: '0.95rem',
+                  borderRadius: '12px',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                  <div>
+                    <div className="font-mono" style={{ fontWeight: '800', fontSize: '0.88rem', color: 'var(--primary)' }}>
+                      {tour.bookingCode || tour.tourCode || '-'}
+                    </div>
+                    <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)', marginTop: '2px' }}>
+                      {tour.country || 'Destinasi'} · {tour.paxCount || 1} Pax
+                    </div>
+                  </div>
+                  {getStatusBadge(tour.status)}
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  <span>📅 {formatShortDate(tour.departureDate)}</span>
+                  <span>👤 {tour.staffName || '-'}</span>
+                  {tour.leadPaxName && <span>🧳 {tour.leadPaxName}</span>}
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '0.55rem',
+                    borderTop: '1px solid var(--border)',
+                    gap: '0.5rem',
+                    flexWrap: 'wrap'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>Omset / Sisa</div>
+                    <div style={{ fontSize: '0.84rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                      {formatCurrency(tour.totalSellingPrice)}
+                      {Number(tour.sisaPelunasan || 0) > 0 && (
+                        <span style={{ color: '#f59e0b', marginLeft: '0.35rem', fontSize: '0.76rem' }}>
+                          (Sisa {formatCurrency(tour.sisaPelunasan)})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <WhatsAppQuickMenu moduleType="tour" record={tour} compact label="WA" />
+                    <button
+                      type="button"
+                      onClick={() => openInspector(tour, 'overview')}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                    >
+                      Detail
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              Tidak ada booking tour pada filter ini.
+            </div>
+          )}
+        </div>
       </div>
+      )}
 
       <Pagination
         currentPage={currentPage}
@@ -1719,17 +1983,20 @@ const DatabaseTable = ({
         }
         footer={
           viewingTour && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setSettlementTour(viewingTour)}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem', color: emeraldText, borderColor: 'rgba(16, 185, 129, 0.35)' }}
-              >
-                <FileSpreadsheet size={15} /> Bukti Pelunasan
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '0.55rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <WhatsAppQuickMenu moduleType="tour" record={viewingTour} align="left" label="Template WA" />
+                <button
+                  type="button"
+                  onClick={() => setSettlementTour(viewingTour)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.78rem', color: emeraldText, borderColor: 'rgba(16, 185, 129, 0.35)' }}
+                >
+                  <FileSpreadsheet size={14} /> Pelunasan
+                </button>
+              </div>
 
-              <div style={{ display: 'flex', gap: '0.55rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {onDuplicate && (
                   <button
                     type="button"

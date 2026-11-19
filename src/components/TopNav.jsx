@@ -1,24 +1,54 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTours } from '../context/TourContext';
+import { useDocuments } from '../context/DocumentContext';
+import { useHotels } from '../context/HotelContext';
+import { useCruises } from '../context/CruiseContext';
+import { useTelecoms } from '../context/TelecomContext';
+import { formatCurrency } from '../utils/currency';
 import {
   LogOut, Menu, Moon, Sun, Bell, AlertCircle, Info, Search,
   ChevronDown, CheckCircle2, Plus, Clock, ChevronRight,
-  Plane, Building, FileText, User, Globe, ExternalLink, Keyboard
+  Plane, Building, FileText, User, Globe, ExternalLink, Keyboard,
+  Anchor, Phone, DollarSign, Stamp, Check, ClipboardList
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+
+const daysUntil = (dateStr) => {
+  if (!dateStr) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setHours(0, 0, 0, 0);
+  return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+};
 
 const TopNav = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { tours } = useTours();
+  const { documents } = useDocuments();
+  const { hotels } = useHotels();
+  const { cruises } = useCruises();
+  const { telecoms } = useTelecoms();
   const navigate = useNavigate();
   const location = useLocation();
 
   const isLight = theme === 'light';
 
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifScope, setNotifScope] = useState(() => (user?.role === 'Staff' ? 'mine' : 'all'));
+  const [notifCategory, setNotifCategory] = useState('all'); // 'all' | 'finance' | 'visa' | 'schedule'
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('travelops_dismissed_notifs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [showClocks, setShowClocks] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -59,8 +89,18 @@ const TopNav = ({ toggleSidebar }) => {
       if (clocksRef.current && !clocksRef.current.contains(event.target)) setShowClocks(false);
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) setShowUserMenu(false);
     };
+    const handleOpenQuickCreate = () => {
+      setShowQuickCreate((prev) => !prev);
+      setShowNotifications(false);
+      setShowClocks(false);
+      setShowUserMenu(false);
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('open-quick-create', handleOpenQuickCreate);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('open-quick-create', handleOpenQuickCreate);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -73,56 +113,201 @@ const TopNav = ({ toggleSidebar }) => {
     window.dispatchEvent(new CustomEvent('open-command-palette'));
   };
 
+  const dismissNotification = (id, e) => {
+    if (e) e.stopPropagation();
+    setDismissedIds((prev) => {
+      const next = [...new Set([...prev, id])];
+      try {
+        sessionStorage.setItem('travelops_dismissed_notifs', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const getBreadcrumbs = () => {
     const p = location.pathname;
-    if (p === '/') return [{ section: 'Workspace', page: 'Home Overview' }];
-    if (p === '/calendar') return [{ section: 'Workspace', page: 'Trip Calendar' }];
-    if (p === '/tours') return [{ section: 'Guest Services', page: 'Tours & Trips' }];
-    if (p === '/knowledge') return [{ section: 'Resources', page: 'Travel Guides & Tips' }];
-    if (p === '/hotel') return [{ section: 'Guest Services', page: 'Hotel Stays' }];
-    if (p === '/cruise') return [{ section: 'Guest Services', page: 'Cruise Voyages' }];
-    if (p === '/documents') return [{ section: 'Guest Services', page: 'Visas & Documents' }];
-    if (p === '/telecom') return [{ section: 'Guest Services', page: 'Travel SIM & eSIM' }];
-    if (p === '/sales') return [{ section: 'Insights', page: 'Sales & Goals' }];
-    if (p === '/productivity') return [{ section: 'Insights', page: 'Daily Tasks' }];
-    if (p === '/corporate') return [{ section: 'Insights', page: 'Corporate Clients' }];
-    if (p === '/overtime') return [{ section: 'Team', page: 'Team Overtime' }];
-    if (p === '/staff-performance') return [{ section: 'Insights', page: 'Team Highlights' }];
-    if (p === '/users') return [{ section: 'Admin', page: 'Team & Access' }];
-    if (p === '/settings') return [{ section: 'Admin', page: 'Workspace Settings' }];
-    if (p === '/profile') return [{ section: 'Account', page: 'My Profile' }];
+    if (p === '/') return [{ section: 'Workspace', page: 'Beranda Operasional' }];
+    if (p === '/calendar') return [{ section: 'Workspace', page: 'Kalender Perjalanan' }];
+    if (p === '/tours') return [{ section: 'Layanan Tamu', page: 'Tour & Perjalanan' }];
+    if (p === '/tour-registration-form') return [{ section: 'Layanan Tamu', page: 'Form Pendaftaran Tour' }];
+    if (p === '/knowledge') return [{ section: 'Referensi', page: 'Panduan & Knowledge Base' }];
+    if (p === '/hotel') return [{ section: 'Layanan Tamu', page: 'Reservasi Hotel' }];
+    if (p === '/cruise') return [{ section: 'Layanan Tamu', page: 'Pelayaran Cruise' }];
+    if (p === '/documents') return [{ section: 'Layanan Tamu', page: 'Visa & Dokumen' }];
+    if (p === '/telecom') return [{ section: 'Layanan Tamu', page: 'SIM, eSIM & WiFi' }];
+    if (p === '/sales') return [{ section: 'Laporan & Tim', page: 'Penjualan & Target' }];
+    if (p === '/productivity') return [{ section: 'Laporan & Tim', page: 'Produktivitas & P&L' }];
+    if (p === '/corporate') return [{ section: 'Laporan & Tim', page: 'Klien Korporasi' }];
+    if (p === '/overtime') return [{ section: 'Tim', page: 'Log Lembur Tim' }];
+    if (p === '/staff-performance') return [{ section: 'Laporan & Tim', page: 'Performa Konsultan' }];
+    if (p === '/users') return [{ section: 'Admin', page: 'Tim & Hak Akses' }];
+    if (p === '/settings') return [{ section: 'Admin', page: 'Pengaturan Sistem' }];
+    if (p === '/profile') return [{ section: 'Akun', page: 'Profil Saya' }];
     return [{ section: 'TravelOps', page: p.replace('/', '') }];
   };
 
   const breadcrumbs = getBreadcrumbs();
 
-  const notifications = [];
-  if (tours) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const userName = user?.name || '';
 
-    tours.forEach((tour) => {
-      if (tour.status === 'Confirm' || tour.status === 'Pending') {
-        const depDate = new Date(tour.departureDate);
-        depDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((depDate - today) / (1000 * 60 * 60 * 24));
+  // Multi-module operational notification aggregation
+  const allNotifications = useMemo(() => {
+    const list = [];
+    const currentName = userName.trim().toLowerCase();
 
-        if (diffDays >= 0 && diffDays <= 7) {
-          notifications.push({
-            id: `tour-${tour.id}`,
-            type: diffDays <= 3 ? 'urgent' : 'warning',
-            message:
-              diffDays === 0
-                ? `Trip ${tour.bookingCode || tour.tourCode} to ${tour.country} departs today!`
-                : `Trip ${tour.bookingCode || tour.tourCode} to ${tour.country} departs in ${diffDays} day${diffDays > 1 ? 's' : ''}.`,
-            time: diffDays === 0 ? 'Departing today' : `In ${diffDays} day${diffDays > 1 ? 's' : ''}`,
-            path: '/tours'
-          });
-        }
+    const matchesScope = (staffField) => {
+      if (notifScope === 'all') return true;
+      if (!currentName) return true;
+      return (staffField || '').trim().toLowerCase() === currentName;
+    };
+
+    // 1. Tours: Departure H-7 & Balance Due H-14
+    (tours || []).forEach((tour) => {
+      if (tour.status === 'Cancel' || tour.status === 'Cancelled' || tour.status === 'Past Date') return;
+      if (!matchesScope(tour.staffName)) return;
+
+      const diff = daysUntil(tour.departureDate);
+      const code = tour.bookingCode || tour.tourCode || 'Tour';
+      const fin = tour.financials || {};
+      const sisa = Number(fin.sisaPelunasan ?? Math.max(0, Number(fin.totalSellingPrice ?? fin.totalOmset ?? 0) - Number(fin.depositAmount || 0)));
+
+      if (diff !== null && diff >= 0 && diff <= 7) {
+        list.push({
+          id: `tour-dep-${tour.id}`,
+          category: 'schedule',
+          type: diff <= 2 ? 'urgent' : 'warning',
+          module: 'Tour',
+          message:
+            diff === 0
+              ? `Tour ${code} (${tour.country}) berangkat HARI INI!`
+              : `Tour ${code} (${tour.country}) berangkat dalam ${diff} hari.`,
+          time: diff === 0 ? 'Hari ini' : `H-${diff}`,
+          path: '/tours',
+          navState: { openTab: 'database', openId: tour.id, search: code }
+        });
+      }
+
+      if (sisa > 0 && diff !== null && diff >= 0 && diff <= 14) {
+        list.push({
+          id: `tour-bal-${tour.id}`,
+          category: 'finance',
+          type: diff <= 7 ? 'urgent' : 'warning',
+          module: 'Pelunasan',
+          message: `${code} (${tour.country}) belum lunas ${formatCurrency(sisa)} (berangkat H-${diff}).`,
+          time: `Sisa ${formatCurrency(sisa)}`,
+          path: '/tours',
+          navState: { openTab: 'database', openId: tour.id, search: code }
+        });
       }
     });
-  }
-  notifications.sort((a) => (a.type === 'urgent' ? -1 : 1));
+
+    // 2. Documents: Visa Appointment H-7
+    (documents || []).forEach((doc) => {
+      if (doc.shippingStatus === 'Received' || doc.shippingStatus === 'Cancelled') return;
+      if (!matchesScope(doc.staff)) return;
+
+      const appDiff = daysUntil(doc.appointmentDate);
+      if (appDiff !== null && appDiff >= 0 && appDiff <= 7) {
+        list.push({
+          id: `doc-app-${doc.id}`,
+          category: 'visa',
+          type: appDiff <= 2 ? 'urgent' : 'warning',
+          module: 'Visa',
+          message:
+            appDiff === 0
+              ? `Jadwal Visa ${doc.guestName} (${doc.country || doc.docType}) HARI INI!`
+              : `Jadwal Visa ${doc.guestName} (${doc.country || doc.docType}) dalam ${appDiff} hari.`,
+          time: appDiff === 0 ? 'Hari ini' : `H-${appDiff}`,
+          path: '/documents',
+          navState: { openId: doc.id, search: doc.guestName || '' }
+        });
+      }
+    });
+
+    // 3. Hotels: Check-In H-3
+    (hotels || []).forEach((h) => {
+      if (h.status === 'Cancelled' || h.status === 'Cancel') return;
+      if (!matchesScope(h.staff || h.staffName)) return;
+
+      const diff = daysUntil(h.checkIn);
+      if (diff !== null && diff >= 0 && diff <= 3) {
+        list.push({
+          id: `hotel-ci-${h.id}`,
+          category: 'schedule',
+          type: diff <= 1 ? 'urgent' : 'warning',
+          module: 'Hotel',
+          message: `Check-in ${h.hotelName} (${h.guestName || h.bookingCode || 'Tamu'}) ${diff === 0 ? 'HARI INI' : `H-${diff}`}.`,
+          time: diff === 0 ? 'Hari ini' : `H-${diff}`,
+          path: '/hotel',
+          navState: { openId: h.id, search: h.bookingCode || h.hotelName || '' }
+        });
+      }
+    });
+
+    // 4. Cruises: Sailing H-7
+    (cruises || []).forEach((c) => {
+      if (c.status === 'Cancelled' || c.status === 'Cancel') return;
+      if (!matchesScope(c.staff || c.staffName)) return;
+
+      const diff = daysUntil(c.sailingStart);
+      if (diff !== null && diff >= 0 && diff <= 7) {
+        list.push({
+          id: `cruise-sail-${c.id}`,
+          category: 'schedule',
+          type: diff <= 2 ? 'urgent' : 'warning',
+          module: 'Cruise',
+          message: `Cruise ${c.shipName || c.cruiseBrand} (${c.guestName || c.bookingRef || 'Tamu'}) berlayar ${diff === 0 ? 'HARI INI' : `H-${diff}`}.`,
+          time: diff === 0 ? 'Hari ini' : `H-${diff}`,
+          path: '/cruise',
+          navState: { openId: c.id, search: c.bookingRef || c.shipName || '' }
+        });
+      }
+    });
+
+    // 5. Telecom: Start/Pickup H-2
+    (telecoms || []).forEach((tc) => {
+      if (tc.status === 'Cancelled' || tc.status === 'Returned' || tc.status === 'Completed') return;
+      if (!matchesScope(tc.staff || tc.picStaff)) return;
+
+      const diff = daysUntil(tc.tanggalMulai);
+      if (diff !== null && diff >= 0 && diff <= 2) {
+        list.push({
+          id: `telecom-start-${tc.id}`,
+          category: 'schedule',
+          type: diff === 0 ? 'urgent' : 'warning',
+          module: 'SIM/WiFi',
+          message: `${tc.jenisProduk || 'SIM/WiFi'} untuk ${tc.namaTamu || 'Tamu'} (${tc.negara || '-'}) aktif ${diff === 0 ? 'HARI INI' : `H-${diff}`}.`,
+          time: diff === 0 ? 'Hari ini' : `H-${diff}`,
+          path: '/telecom',
+          navState: { openId: tc.id, search: tc.namaTamu || '' }
+        });
+      }
+    });
+
+    return list
+      .filter((n) => !dismissedIds.includes(n.id))
+      .sort((a, b) => (a.type === 'urgent' ? -1 : 1) - (b.type === 'urgent' ? -1 : 1));
+  }, [tours, documents, hotels, cruises, telecoms, notifScope, userName, dismissedIds]);
+
+  const markAllRead = () => {
+    const allIds = allNotifications.map((n) => n.id);
+    setDismissedIds((prev) => {
+      const next = [...new Set([...prev, ...allIds])];
+      try {
+        sessionStorage.setItem('travelops_dismissed_notifs', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const visibleNotifications = useMemo(() => {
+    if (notifCategory === 'all') return allNotifications;
+    return allNotifications.filter((n) => n.category === notifCategory);
+  }, [allNotifications, notifCategory]);
 
   const pillSurface = isLight ? '#f4f9ff' : 'rgba(56, 189, 248, 0.06)';
   const hoverBg = isLight ? '#eff8ff' : 'rgba(56, 189, 248, 0.1)';
@@ -181,7 +366,7 @@ const TopNav = ({ toggleSidebar }) => {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '0.75rem',
-            width: '250px',
+            width: '270px',
             padding: '0.42rem 0.8rem',
             background: pillSurface,
             border: '1px solid var(--border)',
@@ -192,11 +377,11 @@ const TopNav = ({ toggleSidebar }) => {
             marginLeft: '0.5rem',
             transition: 'border-color 0.15s, background 0.15s'
           }}
-          title="Quick find anything (Ctrl+K)"
+          title="Cari nama tamu, booking, visa, atau menu (Ctrl+K)"
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
             <Search size={14} color="var(--primary)" />
-            <span>Quick search...</span>
+            <span>Cari tamu, booking, visa...</span>
           </div>
           <kbd className="kbd-badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.38rem' }}>
             Ctrl K
@@ -223,7 +408,7 @@ const TopNav = ({ toggleSidebar }) => {
             cursor: 'pointer',
             transition: 'all 0.15s'
           }}
-          title="World Travel Clocks"
+          title="Jam Zona Waktu Perjalanan"
         >
           <Globe size={13} color="var(--primary)" />
           <span style={{ color: 'var(--text-subtle)' }}>JKT</span>
@@ -257,7 +442,7 @@ const TopNav = ({ toggleSidebar }) => {
                 letterSpacing: '0.05em'
               }}
             >
-              World Travel Clocks
+              Zona Waktu Dunia
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.45rem' }}>
               {[
@@ -287,9 +472,9 @@ const TopNav = ({ toggleSidebar }) => {
         )}
       </div>
 
-      {/* Right: Quick Create + Notifications + Theme Toggle + User Menu */}
+      {/* Right: Quick Create + Keyboard + Notifications + Theme Toggle + User Menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-        {/* Global "+ New" Button */}
+        {/* Global "+ Baru" Button (Alt+N) */}
         <div style={{ position: 'relative' }} ref={quickCreateRef}>
           <button
             type="button"
@@ -301,10 +486,10 @@ const TopNav = ({ toggleSidebar }) => {
               fontSize: '0.8rem',
               gap: '0.35rem'
             }}
-            title="Quickly create a booking or request"
+            title="Buat transaksi baru (Alt+N)"
           >
             <Plus size={15} />
-            <span className="desktop-only">New</span>
+            <span className="desktop-only">Baru</span>
             <ChevronDown size={12} />
           </button>
 
@@ -316,36 +501,57 @@ const TopNav = ({ toggleSidebar }) => {
                 top: '100%',
                 right: 0,
                 marginTop: '0.5rem',
-                width: '225px',
-                padding: '0.4rem',
+                width: '240px',
+                padding: '0.45rem',
                 borderRadius: '12px',
                 zIndex: 60
               }}
             >
+              <div
+                style={{
+                  padding: '0.25rem 0.65rem 0.45rem',
+                  fontSize: '0.68rem',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-subtle)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderBottom: '1px solid var(--border)',
+                  marginBottom: '0.3rem'
+                }}
+              >
+                <span>Input Cepat</span>
+                <kbd className="kbd-badge" style={{ fontSize: '0.62rem' }}>Alt N</kbd>
+              </div>
               {[
-                { label: 'New Tour Booking', icon: <Plane size={15} color="#0095ff" />, path: '/tours' },
-                { label: 'Hotel Stay', icon: <Building size={15} color="#f59e0b" />, path: '/hotel' },
-                { label: 'Visa & Document', icon: <FileText size={15} color="#8b5cf6" />, path: '/documents' },
-                { label: 'Log Team Overtime', icon: <Clock size={15} color="#10b981" />, path: '/overtime' }
+                { label: 'Booking Tour Baru', icon: <Plane size={15} color="#0095ff" />, path: '/tours' },
+                { label: 'Form Pendaftaran Tour (PDF)', icon: <ClipboardList size={15} color="#0ea5e9" />, path: '/tour-registration-form' },
+                { label: 'Visa & Dokumen', icon: <FileText size={15} color="#8b5cf6" />, path: '/documents' },
+                { label: 'Reservasi Hotel', icon: <Building size={15} color="#f59e0b" />, path: '/hotel' },
+                { label: 'Pelayaran Cruise', icon: <Anchor size={15} color="#06b6d4" />, path: '/cruise' },
+                { label: 'Order SIM / eSIM / WiFi', icon: <Phone size={15} color="#ec4899" />, path: '/telecom' },
+                { label: 'Ajukan Lembur Tim', icon: <Clock size={15} color="#10b981" />, path: '/overtime' }
               ].map((action) => (
                 <button
                   key={action.label}
                   type="button"
                   onClick={() => {
                     setShowQuickCreate(false);
-                    navigate(action.path, { state: { openNew: true } });
+                    navigate(action.path, { state: { openNew: true, _ts: Date.now() } });
                   }}
                   style={{
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.65rem',
-                    padding: '0.58rem 0.75rem',
+                    padding: '0.55rem 0.72rem',
                     borderRadius: '8px',
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    fontSize: '0.825rem',
+                    fontSize: '0.82rem',
                     fontWeight: '500',
                     color: 'var(--text-main)',
                     textAlign: 'left',
@@ -397,7 +603,7 @@ const TopNav = ({ toggleSidebar }) => {
           <Keyboard size={18} />
         </button>
 
-        {/* Notification Bell */}
+        {/* Multi-Module Actionable Notification Center */}
         <div style={{ position: 'relative' }} ref={notifRef}>
           <button
             type="button"
@@ -416,29 +622,30 @@ const TopNav = ({ toggleSidebar }) => {
               transition: 'all 0.15s',
               position: 'relative'
             }}
-            title="Upcoming trip reminders"
-            aria-label="Notifications"
+            title="Pusat Notifikasi Operasional"
+            aria-label="Notifikasi"
           >
             <Bell size={18} />
-            {notifications.length > 0 && (
+            {allNotifications.length > 0 && (
               <span
                 style={{
                   position: 'absolute',
-                  top: '5px',
-                  right: '5px',
+                  top: '4px',
+                  right: '4px',
                   background: 'var(--danger)',
                   color: 'white',
-                  fontSize: '0.625rem',
-                  fontWeight: '700',
-                  width: '15px',
-                  height: '15px',
+                  fontSize: '0.6rem',
+                  fontWeight: '800',
+                  minWidth: '16px',
+                  height: '16px',
+                  padding: '0 4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderRadius: '50%'
+                  borderRadius: '9999px'
                 }}
               >
-                {notifications.length}
+                {allNotifications.length > 99 ? '99+' : allNotifications.length}
               </span>
             )}
           </button>
@@ -451,35 +658,127 @@ const TopNav = ({ toggleSidebar }) => {
                 top: '100%',
                 right: 0,
                 marginTop: '0.5rem',
-                width: '325px',
+                width: '375px',
+                maxWidth: '92vw',
                 padding: 0,
                 zIndex: 60,
-                borderRadius: '14px'
+                borderRadius: '14px',
+                overflow: 'hidden'
               }}
             >
+              {/* Header + Scope Toggle */}
               <div
                 style={{
-                  padding: '0.85rem 1rem',
+                  padding: '0.85rem 1rem 0.65rem',
                   borderBottom: '1px solid var(--border)',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  flexDirection: 'column',
+                  gap: '0.6rem'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.875rem', fontWeight: '700' }}>
-                    Trip Reminders
-                  </h4>
-                  {notifications.length > 0 && (
-                    <span className="badge badge-primary" style={{ fontSize: '0.68rem', padding: '0.12rem 0.45rem' }}>
-                      {notifications.length} Upcoming
-                    </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.88rem', fontWeight: '700' }}>
+                      Pengingat Operasional
+                    </h4>
+                    {allNotifications.length > 0 && (
+                      <span className="badge badge-primary" style={{ fontSize: '0.66rem', padding: '0.1rem 0.45rem' }}>
+                        {allNotifications.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        padding: '2px',
+                        borderRadius: '8px',
+                        background: pillSurface,
+                        border: '1px solid var(--border)'
+                      }}
+                    >
+                      {[
+                        { id: 'mine', label: 'Milik Saya' },
+                        { id: 'all', label: 'Semua' }
+                      ].map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setNotifScope(s.id)}
+                          style={{
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '0.18rem 0.48rem',
+                            fontSize: '0.68rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            background: notifScope === s.id ? 'var(--primary)' : 'transparent',
+                            color: notifScope === s.id ? '#ffffff' : 'var(--text-muted)'
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Category Filter Tabs */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all', label: 'Semua' },
+                      { id: 'finance', label: 'Keuangan' },
+                      { id: 'visa', label: 'Visa' },
+                      { id: 'schedule', label: 'Jadwal' }
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setNotifCategory(cat.id)}
+                        style={{
+                          padding: '0.18rem 0.52rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.68rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          border: `1px solid ${notifCategory === cat.id ? 'var(--primary)' : 'var(--border)'}`,
+                          background: notifCategory === cat.id ? 'rgba(0, 168, 255, 0.14)' : 'transparent',
+                          color: notifCategory === cat.id ? 'var(--primary)' : 'var(--text-muted)'
+                        }}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {allNotifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllRead}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-subtle)',
+                        fontSize: '0.68rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem'
+                      }}
+                      title="Tandai semua sudah dibaca untuk sesi ini"
+                    >
+                      <Check size={12} /> Bersihkan
+                    </button>
                   )}
                 </div>
               </div>
 
-              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {notifications.length === 0 ? (
+              {/* List */}
+              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                {visibleNotifications.length === 0 ? (
                   <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <div
                       style={{
@@ -493,23 +792,25 @@ const TopNav = ({ toggleSidebar }) => {
                     >
                       <CheckCircle2 size={20} />
                     </div>
-                    <p style={{ margin: 0, fontWeight: '700', color: 'var(--text-main)', fontSize: '0.875rem' }}>
-                      All caught up!
+                    <p style={{ margin: 0, fontWeight: '700', color: 'var(--text-main)', fontSize: '0.86rem' }}>
+                      Semua aman terkendali!
                     </p>
-                    <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                      No urgent departures in the next 7 days.
+                    <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.76rem' }}>
+                      Tidak ada pengingat mendesak pada filter ini.
                     </p>
                   </div>
                 ) : (
-                  notifications.map((notif) => (
+                  visibleNotifications.slice(0, 25).map((notif) => (
                     <div
                       key={notif.id}
                       onClick={() => {
                         setShowNotifications(false);
-                        navigate(notif.path);
+                        navigate(notif.path, {
+                          state: { ...(notif.navState || {}), _ts: Date.now() }
+                        });
                       }}
                       style={{
-                        padding: '0.8rem 1rem',
+                        padding: '0.75rem 1rem',
                         borderBottom: '1px solid var(--border)',
                         cursor: 'pointer',
                         display: 'flex',
@@ -525,13 +826,41 @@ const TopNav = ({ toggleSidebar }) => {
                       }}
                     >
                       <div style={{ marginTop: '2px', flexShrink: 0 }}>
-                        {notif.type === 'urgent' ? (
+                        {notif.category === 'finance' ? (
                           <div
                             style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '7px',
-                              background: 'rgba(244, 63, 94, 0.14)',
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '8px',
+                              background: 'rgba(245, 158, 11, 0.16)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <DollarSign size={14} color="#f59e0b" />
+                          </div>
+                        ) : notif.category === 'visa' ? (
+                          <div
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '8px',
+                              background: 'rgba(139, 92, 246, 0.16)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Stamp size={14} color="#8b5cf6" />
+                          </div>
+                        ) : notif.type === 'urgent' ? (
+                          <div
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '8px',
+                              background: 'rgba(244, 63, 94, 0.15)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
@@ -542,10 +871,10 @@ const TopNav = ({ toggleSidebar }) => {
                         ) : (
                           <div
                             style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '7px',
-                              background: 'rgba(0, 168, 255, 0.14)',
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '8px',
+                              background: 'rgba(0, 168, 255, 0.15)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
@@ -555,14 +884,47 @@ const TopNav = ({ toggleSidebar }) => {
                           </div>
                         )}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ margin: '0 0 0.2rem 0', fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: '1.4', fontWeight: '500' }}>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.79rem', color: 'var(--text-main)', lineHeight: '1.4', fontWeight: '500' }}>
                           {notif.message}
                         </p>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: '600' }}>
-                          {notif.time}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <span
+                            style={{
+                              fontSize: '0.66rem',
+                              fontWeight: '700',
+                              padding: '0.08rem 0.4rem',
+                              borderRadius: '6px',
+                              background: pillSurface,
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--border)'
+                            }}
+                          >
+                            {notif.module}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: notif.type === 'urgent' ? 'var(--danger)' : 'var(--primary)', fontWeight: '700' }}>
+                            {notif.time}
+                          </span>
+                        </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => dismissNotification(notif.id, e)}
+                        title="Tandai dibaca"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-subtle)',
+                          cursor: 'pointer',
+                          padding: '3px',
+                          borderRadius: '6px',
+                          flexShrink: 0
+                        }}
+                      >
+                        <Check size={13} />
+                      </button>
                     </div>
                   ))
                 )}
@@ -588,8 +950,8 @@ const TopNav = ({ toggleSidebar }) => {
             borderRadius: '10px',
             transition: 'all 0.15s'
           }}
-          title={theme === 'dark' ? 'Switch to Neon Sky Light Mode' : 'Switch to Obsidian Neon Dark Mode'}
-          aria-label="Toggle color mode"
+          title={theme === 'dark' ? 'Ganti ke Tema Terang' : 'Ganti ke Tema Gelap'}
+          aria-label="Ubah mode warna"
         >
           {theme === 'dark' ? <Sun size={17} color="#38bdf8" /> : <Moon size={17} color="var(--primary)" />}
         </button>
@@ -638,7 +1000,7 @@ const TopNav = ({ toggleSidebar }) => {
                 textOverflow: 'ellipsis'
               }}
             >
-              {user?.name || user?.email?.split('@')[0] || 'Team Member'}
+              {user?.name || user?.email?.split('@')[0] || 'Staf'}
             </span>
             <ChevronDown size={12} color="var(--text-subtle)" className="desktop-only" />
           </button>
@@ -669,11 +1031,11 @@ const TopNav = ({ toggleSidebar }) => {
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  {user?.name || user?.email || 'Team Member'}
+                  {user?.name || user?.email || 'Staf'}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
                   <span className="badge badge-primary" style={{ fontSize: '0.65rem', padding: '0.08rem 0.42rem' }}>
-                    {user?.role || 'Consultant'}
+                    {user?.role || 'Konsultan'}
                   </span>
                   <span
                     style={{
@@ -714,7 +1076,7 @@ const TopNav = ({ toggleSidebar }) => {
                   }}
                 >
                   <User size={15} color="var(--primary)" />
-                  <span>My Profile</span>
+                  <span>Profil Saya</span>
                 </div>
 
                 <Link
@@ -742,7 +1104,7 @@ const TopNav = ({ toggleSidebar }) => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                     <ExternalLink size={15} color="var(--primary)" />
-                    <span>Guest Status Tracker</span>
+                    <span>Portal Status Tamu</span>
                   </div>
                 </Link>
 
@@ -771,7 +1133,7 @@ const TopNav = ({ toggleSidebar }) => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                     <Search size={15} color="var(--primary)" />
-                    <span>Quick Search</span>
+                    <span>Pencarian Cepat</span>
                   </div>
                   <kbd className="kbd-badge" style={{ fontSize: '0.625rem', padding: '0.06rem 0.32rem' }}>
                     Ctrl K
@@ -802,7 +1164,7 @@ const TopNav = ({ toggleSidebar }) => {
                   }}
                 >
                   <LogOut size={15} />
-                  <span>Sign Out</span>
+                  <span>Keluar</span>
                 </div>
               </div>
             </div>

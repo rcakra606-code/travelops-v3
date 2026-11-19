@@ -314,12 +314,12 @@ const PublicTracker = () => {
               width: '40px',
               height: '40px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #00b4ff 0%, #0066ff 100%)',
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
-              boxShadow: '0 4px 16px rgba(0, 168, 255, 0.35)'
+              boxShadow: '0 4px 16px var(--primary-glow)'
             }}
           >
             <Compass size={21} strokeWidth={2.3} />
@@ -367,9 +367,10 @@ const PublicTracker = () => {
         <div
           className="card"
           style={{
-            borderRadius: '20px',
+            borderRadius: '18px',
             padding: '2rem',
-            marginBottom: '1.5rem'
+            marginBottom: '1.5rem',
+            borderTop: '3px solid var(--primary)'
           }}
         >
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
@@ -457,7 +458,7 @@ const PublicTracker = () => {
                     fontSize: '0.76rem',
                     padding: '0.3rem 0.65rem',
                     borderRadius: '9999px',
-                    background: isLight ? '#f0f7ff' : 'rgba(56, 189, 248, 0.08)',
+                    background: 'var(--bg-surface)',
                     color: 'var(--text-muted)',
                     border: '1px solid var(--border)'
                   }}

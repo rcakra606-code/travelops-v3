@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import SkeletonLoader from '../components/SkeletonLoader';
+import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
 import { useTours } from '../context/TourContext';
 import { useCruises } from '../context/CruiseContext';
 import { useDocuments } from '../context/DocumentContext';
@@ -128,6 +129,8 @@ const Dashboard = () => {
   const [activityFilter, setActivityFilter] = useState('All');
   const [activitySearch, setActivitySearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all'); // 'all' | 'mine'
+  const [actionDeskScope, setActionDeskScope] = useState(() => (user?.role === 'Staff' ? 'mine' : 'all'));
+  const [actionDeskCategory, setActionDeskCategory] = useState('all'); // 'all' | 'finance' | 'visa' | 'schedule'
   const [selectedActivity, setSelectedActivity] = useState(null);
   const [chartHorizon, setChartHorizon] = useState(30);
   const [hideRevenue, setHideRevenue] = useState(() => {
@@ -778,9 +781,16 @@ const Dashboard = () => {
   const alerts = useMemo(() => {
     const list = [];
 
-    // 1. Tours departing in <= 7 days without an invoice number (or Series without MDR claim)
+    const myName = (user?.name || '').trim().toLowerCase();
+    const matchesActionScope = (owner) => {
+      if (actionDeskScope === 'all' || !myName) return true;
+      return (owner || '').trim().toLowerCase() === myName;
+    };
+
+    // 1. Tours: Balance Due (H-14), Missing Invoice (H-14), or Series Unclaimed MDR (H-7)
     (tours || []).forEach((t) => {
-      if (t.departureDate && t.status !== 'Cancel' && t.status !== 'Cancelled') {
+      if (t.departureDate && t.status !== 'Cancel' && t.status !== 'Cancelled' && t.status !== 'Past Date') {
+        if (!matchesActionScope(t.staffName)) return;
         const diff = getDayDiffFromToday(t.departureDate, today);
         const tourType =
           t.tourType ||
@@ -789,31 +799,59 @@ const Dashboard = () => {
             : t.category === 'Corporate / Incentive'
               ? 'Incentive'
               : 'Series');
-        if (diff !== null && diff >= 0 && diff <= 7) {
+        const fin = t.financials || {};
+        const total = Number(fin.totalSellingPrice ?? fin.totalOmset ?? 0);
+        const dep = Number(fin.depositAmount || 0);
+        const sisa = Math.max(0, total - dep);
+        const code = t.bookingCode || t.tourCode || t.id;
+
+        if (diff !== null && diff >= 0 && diff <= 14 && sisa > 0) {
+          list.push({
+            id: `tour-bal-${t.id}`,
+            category: 'finance',
+            module: 'Pelunasan Tour',
+            moduleType: 'tour',
+            record: t,
+            title: `${code} (${t.country || 'Tour'}) belum lunas ${formatCurrency(sisa)}`,
+            type: diff <= 7 ? 'danger' : 'warning',
+            date: t.departureDate,
+            diffDays: diff,
+            actionPath: '/tours',
+            actionState: { openTab: 'database', openId: t.id, search: code }
+          });
+        }
+
+        if (diff !== null && diff >= 0 && diff <= 14) {
           if (!t.financials?.invoiceNumber || t.financials.invoiceNumber.trim() === '') {
             list.push({
               id: `tour-inv-${t.id}`,
-              module: `${tourType} Tour`,
-              title: `${tourType} ${t.bookingCode || t.tourCode || t.id} (${t.country || 'Tour'}) departs soon and needs an invoice`,
-              type: diff <= 2 ? 'danger' : 'warning',
+              category: 'finance',
+              module: `${tourType} Invoice`,
+              moduleType: 'tour',
+              record: t,
+              title: `${code} (${t.country || 'Tour'}) berangkat segera & belum ada nomor Invoice`,
+              type: diff <= 3 ? 'danger' : 'warning',
               date: t.departureDate,
               diffDays: diff,
               actionPath: '/tours',
-              actionState: { openTab: tourType.toLowerCase() }
+              actionState: { openTab: 'database', openId: t.id, search: code }
             });
           }
-          if (tourType === 'Series') {
+          if (tourType === 'Series' && diff <= 7) {
             const hasMdr = Boolean(t.claimMdr || t.internals?.claimMdr);
             if (!hasMdr) {
               list.push({
                 id: `tour-mdr-${t.id}`,
+                category: 'finance',
                 module: 'Series MDR',
-                title: `Series ${t.bookingCode || t.tourCode || t.id} (${t.country || 'Tour'}) has unclaimed Form Claim MDR`,
+                moduleType: 'tour',
+                record: t,
+                title: `Series ${code} (${t.country || 'Tour'}) belum Claim Form MDR`,
                 type: 'warning',
                 date: t.departureDate,
                 diffDays: diff,
                 actionPath: '/tours',
-                actionState: { openTab: 'series' }
+                actionState: { openTab: 'database', openId: t.id, search: code }
               });
             }
           }
@@ -821,23 +859,49 @@ const Dashboard = () => {
       }
     });
 
-    // 2. Documents / Visas overdue, due today, or due within 2 days
+    // 2. Documents / Visas: Appointment H-7 or Release Check <= 2 days
     (documents || []).forEach((d) => {
+      if (!matchesActionScope(d.staff)) return;
+      if (d.shippingStatus === 'Received' || d.shippingStatus === 'Cancelled') return;
+
+      if (d.appointmentDate) {
+        const appDiff = getDayDiffFromToday(d.appointmentDate, today);
+        if (appDiff !== null && appDiff >= 0 && appDiff <= 7) {
+          list.push({
+            id: `doc-app-${d.id}`,
+            category: 'visa',
+            module: 'Visa Appointment',
+            moduleType: 'document',
+            record: d,
+            title: `Jadwal Visa ${d.guestName || 'Pemohon'} (${d.country || d.docType}) segera tiba`,
+            type: appDiff <= 2 ? 'danger' : 'warning',
+            date: d.appointmentDate,
+            diffDays: appDiff,
+            actionPath: '/documents',
+            actionState: { openId: d.id, search: d.guestName || '' }
+          });
+        }
+      }
+
       if (!d.sendDate) {
         const targetStr = d.estimatedDone || d.receiveDate;
         const diff = getDayDiffFromToday(targetStr, today);
         if (diff !== null && diff <= 2) {
           list.push({
             id: `doc-due-${d.id}`,
-            module: 'Visa / Doc',
+            category: 'visa',
+            module: 'Visa / Dokumen',
+            moduleType: 'document',
+            record: d,
             title:
               diff <= 0
-                ? `${d.guestName || 'Guest'}'s ${d.docType || 'document'} (${d.country || 'Visa'}) is ready for release check`
-                : `${d.guestName || 'Guest'}'s ${d.docType || 'document'} (${d.country || 'Visa'}) is due for completion soon`,
+                ? `${d.guestName || 'Tamu'} (${d.docType || 'Dokumen'} ${d.country || ''}) siap cek rilis/kirim`
+                : `${d.guestName || 'Tamu'} (${d.docType || 'Dokumen'} ${d.country || ''}) mendekati estimasi selesai`,
             type: diff <= 0 ? 'danger' : 'warning',
             date: targetStr,
             diffDays: diff,
-            actionPath: '/documents'
+            actionPath: '/documents',
+            actionState: { openId: d.id, search: d.guestName || '' }
           });
         }
       }
@@ -845,6 +909,7 @@ const Dashboard = () => {
 
     // 3. Cruises with Final Payment deadline within 7 days (or overdue)
     (cruises || []).forEach((c) => {
+      if (!matchesActionScope(c.staff || c.staffName)) return;
       if (c.finalPaymentDate && !['Cancel', 'Cancelled', 'Past', 'Past Date'].includes(c.status)) {
         const sailingDiff = getDayDiffFromToday(c.sailingStart, today);
         if (sailingDiff === null || sailingDiff >= 0) {
@@ -852,12 +917,16 @@ const Dashboard = () => {
           if (payDiff !== null && payDiff >= -7 && payDiff <= 7) {
             list.push({
               id: `cruise-pay-${c.id}`,
-              module: 'Cruise',
-              title: `Final payment check for ${c.picName || 'Guest'} (${c.shipName || c.cruiseBrand || 'Cruise'})`,
+              category: 'finance',
+              module: 'Cruise Payment',
+              moduleType: 'cruise',
+              record: c,
+              title: `Cek final payment ${c.guestName || c.picName || 'Tamu'} (${c.shipName || c.cruiseBrand || 'Cruise'})`,
               type: payDiff <= 1 ? 'danger' : 'warning',
               date: c.finalPaymentDate,
               diffDays: payDiff,
-              actionPath: '/cruise'
+              actionPath: '/cruise',
+              actionState: { openId: c.id, search: c.bookingRef || c.shipName || '' }
             });
           }
         }
@@ -866,18 +935,23 @@ const Dashboard = () => {
 
     // 4. Hotels checking in today/tomorrow that are still Pending or missing confirmation #
     (hotels || []).forEach((h) => {
+      if (!matchesActionScope(h.staff || h.staffName)) return;
       if (!['Cancel', 'Cancelled', 'Past Date'].includes(h.status)) {
         const diff = getDayDiffFromToday(h.checkIn, today);
-        if (diff !== null && diff >= 0 && diff <= 2 && (h.status === 'Pending' || !h.confirmationNumber)) {
-          const guest = h.guestList ? h.guestList.split(',')[0].trim() : 'Guest';
+        if (diff !== null && diff >= 0 && diff <= 3 && (h.status === 'Pending' || !h.confirmationNumber)) {
+          const guest = h.guestName || (h.guestList ? h.guestList.split(',')[0].trim() : 'Tamu');
           list.push({
             id: `hotel-chk-${h.id}`,
-            module: 'Hotel',
-            title: `${guest} checks in at ${h.hotelName || 'Hotel'} soon — confirm voucher number`,
+            category: 'schedule',
+            module: 'Hotel Check-In',
+            moduleType: 'hotel',
+            record: h,
+            title: `${guest} check-in di ${h.hotelName || 'Hotel'} — pastikan voucher & konfirmasi`,
             type: diff <= 1 ? 'danger' : 'warning',
             date: h.checkIn,
             diffDays: diff,
-            actionPath: '/hotel'
+            actionPath: '/hotel',
+            actionState: { openId: h.id, search: h.bookingCode || h.hotelName || '' }
           });
         }
       }
@@ -885,24 +959,34 @@ const Dashboard = () => {
 
     // 5. Travel SIM / WiFi rentals ending today or overdue without return date
     (telecoms || []).forEach((t) => {
+      if (!matchesActionScope(t.staff || t.picStaff)) return;
       if (t.tanggalSelesai && !t.tanggalPengembalian) {
         const diff = getDayDiffFromToday(t.tanggalSelesai, today);
         if (diff !== null && diff <= 1) {
           list.push({
             id: `tel-ret-${t.id}`,
+            category: 'schedule',
             module: 'SIM / WiFi',
-            title: `${t.nama || 'Traveler'}'s ${t.typeProduct || 'SIM / WiFi'} rental ends — check return & deposit`,
+            moduleType: 'telecom',
+            record: t,
+            title: `${t.namaTamu || t.nama || 'Tamu'} (${t.jenisProduk || t.typeProduct || 'SIM / WiFi'}) selesai — cek pengembalian`,
             type: diff < 0 ? 'danger' : 'warning',
             date: t.tanggalSelesai,
             diffDays: diff,
-            actionPath: '/telecom'
+            actionPath: '/telecom',
+            actionState: { openId: t.id, search: t.namaTamu || t.nama || '' }
           });
         }
       }
     });
 
     return list.sort((a, b) => (a.diffDays ?? 99) - (b.diffDays ?? 99));
-  }, [tours, documents, cruises, hotels, telecoms, today]);
+  }, [tours, documents, cruises, hotels, telecoms, today, actionDeskScope, user?.name]);
+
+  const filteredActionDesk = useMemo(() => {
+    if (actionDeskCategory === 'all') return alerts;
+    return alerts.filter((item) => item.category === actionDeskCategory);
+  }, [alerts, actionDeskCategory]);
 
   const getStatusBadge = (status) => {
     if (['Confirmed', 'Confirm', 'Completed'].includes(status)) {
@@ -962,16 +1046,16 @@ const Dashboard = () => {
           />
 
           <div style={{ position: 'relative', zIndex: 2, maxWidth: '680px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.75rem' }}>
-              <Sparkles size={14} color="#7dd3fc" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+              <Sparkles size={13} color="#e0f2fe" />
               <p
                 style={{
                   margin: 0,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.14em',
-                  fontSize: '0.75rem',
+                  letterSpacing: '0.12em',
+                  fontSize: '0.72rem',
                   fontWeight: '700',
-                  color: '#bae6fd'
+                  color: 'rgba(224, 242, 254, 0.92)'
                 }}
               >
                 {getGreeting()}, {firstName}
@@ -980,27 +1064,27 @@ const Dashboard = () => {
             <h1
               style={{
                 margin: 0,
-                fontSize: '2.05rem',
+                fontSize: '1.55rem',
                 fontWeight: '800',
                 color: '#ffffff',
-                lineHeight: '1.25',
-                letterSpacing: '-0.02em'
+                lineHeight: '1.22',
+                letterSpacing: '-0.025em'
               }}
             >
               Every journey, thoughtfully organized.
             </h1>
             <p
               style={{
-                margin: '0.85rem 0 0 0',
-                fontSize: '0.95rem',
-                color: 'rgba(240, 249, 255, 0.92)',
-                lineHeight: '1.6',
-                maxWidth: '620px'
+                margin: '0.45rem 0 0 0',
+                fontSize: '0.86rem',
+                color: 'rgba(241, 245, 249, 0.9)',
+                lineHeight: '1.5',
+                maxWidth: '600px'
               }}
             >
-              You currently have <strong style={{ color: '#ffffff' }}>{totalActiveTrips} active trips</strong>,{' '}
-              <strong style={{ color: '#ffffff' }}>{activeDocs} documents in progress</strong>, and{' '}
-              <strong style={{ color: '#ffffff' }}>{confirmedTravelers} confirmed travelers</strong> on schedule.
+              <strong style={{ color: '#ffffff' }}>{totalActiveTrips} trip aktif</strong> ·{' '}
+              <strong style={{ color: '#ffffff' }}>{activeDocs} dokumen diproses</strong> ·{' '}
+              <strong style={{ color: '#ffffff' }}>{confirmedTravelers} tamu terkonfirmasi</strong> pada jadwal.
             </p>
           </div>
 
@@ -1009,7 +1093,7 @@ const Dashboard = () => {
               position: 'relative',
               zIndex: 2,
               display: 'flex',
-              gap: '0.75rem',
+              gap: '0.6rem',
               alignItems: 'center',
               flexWrap: 'wrap',
               flexShrink: 0
@@ -1017,20 +1101,20 @@ const Dashboard = () => {
           >
             <button
               type="button"
-              onClick={() => navigate('/tours', { state: { openNew: true } })}
+              onClick={() => navigate('/tours', { state: { openNew: true, _ts: Date.now() } })}
               className="btn"
               style={{
-                fontSize: '0.85rem',
-                padding: '0.68rem 1.25rem',
-                borderRadius: '11px',
+                fontSize: '0.82rem',
+                padding: '0.58rem 1.05rem',
+                borderRadius: '10px',
                 background: '#ffffff',
-                color: '#0066cc',
+                color: 'var(--primary-deep)',
                 fontWeight: '700',
                 border: 'none',
-                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.18)'
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.16)'
               }}
             >
-              <Plus size={16} /> New Tour Booking
+              <Plus size={15} /> Booking Tour Baru
             </button>
 
             <button
@@ -1038,18 +1122,18 @@ const Dashboard = () => {
               onClick={() => navigate('/calendar')}
               className="btn"
               style={{
-                fontSize: '0.85rem',
-                padding: '0.68rem 1.15rem',
-                borderRadius: '11px',
+                fontSize: '0.82rem',
+                padding: '0.58rem 1rem',
+                borderRadius: '10px',
                 background: 'rgba(255, 255, 255, 0.14)',
                 color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.28)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
                 fontWeight: '600'
               }}
             >
-              <Calendar size={15} /> Trip Calendar
+              <Calendar size={14} /> Kalender
             </button>
 
             <button
@@ -1057,13 +1141,13 @@ const Dashboard = () => {
               onClick={() => setIsCustomizing(true)}
               className="btn"
               style={{
-                fontSize: '0.85rem',
-                padding: '0.68rem 1.05rem',
-                borderRadius: '11px',
+                fontSize: '0.82rem',
+                padding: '0.58rem 0.9rem',
+                borderRadius: '10px',
                 background: 'rgba(255, 255, 255, 0.1)',
                 color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.22)',
-                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backdropFilter: 'blur(8px)',
                 WebkitBackdropFilter: 'blur(10px)',
                 fontWeight: '600'
               }}
@@ -1287,24 +1371,33 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Card 1: Series */}
             <div
-              className="flex flex-col justify-between p-4 rounded-xl border border-sky-500/25 border-l-4 border-l-sky-500 bg-sky-500/[0.04] dark:bg-sky-500/[0.06] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
-              style={{ padding: '1.35rem 1.5rem', borderLeft: '4px solid #00a8ff' }}
+              className="card-interactive flex flex-col justify-between rounded-xl"
+              onClick={() => navigate('/tours', { state: { openTab: 'series', _ts: Date.now() } })}
+              style={{
+                padding: '1.35rem 1.5rem',
+                background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.55)',
+                border: '1px solid var(--border)',
+                borderTop: '3px solid #0ea5e9'
+              }}
             >
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-1.5 font-bold text-sky-500 text-xs uppercase tracking-wider">
-                    <Compass size={16} /> Series Tours
+                    <Compass size={15} /> Series Tours
                   </div>
-                  <span className="badge bg-sky-500/15 text-sky-600 dark:text-sky-400 text-[11px] font-bold">
-                    {ins.series.share}% Omset Share
+                  <span className="badge badge-primary text-[11px] font-bold">
+                    {ins.series.share}% Share
                   </span>
                 </div>
 
-                <div className="font-mono text-xl sm:text-2xl font-extrabold text-text-main mt-2.5">
+                <div
+                  className="font-mono font-extrabold text-text-main"
+                  style={{ fontSize: '1.42rem', marginTop: '0.85rem', marginBottom: '0.45rem', letterSpacing: '-0.02em' }}
+                >
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.series.omset)}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-text-muted mt-1">
+                <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs text-text-muted">
                   <span>{ins.series.count} bookings · {ins.series.pax} pax</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                     {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.series.profit)}`} ({ins.series.margin}%)
@@ -1312,45 +1405,50 @@ const Dashboard = () => {
                 </div>
 
                 {/* Series MDR Tracker */}
-                <div className="mt-3 pt-2.5 border-t border-dashed border-border text-xs flex items-center justify-between">
-                  <span className="text-text-muted">Claim Form MDR:</span>
+                <div className="mt-3.5 pt-3 border-t border-dashed border-border text-xs flex items-center justify-between">
+                  <span className="text-text-muted">Claim Form MDR</span>
                   <span className={`badge ${ins.series.mdrPending === 0 ? 'badge-success' : 'badge-warning'} text-[11px]`}>
                     {ins.series.mdrClaimed}/{ins.series.count} Claimed
                   </span>
                 </div>
               </div>
 
-              <div className="mt-3.5">
-                <button
-                  type="button"
-                  onClick={() => navigate('/tours', { state: { openTab: 'series' } })}
-                  className="text-sky-500 hover:text-sky-600 font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
-                >
+              <div className="mt-4">
+                <span className="text-sky-500 font-bold text-xs inline-flex items-center gap-1">
                   Buka Modul Series <ChevronRight size={13} />
-                </button>
+                </span>
               </div>
             </div>
 
             {/* Card 2: Incentive */}
             <div
-              className="flex flex-col justify-between p-4 rounded-xl border border-purple-500/25 border-l-4 border-l-purple-500 bg-purple-500/[0.04] dark:bg-purple-500/[0.06] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
-              style={{ padding: '1.35rem 1.5rem', borderLeft: '4px solid #8b5cf6' }}
+              className="card-interactive flex flex-col justify-between rounded-xl"
+              onClick={() => navigate('/tours', { state: { openTab: 'incentive', _ts: Date.now() } })}
+              style={{
+                padding: '1.35rem 1.5rem',
+                background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.55)',
+                border: '1px solid var(--border)',
+                borderTop: '3px solid #8b5cf6'
+              }}
             >
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-1.5 font-bold text-purple-500 text-xs uppercase tracking-wider">
-                    <Briefcase size={16} /> Incentive Tours
+                    <Briefcase size={15} /> Incentive Tours
                   </div>
-                  <span className="badge bg-purple-500/15 text-purple-600 dark:text-purple-400 text-[11px] font-bold">
-                    {ins.incentive.share}% Omset Share
+                  <span className="badge badge-purple text-[11px] font-bold">
+                    {ins.incentive.share}% Share
                   </span>
                 </div>
 
-                <div className="font-mono text-xl sm:text-2xl font-extrabold text-text-main mt-2.5">
+                <div
+                  className="font-mono font-extrabold text-text-main"
+                  style={{ fontSize: '1.42rem', marginTop: '0.85rem', marginBottom: '0.45rem', letterSpacing: '-0.02em' }}
+                >
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.incentive.omset)}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-text-muted mt-1">
+                <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs text-text-muted">
                   <span>{ins.incentive.count} bookings · {ins.incentive.pax} pax</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                     {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.incentive.profit)}`} ({ins.incentive.margin}%)
@@ -1358,43 +1456,48 @@ const Dashboard = () => {
                 </div>
 
                 {/* Top Partner Supplier */}
-                <div className="mt-3 pt-2.5 border-t border-dashed border-border text-xs flex items-center justify-between">
-                  <span className="text-text-muted">Top Partner Wholesaler:</span>
+                <div className="mt-3.5 pt-3 border-t border-dashed border-border text-xs flex items-center justify-between">
+                  <span className="text-text-muted">Top Wholesaler</span>
                   <strong className="text-purple-600 dark:text-purple-400 truncate max-w-[150px]">{ins.incentive.topSupplier}</strong>
                 </div>
               </div>
 
-              <div className="mt-3.5">
-                <button
-                  type="button"
-                  onClick={() => navigate('/tours', { state: { openTab: 'incentive' } })}
-                  className="text-purple-500 hover:text-purple-600 font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
-                >
+              <div className="mt-4">
+                <span className="text-purple-500 font-bold text-xs inline-flex items-center gap-1">
                   Buka Modul Incentive <ChevronRight size={13} />
-                </button>
+                </span>
               </div>
             </div>
 
             {/* Card 3: Consortium */}
             <div
-              className="flex flex-col justify-between p-4 rounded-xl border border-emerald-500/25 border-l-4 border-l-emerald-500 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06] hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
-              style={{ padding: '1.35rem 1.5rem', borderLeft: '4px solid #10b981' }}
+              className="card-interactive flex flex-col justify-between rounded-xl"
+              onClick={() => navigate('/tours', { state: { openTab: 'consortium', _ts: Date.now() } })}
+              style={{
+                padding: '1.35rem 1.5rem',
+                background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.55)',
+                border: '1px solid var(--border)',
+                borderTop: '3px solid #10b981'
+              }}
             >
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-1.5 font-bold text-emerald-500 text-xs uppercase tracking-wider">
-                    <Network size={16} /> Consortium Tours
+                    <Network size={15} /> Consortium Tours
                   </div>
-                  <span className="badge bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">
-                    {ins.consortium.share}% Omset Share
+                  <span className="badge badge-success text-[11px] font-bold">
+                    {ins.consortium.share}% Share
                   </span>
                 </div>
 
-                <div className="font-mono text-xl sm:text-2xl font-extrabold text-text-main mt-2.5">
+                <div
+                  className="font-mono font-extrabold text-text-main"
+                  style={{ fontSize: '1.42rem', marginTop: '0.85rem', marginBottom: '0.45rem', letterSpacing: '-0.02em' }}
+                >
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.consortium.omset)}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-text-muted mt-1">
+                <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs text-text-muted">
                   <span>{ins.consortium.count} bookings · {ins.consortium.pax} pax</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                     {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.profit)}`} ({ins.consortium.margin}%)
@@ -1403,40 +1506,40 @@ const Dashboard = () => {
 
                 {/* Consortium Taxes & Fees Breakdown Strip */}
                 <div
-                  className="mt-3 pt-2.5 border-t border-dashed border-border text-xs space-y-1"
+                  className="mt-3.5 pt-3 border-t border-dashed border-border text-xs"
                   style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
                 >
                   <div className="flex items-center justify-between text-text-muted">
-                    <span>Airport Tax &amp; Fuel:</span>
-                    <strong className="text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.airportTax)}`}</strong>
+                    <span>Airport Tax &amp; Fuel</span>
+                    <strong className="font-mono text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.airportTax)}`}</strong>
                   </div>
                   <div className="flex items-center justify-between text-text-muted">
-                    <span>Tipping Guide &amp; Driver:</span>
-                    <strong className="text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.tipping)}`}</strong>
+                    <span>Tipping Guide &amp; Driver</span>
+                    <strong className="font-mono text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.tipping)}`}</strong>
                   </div>
                   <div className="flex items-center justify-between text-text-muted">
-                    <span>PPN 1.1% &amp; Misc:</span>
-                    <strong className="text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.ppn + ins.consortium.misc)}`}</strong>
+                    <span>PPN 1.1% &amp; Misc</span>
+                    <strong className="font-mono text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.ppn + ins.consortium.misc)}`}</strong>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-3.5">
-                <button
-                  type="button"
-                  onClick={() => navigate('/tours', { state: { openTab: 'consortium' } })}
-                  className="text-emerald-500 hover:text-emerald-600 font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
-                >
+              <div className="mt-4">
+                <span className="text-emerald-500 font-bold text-xs inline-flex items-center gap-1">
                   Buka Modul Consortium <ChevronRight size={13} />
-                </button>
+                </span>
               </div>
             </div>
           </div>
 
           {/* Quick Summary Strip */}
           <div
-            className="p-3.5 sm:p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 flex flex-wrap items-center justify-between gap-3 text-xs"
-            style={{ padding: '1rem 1.4rem' }}
+            className="rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs"
+            style={{
+              padding: '0.9rem 1.25rem',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)'
+            }}
           >
             <div className="flex flex-wrap items-center gap-3 sm:gap-5">
               <div>
@@ -1588,7 +1691,7 @@ const Dashboard = () => {
                         fontWeight: '600',
                         cursor: 'pointer',
                         border: 'none',
-                        background: active ? 'linear-gradient(135deg, #00b4ff 0%, #0077ff 100%)' : 'transparent',
+                        background: active ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)' : 'transparent',
                         color: active ? '#ffffff' : 'var(--text-muted)',
                         boxShadow: active ? '0 2px 10px rgba(0, 168, 255, 0.3)' : 'none',
                         transition: 'all 0.15s ease'
@@ -1772,7 +1875,7 @@ const Dashboard = () => {
                       fontWeight: '600',
                       cursor: 'pointer',
                       border: 'none',
-                      background: active ? 'linear-gradient(135deg, #00b4ff 0%, #0077ff 100%)' : 'transparent',
+                      background: active ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)' : 'transparent',
                       color: active ? '#ffffff' : 'var(--text-muted)',
                       transition: 'all 0.15s ease'
                     }}
@@ -1864,7 +1967,7 @@ const Dashboard = () => {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.32rem',
-                      background: active ? 'linear-gradient(135deg, #00b4ff 0%, #0077ff 100%)' : 'transparent',
+                      background: active ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)' : 'transparent',
                       color: active ? '#ffffff' : 'var(--text-muted)',
                       boxShadow: active ? '0 2px 10px rgba(0, 168, 255, 0.28)' : 'none',
                       transition: 'all 0.15s ease'
@@ -2041,55 +2144,105 @@ const Dashboard = () => {
     if (widget.id === 'alerts') {
       return (
         <div key="alerts" className={`card bento-card-glass bento-col-${widget.size}`} style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <div>
               <h3
                 style={{
                   margin: 0,
                   fontWeight: '700',
-                  fontSize: '1.08rem',
+                  fontSize: '1.05rem',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.45rem',
                   color: 'var(--text-main)'
                 }}
               >
-                <AlertCircle size={18} color="var(--primary)" /> Needs Attention Today
+                <AlertCircle size={18} color="var(--primary)" /> Action Desk Hari Ini
               </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Invoices, visas, cruise payments, check-ins &amp; returns
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                Pelunasan, invoice, jadwal visa &amp; check-in mendesak
               </p>
             </div>
-            {alerts.length > 0 && (
-              <span className="badge badge-warning" style={{ fontSize: '0.72rem' }}>
-                {alerts.length} Item{alerts.length > 1 ? 's' : ''}
-              </span>
-            )}
+            <div
+              style={{
+                display: 'inline-flex',
+                padding: '2px',
+                borderRadius: '8px',
+                background: isLight ? '#eff8ff' : 'rgba(56, 189, 248, 0.06)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              {[
+                { id: 'mine', label: 'Milik Saya' },
+                { id: 'all', label: 'Tim' }
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActionDeskScope(s.id)}
+                  style={{
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.7rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    background: actionDeskScope === s.id ? 'var(--primary)' : 'transparent',
+                    color: actionDeskScope === s.id ? '#ffffff' : 'var(--text-muted)'
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Desk Category Filter Pills */}
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
+            {[
+              { id: 'all', label: `Semua (${alerts.length})` },
+              { id: 'finance', label: `Keuangan (${alerts.filter((a) => a.category === 'finance').length})` },
+              { id: 'visa', label: `Visa (${alerts.filter((a) => a.category === 'visa').length})` },
+              { id: 'schedule', label: `Jadwal (${alerts.filter((a) => a.category === 'schedule').length})` }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`quick-filter-chip ${actionDeskCategory === tab.id ? 'active' : ''}`}
+                style={{ padding: '0.22rem 0.58rem', fontSize: '0.7rem' }}
+                onClick={() => setActionDeskCategory(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.75rem',
+              gap: '0.7rem',
               overflowY: 'auto',
               maxHeight: '420px',
-              paddingRight: '0.25rem'
+              paddingRight: '0.2rem'
             }}
           >
-            {alerts.length > 0 ? (
-              alerts.map((item) => {
+            {filteredActionDesk.length > 0 ? (
+              filteredActionDesk.map((item) => {
                 const urgency = getUrgencyBadgeInfo(item.diffDays);
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.actionPath, item.actionState ? { state: item.actionState } : undefined)}
+                    onClick={() =>
+                      navigate(item.actionPath, {
+                        state: { ...(item.actionState || {}), _ts: Date.now() }
+                      })
+                    }
                     style={{
                       textAlign: 'left',
                       width: '100%',
                       cursor: 'pointer',
-                      padding: '0.9rem 1rem',
+                      padding: '0.85rem 0.95rem',
                       borderRadius: '12px',
                       background:
                         item.type === 'danger'
@@ -2104,10 +2257,10 @@ const Dashboard = () => {
                       transition: 'transform 0.15s ease'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
                       <span
                         style={{
-                          fontSize: '0.68rem',
+                          fontSize: '0.67rem',
                           fontWeight: '700',
                           textTransform: 'uppercase',
                           letterSpacing: '0.04em',
@@ -2118,9 +2271,9 @@ const Dashboard = () => {
                       </span>
                       <span
                         style={{
-                          fontSize: '0.68rem',
+                          fontSize: '0.67rem',
                           fontWeight: '700',
-                          padding: '0.1rem 0.48rem',
+                          padding: '0.1rem 0.45rem',
                           borderRadius: '9999px',
                           background: urgency.isUrgent
                             ? isLight ? '#ffe4e6' : 'rgba(244, 63, 94, 0.2)'
@@ -2134,19 +2287,48 @@ const Dashboard = () => {
                       </span>
                     </div>
 
-                    <div style={{ fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.45rem', lineHeight: '1.45' }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.5rem', lineHeight: '1.42' }}>
                       {item.title}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <Clock size={12} />
                         <span>{formatFriendlyDate(item.date)}</span>
                       </div>
-                      <span style={{ color: 'var(--primary)', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                        Resolve <ChevronRight size={13} />
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }} onClick={(e) => e.stopPropagation()}>
+                        {item.moduleType && item.record && (
+                          <WhatsAppQuickMenu
+                            moduleType={item.moduleType}
+                            record={item.record}
+                            compact
+                            label="WA"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(item.actionPath, {
+                              state: { ...(item.actionState || {}), _ts: Date.now() }
+                            })
+                          }
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--primary)',
+                            fontWeight: '700',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                            padding: '0.2rem 0.3rem'
+                          }}
+                        >
+                          Tangani <ChevronRight size={13} />
+                        </button>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             ) : (
@@ -2164,10 +2346,10 @@ const Dashboard = () => {
                   <CheckCircle2 size={26} />
                 </div>
                 <p style={{ margin: 0, fontWeight: '700', color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                  You&apos;re All Caught Up!
+                  Semua Tugas Aman Terkendali!
                 </p>
                 <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Invoices, visas, cruise payments, check-ins, and SIM returns all look up to date.
+                  Tidak ada antrean mendesak pada kategori ini untuk saat ini.
                 </p>
               </div>
             )}

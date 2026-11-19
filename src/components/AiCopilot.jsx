@@ -391,6 +391,7 @@ const AiCopilot = () => {
       {/* FLOATING TRIGGER BUTTON */}
       {!isOpen && (
         <button
+          className="no-print"
           onClick={() => setIsOpen(true)}
           style={{
             position: 'fixed',
@@ -435,7 +436,9 @@ const AiCopilot = () => {
 
       {/* CHAT WINDOW MODAL */}
       {isOpen && (
-        <div style={{
+        <div
+          className="no-print"
+          style={{
           position: 'fixed',
           bottom: isExpanded ? '20px' : '24px',
           right: isExpanded ? '20px' : '24px',

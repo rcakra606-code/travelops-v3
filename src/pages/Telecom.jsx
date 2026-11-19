@@ -3,6 +3,13 @@ import { useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import SlideOverDrawer from '../components/SlideOverDrawer';
+import FloatingBulkBar from '../components/FloatingBulkBar';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
+import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
+import DraftBanner from '../components/DraftBanner';
+import ConfirmModal from '../components/ConfirmModal';
+import { useFormDraft } from '../hooks/useFormDraft';
 import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
@@ -360,6 +367,7 @@ const TelecomChartTooltip = ({ active, payload, label, isLight }) => {
 const Telecom = () => {
   const {
     telecoms,
+    loading: telecomsLoading,
     addTelecom,
     updateTelecom,
     deleteTelecom,
@@ -404,7 +412,7 @@ const Telecom = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState(() =>
-    location.state?.openTab === 'database' ? 'database' : 'dashboard'
+    location.state?.openTab === 'database' || location.state?.openId ? 'database' : 'dashboard'
   );
   const [showImport, setShowImport] = useState(false);
   const [selectedYear, setSelectedYear] = useState('All');
@@ -418,7 +426,23 @@ const Telecom = () => {
   const [editingTel, setEditingTel] = useState(null);
   const [isDuplicateMode, setIsDuplicateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewTelId, setPreviewTelId] = useState(null);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [previewTelId, setPreviewTelId] = useState(() => location.state?.openId || null);
+
+  // React to deep-link / Quick Create navigation even when already mounted on /telecom
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openNew) {
+      setEditingTel(null);
+      setIsDuplicateMode(false);
+      setIsModalOpen(true);
+    } else if (location.state?.openId) {
+      setActiveTab('database');
+      setPreviewTelId(location.state.openId);
+    }
+  }
 
   // Region dropdown state
   const [countrySearch, setCountrySearch] = useState('');
@@ -449,6 +473,30 @@ const Telecom = () => {
   const [formData, setFormData] = useState(() =>
     buildEmptyForm(location.state?.prefillDate || '')
   );
+
+  const isNewTelMode = isModalOpen && !editingTel && !isDuplicateMode;
+  const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
+    'new_telecom',
+    formData,
+    setFormData,
+    isNewTelMode
+  );
+
+  const isTelFormDirty = useMemo(() => {
+    if (!isModalOpen) return false;
+    if (editingTel) {
+      return (
+        formData.nama !== (editingTel.nama || '') ||
+        formData.noTelephone !== (editingTel.noTelephone || '') ||
+        formData.region !== (editingTel.region || '')
+      );
+    }
+    return Boolean(
+      formData.nama?.trim() ||
+      formData.noTelephone?.trim() ||
+      formData.region?.trim()
+    );
+  }, [isModalOpen, editingTel, formData]);
 
   // Quick Handover / Return & Deposit Settlement Modal
   const [quickSettlementTel, setQuickSettlementTel] = useState(null);
@@ -641,9 +689,18 @@ const Telecom = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setShowConfirmClose(false);
     setEditingTel(null);
     setIsDuplicateMode(false);
     setShowDropdown(false);
+  };
+
+  const handleRequestCloseModal = () => {
+    if (isTelFormDirty && !isSubmitting) {
+      setShowConfirmClose(true);
+    } else {
+      handleCloseModal();
+    }
   };
 
   const handleSelectProductChip = (prod) => {
@@ -733,6 +790,7 @@ const Telecom = () => {
         toast.success(`Updated ${payload.typeProduct} order for ${payload.nama}.`);
       } else {
         await addTelecom(payload);
+        clearDraft();
         toast.success(`Added ${payload.typeProduct} order for ${payload.nama}.`);
       }
       handleCloseModal();
@@ -2693,6 +2751,9 @@ const Telecom = () => {
                 </div>
 
                 {/* Data Table Card */}
+                {telecomsLoading && telecoms.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div
                   className="card"
                   style={{
@@ -2706,13 +2767,11 @@ const Telecom = () => {
                     overflow: 'hidden'
                   }}
                 >
-                  <div className="table-sticky-wrapper">
+                  <div className="table-sticky-wrapper desktop-table-view">
                     <table className="data-table" style={{ width: '100%', minWidth: '1100px' }}>
                       <thead
                         style={{
-                          background: isLight
-                            ? '#f1f7fe'
-                            : 'rgba(14, 24, 45, 0.92)',
+                          background: 'var(--bg-surface)',
                           borderBottom: '1px solid var(--border)'
                         }}
                       >
@@ -2725,7 +2784,7 @@ const Telecom = () => {
                               aria-label="Select all orders on page"
                             />
                           </th>
-                          <th>
+                          <th className="sticky-col-left">
                             <div
                               style={{
                                 display: 'flex',
@@ -2827,7 +2886,7 @@ const Telecom = () => {
                               CONSULTANT <ArrowUpDown size={13} />
                             </div>
                           </th>
-                          <th>ACTIONS</th>
+                          <th className="sticky-col-right">ACTIONS</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2867,7 +2926,7 @@ const Telecom = () => {
                                   aria-label={`Select ${tel.nama}`}
                                 />
                               </td>
-                              <td>
+                              <td className="sticky-col-left">
                                 <div
                                   style={{
                                     fontWeight: 700,
@@ -3000,7 +3059,7 @@ const Telecom = () => {
                                   {tel.staff || 'Unassigned'}
                                 </span>
                               </td>
-                              <td onClick={(e) => e.stopPropagation()}>
+                              <td className="sticky-col-right" onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: 'flex', gap: '0.35rem' }}>
                                   <button
                                     type="button"
@@ -3099,22 +3158,113 @@ const Telecom = () => {
 
                         {paginatedData.length === 0 && (
                           <tr>
-                            <td
-                              colSpan="8"
-                              style={{
-                                textAlign: 'center',
-                                padding: '2.5rem 1rem',
-                                color: 'var(--text-muted)'
-                              }}
-                            >
-                              {enrichedTelecoms.length === 0
-                                ? 'No Travel SIM, eSIM, or Pocket WiFi orders yet. Click "New SIM / WiFi Order" to create one.'
-                                : 'No orders match your active search or scope filter.'}
+                            <td colSpan="8" style={{ padding: 0 }}>
+                              <EmptyState
+                                icon={<Wifi size={22} />}
+                                title={
+                                  enrichedTelecoms.length === 0
+                                    ? 'Belum ada order SIM, eSIM, atau Pocket WiFi'
+                                    : 'Tidak ada order yang sesuai filter aktif'
+                                }
+                                description={
+                                  enrichedTelecoms.length === 0
+                                    ? 'Klik "New SIM / WiFi Order" untuk membuat catatan konektivitas baru.'
+                                    : 'Ubah kata kunci pencarian atau reset filter untuk menampilkan semua order.'
+                                }
+                                actionLabel={hasActiveFilters ? 'Reset Semua Filter' : ''}
+                                onAction={hasActiveFilters ? handleResetAllFilters : null}
+                                compact
+                              />
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile Operational Card View (<= 768px) */}
+                  <div className="mobile-card-list">
+                    {paginatedData.length > 0 ? (
+                      paginatedData.map((tel) => {
+                        const lifeMeta = getLifecycleMeta(tel.lifecycleStatus, isLight);
+                        return (
+                          <div
+                            key={`mob-tel-${tel.id}`}
+                            onClick={() => setPreviewTelId(tel.id)}
+                            style={{
+                              padding: '0.95rem',
+                              borderRadius: '12px',
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.55rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                                  {tel.nama || '-'}
+                                </div>
+                                <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                  {tel.typeProduct || 'SIM/WiFi'} · {tel.region || '-'}
+                                </div>
+                              </div>
+                              <span className={`badge ${lifeMeta.badgeClass}`} style={{ fontSize: '0.7rem' }}>
+                                {lifeMeta.label}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              <span>📅 {formatDisplayDate(tel.tanggalMulai, true)} → {formatDisplayDate(tel.tanggalSelesai, true)}</span>
+                              <span>👤 {tel.staff || '-'}</span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingTop: '0.5rem',
+                                borderTop: '1px solid var(--border)'
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                                {tel.noTelephone || 'No HP -'}
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <WhatsAppQuickMenu
+                                  moduleType="telecom"
+                                  record={{
+                                    ...tel,
+                                    namaTamu: tel.nama,
+                                    jenisProduk: tel.typeProduct,
+                                    negara: tel.region
+                                  }}
+                                  phone={tel.noTelephone}
+                                  compact
+                                  label="WA"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewTelId(tel.id)}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                                >
+                                  Detail
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        Tidak ada order SIM / WiFi pada filter ini.
+                      </div>
+                    )}
                   </div>
 
                   <Pagination
@@ -3124,7 +3274,70 @@ const Telecom = () => {
                     totalItems={totalItems}
                     itemsPerPage={itemsPerPage}
                   />
+
+                  <FloatingBulkBar
+                    count={selectedIds.length}
+                    itemLabel="order"
+                    onClear={() => setSelectedIds([])}
+                  >
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkAction('pickup')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(56, 189, 248, 0.16)',
+                        color: 'var(--primary)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Handed Over
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkAction('return')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(16, 185, 129, 0.16)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Returned / Done
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkAction('deposit_refunded')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(245, 158, 11, 0.16)',
+                        color: '#f59e0b',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Refund Deposit
+                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={handleBulkDelete}
+                        style={{ padding: '0.35rem 0.72rem', fontSize: '0.78rem', fontWeight: 700 }}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
+                  </FloatingBulkBar>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -3133,9 +3346,10 @@ const Telecom = () => {
 
       {/* ADD / EDIT / DUPLICATE ORDER MODAL */}
       {isModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={handleRequestCloseModal}>
           <div
             className="modal-content fade-in"
+            onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '820px',
               maxHeight: '92vh',
@@ -3190,7 +3404,7 @@ const Telecom = () => {
               </div>
               <button
                 type="button"
-                onClick={handleCloseModal}
+                onClick={handleRequestCloseModal}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -3203,6 +3417,12 @@ const Telecom = () => {
             </div>
 
             <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+              <DraftBanner
+                hasSavedDraft={isNewTelMode && hasSavedDraft}
+                draftSavedAt={draftSavedAt}
+                onRestore={restoreDraft}
+                onDiscard={clearDraft}
+              />
               {/* Section 1: Traveler & Product */}
               <div
                 style={{
@@ -4039,22 +4259,36 @@ const Telecom = () => {
                 width: '100%'
               }}
             >
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  const target = previewTelecom;
-                  setPreviewTelId(null);
-                  handleDuplicateTelecom(target);
-                }}
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-main)'
-                }}
-              >
-                <Copy size={15} /> Duplicate for Group
-              </button>
+              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <WhatsAppQuickMenu
+                  moduleType="telecom"
+                  record={{
+                    ...previewTelecom,
+                    namaTamu: previewTelecom.nama,
+                    jenisProduk: previewTelecom.typeProduct,
+                    negara: previewTelecom.region
+                  }}
+                  phone={previewTelecom.noTelephone}
+                  align="left"
+                  label="Template WA"
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    const target = previewTelecom;
+                    setPreviewTelId(null);
+                    handleDuplicateTelecom(target);
+                  }}
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)'
+                  }}
+                >
+                  <Copy size={15} /> Duplicate
+                </button>
+              </div>
 
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {canEditRecord(previewTelecom.staff) && (
@@ -4621,6 +4855,17 @@ const Telecom = () => {
           </div>
         )}
       </SlideOverDrawer>
+
+      <ConfirmModal
+        isOpen={showConfirmClose}
+        title="Buang perubahan yang belum disimpan?"
+        message="Anda memiliki isian formulir order SIM / WiFi yang belum disimpan. Yakin ingin menutup jendela ini?"
+        confirmText="Tutup & Buang"
+        cancelText="Lanjutkan Mengisi"
+        variant="warning"
+        onConfirm={handleCloseModal}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </div>
   );
 };

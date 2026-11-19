@@ -4,6 +4,14 @@ import tailwindcss from '@tailwindcss/vite';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import {
+  validateRegistrationFilePayload,
+  buildTourRegistrationPrompt
+} from './src/utils/tourRegistrationPrompt.js';
+import {
+  validateDocumentFilePayload,
+  buildDocumentRequestPrompt
+} from './src/utils/documentAiPrompt.js';
 
 dotenv.config();
 
@@ -360,6 +368,140 @@ const devApiPlugin = () => ({
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({ success: false, error: err.message || 'Failed to parse PDF.' }));
+          }
+        });
+        return;
+      }
+
+      // 6. Parse Tour Registration Form (PDF / Image) into Draft via Gemini Multimodal
+      if (req.url === '/api/tours/parse-registration-form' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const { fileBase64, mimeType, fileName, staffList } = JSON.parse(body || '{}');
+            const client = getDevAiClient();
+            if (!client) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY belum terkonfigurasi.' }));
+            }
+
+            const validation = validateRegistrationFilePayload(fileBase64, mimeType);
+            if (!validation.valid) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: validation.error }));
+            }
+
+            const prompt = buildTourRegistrationPrompt(Array.isArray(staffList) ? staffList : []);
+            const response = await runGeminiFallback(client, async (model) => {
+              return await client.models.generateContent({
+                model,
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        inlineData: {
+                          mimeType: validation.mimeType,
+                          data: validation.cleanBase64
+                        }
+                      },
+                      { text: prompt }
+                    ]
+                  }
+                ],
+                config: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.1
+                }
+              });
+            });
+
+            const parsedData = cleanJsonOutput(response.text);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              fileName: fileName || 'Formulir_Pendaftaran.pdf',
+              data: parsedData
+            }));
+          } catch (err) {
+            console.error('[DEV PARSE TOUR FORM ERROR]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err.message || 'Gagal memproses Formulir Pendaftaran dengan AI.'
+            }));
+          }
+        });
+        return;
+      }
+
+      // 7. Parse Visa / Document Request Form (Lark PDF / Image) into Draft(s) via Gemini Multimodal
+      if (req.url === '/api/documents/parse-request-form' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const { fileBase64, mimeType, fileName, staffList } = JSON.parse(body || '{}');
+            const client = getDevAiClient();
+            if (!client) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY belum terkonfigurasi.' }));
+            }
+
+            const validation = validateDocumentFilePayload(fileBase64, mimeType);
+            if (!validation.valid) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: validation.error }));
+            }
+
+            const prompt = buildDocumentRequestPrompt(Array.isArray(staffList) ? staffList : []);
+            const response = await runGeminiFallback(client, async (model) => {
+              return await client.models.generateContent({
+                model,
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        inlineData: {
+                          mimeType: validation.mimeType,
+                          data: validation.cleanBase64
+                        }
+                      },
+                      { text: prompt }
+                    ]
+                  }
+                ],
+                config: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.1
+                }
+              });
+            });
+
+            const parsedData = cleanJsonOutput(response.text);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              fileName: fileName || 'Request_Visa_Document.pdf',
+              data: parsedData
+            }));
+          } catch (err) {
+            console.error('[DEV PARSE DOCUMENT FORM ERROR]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err.message || 'Gagal memproses Formulir Request Dokumen dengan AI.'
+            }));
           }
         });
         return;

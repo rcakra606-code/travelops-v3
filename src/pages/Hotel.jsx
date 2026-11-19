@@ -3,6 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import SlideOverDrawer from '../components/SlideOverDrawer';
+import FloatingBulkBar from '../components/FloatingBulkBar';
+import SkeletonLoader from '../components/SkeletonLoader';
+import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
+import DraftBanner from '../components/DraftBanner';
+import ConfirmModal from '../components/ConfirmModal';
+import { useFormDraft } from '../hooks/useFormDraft';
 import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
@@ -265,6 +271,7 @@ const HotelChartTooltip = ({ active, payload, label, isLight }) => {
 const Hotel = () => {
   const {
     hotels,
+    loading: hotelsLoading,
     addHotel,
     updateHotel,
     deleteHotel,
@@ -314,7 +321,7 @@ const Hotel = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState(() =>
-    location.state?.openTab === 'database' ? 'database' : 'dashboard'
+    location.state?.openTab === 'database' || location.state?.openId ? 'database' : 'dashboard'
   );
   const [showImport, setShowImport] = useState(false);
   const [selectedYear, setSelectedYear] = useState('All');
@@ -328,7 +335,23 @@ const Hotel = () => {
   const [editingHotel, setEditingHotel] = useState(null);
   const [isDuplicateMode, setIsDuplicateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewHotelId, setPreviewHotelId] = useState(null);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [previewHotelId, setPreviewHotelId] = useState(() => location.state?.openId || null);
+
+  // React to deep-link / Quick Create navigation even when already mounted on /hotel
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openNew) {
+      setEditingHotel(null);
+      setIsDuplicateMode(false);
+      setIsModalOpen(true);
+    } else if (location.state?.openId) {
+      setActiveTab('database');
+      setPreviewHotelId(location.state.openId);
+    }
+  }
 
   const [countrySearch, setCountrySearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -351,6 +374,33 @@ const Hotel = () => {
   const [formData, setFormData] = useState(() =>
     buildEmptyForm(location.state?.prefillDate || '')
   );
+
+  const isNewHotelMode = isModalOpen && !editingHotel && !isDuplicateMode;
+  const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
+    'new_hotel',
+    formData,
+    setFormData,
+    isNewHotelMode
+  );
+
+  const isHotelFormDirty = useMemo(() => {
+    if (!isModalOpen) return false;
+    if (editingHotel) {
+      return (
+        formData.hotelName !== (editingHotel.hotelName || '') ||
+        formData.checkIn !== (editingHotel.checkIn || '') ||
+        formData.checkOut !== (editingHotel.checkOut || '') ||
+        formData.confirmationNumber !== (editingHotel.confirmationNumber || '') ||
+        formData.guestList !== (editingHotel.guestList || '')
+      );
+    }
+    return Boolean(
+      formData.hotelName?.trim() ||
+      formData.confirmationNumber?.trim() ||
+      formData.guestList?.trim() ||
+      formData.roomType?.trim()
+    );
+  }, [isModalOpen, editingHotel, formData]);
 
   const previewHotel = useMemo(
     () => hotels.find((h) => h.id === previewHotelId) || null,
@@ -428,9 +478,18 @@ const Hotel = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setShowConfirmClose(false);
     setEditingHotel(null);
     setIsDuplicateMode(false);
     setShowDropdown(false);
+  };
+
+  const handleRequestCloseModal = () => {
+    if (isHotelFormDirty && !isSubmitting) {
+      setShowConfirmClose(true);
+    } else {
+      handleCloseModal();
+    }
   };
 
   const handleCopyText = async (text, label = 'Copied to clipboard') => {
@@ -517,6 +576,7 @@ const Hotel = () => {
         toast.success(`Updated booking at ${payload.hotelName}.`);
       } else {
         await addHotel(payload);
+        clearDraft();
         toast.success(`Added hotel stay at ${payload.hotelName}.`);
       }
       handleCloseModal();
@@ -2080,12 +2140,15 @@ const Hotel = () => {
                 </div>
 
                 {/* Theme-Aware Stays Table */}
+                {hotelsLoading && hotels.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '14px', border: '1px solid var(--border)', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
-                  <div className="table-sticky-wrapper">
+                  <div className="table-sticky-wrapper desktop-table-view">
                     <table className="data-table" style={{ width: '100%', minWidth: '1100px' }}>
                       <thead
                         style={{
-                          background: isLight ? '#f4f9ff' : 'rgba(15, 23, 42, 0.85)',
+                          background: 'var(--bg-surface)',
                           borderBottom: '1px solid var(--border)'
                         }}
                       >
@@ -2099,7 +2162,7 @@ const Hotel = () => {
                               style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                             />
                           </th>
-                          <th>
+                          <th className="sticky-col-left">
                             <div
                               style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}
                               onClick={() => handleSort('hotelName')}
@@ -2195,7 +2258,7 @@ const Hotel = () => {
                               />
                             </div>
                           </th>
-                          <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                          <th className="sticky-col-right" style={{ textAlign: 'right' }}>ACTIONS</th>
                         </tr>
                       </thead>
 
@@ -2243,7 +2306,7 @@ const Hotel = () => {
                                 />
                               </td>
 
-                              <td>
+                              <td className="sticky-col-left">
                                 <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
                                   {h.hotelName || '-'}
                                 </div>
@@ -2424,7 +2487,7 @@ const Hotel = () => {
                                 </span>
                               </td>
 
-                              <td onClick={(e) => e.stopPropagation()}>
+                              <td className="sticky-col-right" onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                                   <button
                                     type="button"
@@ -2541,6 +2604,85 @@ const Hotel = () => {
                     </table>
                   </div>
 
+                  {/* Mobile Operational Card View (<= 768px) */}
+                  <div className="mobile-card-list">
+                    {paginatedData.length > 0 ? (
+                      paginatedData.map((h) => {
+                        const statusMeta = getStatusMeta(h.status, isLight);
+                        return (
+                          <div
+                            key={`mob-hotel-${h.id}`}
+                            onClick={() => setPreviewHotelId(h.id)}
+                            style={{
+                              padding: '0.95rem',
+                              borderRadius: '12px',
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.55rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                                  {h.hotelName || '-'}
+                                </div>
+                                <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                  {h.region || 'Destinasi'} · {h.roomType || 'Standard'}
+                                </div>
+                              </div>
+                              <span className={`badge ${statusMeta.badgeClass}`} style={{ fontSize: '0.7rem' }}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              <span>📅 {formatDisplayDate(h.checkIn, true)} → {formatDisplayDate(h.checkOut, true)}</span>
+                              <span>👤 {h.staff || '-'}</span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingTop: '0.5rem',
+                                borderTop: '1px solid var(--border)'
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="font-mono" style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                                {h.confirmationNumber ? `Conf: ${h.confirmationNumber}` : 'Belum ada Conf #'}
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <WhatsAppQuickMenu
+                                  moduleType="hotel"
+                                  record={{ ...h, guestName: h.guestList ? h.guestList.split(',')[0].trim() : 'Tamu', bookingCode: h.confirmationNumber }}
+                                  compact
+                                  label="WA"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewHotelId(h.id)}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                                >
+                                  Detail
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        Tidak ada reservasi hotel pada filter ini.
+                      </div>
+                    )}
+                  </div>
+
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -2548,7 +2690,55 @@ const Hotel = () => {
                     totalItems={totalItems}
                     itemsPerPage={itemsPerPage}
                   />
+
+                  <FloatingBulkBar
+                    count={selectedIds.length}
+                    itemLabel="hotel"
+                    onClear={() => setSelectedIds([])}
+                  >
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('AUTO')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(16, 185, 129, 0.16)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Sync Status
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Cancelled')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(245, 158, 11, 0.16)',
+                        color: '#f59e0b',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Mark Cancelled
+                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={handleBulkDelete}
+                        style={{ padding: '0.35rem 0.72rem', fontSize: '0.78rem', fontWeight: 700 }}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
+                  </FloatingBulkBar>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -2557,9 +2747,10 @@ const Hotel = () => {
 
       {/* ADD / EDIT / DUPLICATE HOTEL BOOKING MODAL */}
       {isModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={handleRequestCloseModal}>
           <div
             className="modal-content fade-in"
+            onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '820px',
               background: 'var(--bg-card)',
@@ -2607,7 +2798,7 @@ const Hotel = () => {
 
               <button
                 type="button"
-                onClick={handleCloseModal}
+                onClick={handleRequestCloseModal}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -2623,6 +2814,12 @@ const Hotel = () => {
               onSubmit={handleSubmit}
               style={{ padding: '1.4rem 1.5rem', overflowY: 'auto' }}
             >
+              <DraftBanner
+                hasSavedDraft={isNewHotelMode && hasSavedDraft}
+                draftSavedAt={draftSavedAt}
+                onRestore={restoreDraft}
+                onDiscard={clearDraft}
+              />
               <div className="form-grid">
                 {/* Row 1: Check-In & Check-Out with Quick Night Chips */}
                 <div className="input-group">
@@ -3054,6 +3251,16 @@ const Hotel = () => {
         footer={
           previewHotel ? (
             <>
+              <WhatsAppQuickMenu
+                moduleType="hotel"
+                record={{
+                  ...previewHotel,
+                  guestName: previewHotel.guestList ? previewHotel.guestList.split(',')[0].trim() : 'Tamu',
+                  bookingCode: previewHotel.confirmationNumber
+                }}
+                align="left"
+                label="Template WA"
+              />
               <button
                 type="button"
                 className="btn"
@@ -3396,6 +3603,17 @@ const Hotel = () => {
           );
         })()}
       </SlideOverDrawer>
+
+      <ConfirmModal
+        isOpen={showConfirmClose}
+        title="Buang perubahan yang belum disimpan?"
+        message="Anda memiliki isian formulir reservasi hotel yang belum disimpan. Yakin ingin menutup jendela ini?"
+        confirmText="Tutup & Buang"
+        cancelText="Lanjutkan Mengisi"
+        variant="warning"
+        onConfirm={handleCloseModal}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </div>
   );
 };

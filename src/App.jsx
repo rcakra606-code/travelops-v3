@@ -24,6 +24,7 @@ import AnimatedRoutes from './components/AnimatedRoutes';
 import CommandPalette from './components/CommandPalette';
 import AiCopilot from './components/AiCopilot';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
+import NetworkStatusBanner from './components/NetworkStatusBanner';
 import { ToastProvider } from './context/ToastContext';
 import ToastNotification from './components/ToastNotification';
 
@@ -119,6 +120,10 @@ function App() {
         e.preventDefault();
         setShowShortcuts((prev) => !prev);
       }
+      if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-quick-create'));
+      }
     };
 
     const handleCustomOpen = () => setShowShortcuts(true);
@@ -142,6 +147,7 @@ function App() {
               <CommandPalette />
               <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
               <AiCopilot />
+              <NetworkStatusBanner />
               <ToastNotification />
               <AnimatedRoutes />
             </AuthenticatedDataProviders>

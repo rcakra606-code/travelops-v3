@@ -315,7 +315,8 @@ const TourSettlementModal = ({ tour, onClose }) => {
                     <td style={{ padding: '3px 0' }}>Total Room</td>
                     <td style={{ textAlign: 'center' }}>:</td>
                     <td>
-                      <span style={{ fontWeight: '700' }}>{Math.ceil(data.paxCount / 2)} Room</span> &nbsp;+&nbsp; SINGLE / TWN
+                      <span style={{ fontWeight: '700' }}>{Math.ceil(data.paxCount / 2)} Room</span> &nbsp;+&nbsp; Single / Twin / Double{' '}
+                      <span style={{ fontStyle: 'italic' }}>*Sesuai request</span>
                     </td>
                   </tr>
                   {activeTab === 'agent' && (

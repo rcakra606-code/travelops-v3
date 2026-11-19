@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  UploadCloud, Plus, PieChart, List, BarChart3, Edit3, Compass, Briefcase, Network
+  UploadCloud, Plus, PieChart, List, BarChart3, Edit3, Compass, Briefcase, Network, Sparkles
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import TourWizard from '../components/tours/TourWizard';
+import TourAiImportModal from '../components/tours/TourAiImportModal';
 import DatabaseTable from '../components/tours/DatabaseTable';
 import TourSummary from '../components/tours/TourSummary';
 import TourReporting from '../components/tours/TourReporting';
@@ -44,20 +45,47 @@ const ToursManager = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState(() => {
     if (location.state?.openNew) return 'wizard';
+    if (location.state?.openId) return location.state?.openTab || 'database';
     if (location.state?.openTab) return location.state.openTab;
     return 'summary';
   });
   const [editingTour, setEditingTour] = useState(null);
   const [duplicateSeed, setDuplicateSeed] = useState(null);
+  const [aiDraftSeed, setAiDraftSeed] = useState(null);
   const [newWizardCount, setNewWizardCount] = useState(0);
   const [showImport, setShowImport] = useState(false);
+  const [showAiImportModal, setShowAiImportModal] = useState(false);
 
-  // Drill-down seed for All Bookings (scope + search)
-  const [tableSeed, setTableSeed] = useState({
-    key: 'default',
-    scope: 'active',
-    search: ''
-  });
+  // Drill-down seed for All Bookings (scope + search + deep-link openId)
+  const [tableSeed, setTableSeed] = useState(() => ({
+    key: location.state?._ts ? `nav-${location.state._ts}` : 'default',
+    scope: location.state?.openId ? 'all' : location.state?.scope || 'active',
+    search: location.state?.search || '',
+    openId: location.state?.openId || null
+  }));
+
+  // Handle deep-link / Quick Create navigation even when already mounted on /tours
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openNew) {
+      setEditingTour(null);
+      setDuplicateSeed(null);
+      setNewWizardCount((c) => c + 1);
+      setActiveTab('wizard');
+    } else if (location.state?.openId || location.state?.openTab) {
+      setTableSeed({
+        key: `nav-${navTs}`,
+        scope: location.state?.openId ? 'all' : location.state?.scope || 'active',
+        search: location.state?.search || '',
+        openId: location.state?.openId || null
+      });
+      setEditingTour(null);
+      setDuplicateSeed(null);
+      setActiveTab(location.state?.openTab || 'database');
+    }
+  }
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebarOnMobile = () => {
@@ -112,14 +140,25 @@ const ToursManager = () => {
   const handleStartNewBooking = () => {
     setEditingTour(null);
     setDuplicateSeed(null);
+    setAiDraftSeed(null);
     setNewWizardCount((c) => c + 1);
     setActiveTab('wizard');
   };
 
   const handleEditTour = (tour) => {
     setDuplicateSeed(null);
+    setAiDraftSeed(null);
     setEditingTour(tour);
     setActiveTab('wizard');
+  };
+
+  const handleApplyAiDraft = (draft) => {
+    setEditingTour(null);
+    setDuplicateSeed(null);
+    setAiDraftSeed(draft);
+    setShowAiImportModal(false);
+    setActiveTab('wizard');
+    toast.info('Draft AI dimuat — harap cek peringatan & lengkapi Kode Booking, Nomor DP, dan Profit sebelum menyimpan.');
   };
 
   const handleDuplicateTour = (tour) => {
@@ -284,9 +323,11 @@ const ToursManager = () => {
 
   const wizardKey = editingTour
     ? `edit-${editingTour.id}`
-    : duplicateSeed
-      ? duplicateSeed._seedKey
-      : `new-${newWizardCount}`;
+    : aiDraftSeed
+      ? aiDraftSeed._seedKey
+      : duplicateSeed
+        ? duplicateSeed._seedKey
+        : `new-${newWizardCount}`;
 
   const renderContent = () => {
     switch (activeTab) {
@@ -294,17 +335,21 @@ const ToursManager = () => {
         return (
           <TourWizard
             key={wizardKey}
-            initialData={editingTour || duplicateSeed}
-            prefillDate={!editingTour && !duplicateSeed ? location.state?.prefillDate : ''}
+            initialData={editingTour || aiDraftSeed || duplicateSeed}
+            initialStep={aiDraftSeed ? 2 : 1}
+            prefillDate={!editingTour && !duplicateSeed && !aiDraftSeed ? location.state?.prefillDate : ''}
+            onOpenAiImport={() => setShowAiImportModal(true)}
             onComplete={() => {
               const target = editingTour?.tourType?.toLowerCase() || 'database';
               setEditingTour(null);
               setDuplicateSeed(null);
+              setAiDraftSeed(null);
               setActiveTab(['series', 'incentive', 'consortium'].includes(target) ? target : 'database');
             }}
             onCancel={() => {
               setEditingTour(null);
               setDuplicateSeed(null);
+              setAiDraftSeed(null);
               setActiveTab('database');
             }}
           />
@@ -351,6 +396,7 @@ const ToursManager = () => {
             onDuplicate={handleDuplicateTour}
             initialScope={tableSeed.scope}
             initialSearch={tableSeed.search}
+            initialOpenId={tableSeed.openId}
           />
         );
       case 'summary':
@@ -409,6 +455,20 @@ const ToursManager = () => {
               <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
+                  onClick={() => setShowAiImportModal(true)}
+                  className="btn btn-secondary"
+                  style={{
+                    fontSize: '0.84rem',
+                    padding: '0.55rem 1rem',
+                    borderColor: 'var(--border-glow)',
+                    background: 'var(--primary-soft)',
+                    color: 'var(--primary)'
+                  }}
+                >
+                  <Sparkles size={15} /> AI Auto-Fill (PDF / Foto)
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowImport(!showImport)}
                   className="btn btn-secondary"
                   style={{ fontSize: '0.84rem', padding: '0.55rem 1rem' }}
@@ -433,7 +493,7 @@ const ToursManager = () => {
               />
             )}
 
-            <div className="tabs-container flex items-center gap-1.5 mb-6 border-b border-border pb-1 overflow-x-auto scrollbar-none">
+            <div className="tabs-container">
               <button
                 type="button"
                 className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
@@ -565,6 +625,10 @@ const ToursManager = () => {
                   <>
                     <Edit3 size={15} /> Edit Booking
                   </>
+                ) : aiDraftSeed ? (
+                  <>
+                    <Sparkles size={15} /> AI Draft
+                  </>
                 ) : duplicateSeed ? (
                   <>
                     <Plus size={15} /> Duplicate Draft
@@ -581,6 +645,12 @@ const ToursManager = () => {
           </div>
         </div>
       </div>
+
+      <TourAiImportModal
+        isOpen={showAiImportModal}
+        onClose={() => setShowAiImportModal(false)}
+        onApplyDraft={handleApplyAiDraft}
+      />
     </div>
   );
 };

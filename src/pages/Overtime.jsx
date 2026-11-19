@@ -4,6 +4,9 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
+import FloatingBulkBar from '../components/FloatingBulkBar';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 import { useOvertimes } from '../context/OvertimeContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +32,7 @@ const PAGE_SIZE = 15;
 const Overtime = () => {
   const { 
     overtimes, 
+    loading: overtimesLoading,
     addOvertime, 
     updateOvertime, 
     quickUpdateStatus, 
@@ -60,6 +64,18 @@ const Overtime = () => {
   const [isModalOpen, setIsModalOpen] = useState(() => Boolean(location.state?.openNew));
   const [editingOT, setEditingOT] = useState(null);
   const [viewingOT, setViewingOT] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  // React to Quick Create navigation even when already mounted on /overtime
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openNew) {
+      setEditingOT(null);
+      setIsModalOpen(true);
+    }
+  }
 
   // Delete Confirm State
   const [deleteConfirm, setDeleteConfirm] = useState({
@@ -259,16 +275,45 @@ const Overtime = () => {
     }
   };
 
-  // Quick 1-Click Status Approval
+  // Quick 1-Click Status Approval with Undo
   const handleQuickStatus = async (id, newStatus) => {
+    const existing = overtimes.find((o) => o.id === id);
+    const prevStatus = existing?.status || 'Pending';
     const res = await quickUpdateStatus(id, newStatus);
     if (res?.success) {
-      toast.success(`Claim marked as ${newStatus}.`);
+      toast.success(`Klaim lembur ditandai ${newStatus}.`, {
+        duration: 6000,
+        actionLabel: 'Undo',
+        onAction: async () => {
+          const revertRes = await quickUpdateStatus(id, prevStatus);
+          if (revertRes?.success) {
+            toast.info(`Status klaim dikembalikan ke ${prevStatus}.`);
+            if (viewingOT && viewingOT.id === id) {
+              setViewingOT((prev) => (prev ? { ...prev, status: prevStatus } : null));
+            }
+          }
+        }
+      });
       if (viewingOT && viewingOT.id === id) {
-        setViewingOT(prev => prev ? { ...prev, status: newStatus } : null);
+        setViewingOT((prev) => (prev ? { ...prev, status: newStatus } : null));
       }
     } else {
       toast.error(res?.error || 'Failed to update claim status.');
+    }
+  };
+
+  // Bulk Approve / Reject for Managers & Admins
+  const handleBulkStatus = async (targetStatus) => {
+    if (!canManage || selectedIds.length === 0) return;
+    const ids = [...selectedIds];
+    let okCount = 0;
+    for (const id of ids) {
+      const res = await quickUpdateStatus(id, targetStatus);
+      if (res?.success) okCount += 1;
+    }
+    setSelectedIds([]);
+    if (okCount > 0) {
+      toast.success(`${okCount} klaim lembur berhasil diubah ke ${targetStatus}.`);
     }
   };
 
@@ -740,24 +785,73 @@ const Overtime = () => {
                 </div>
 
                 {/* OVERTIME DATA TABLE */}
+                {overtimesLoading && overtimes.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div className="table-sticky-wrapper">
                   <table className="data-table" style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        <th>STAFF MEMBER</th>
+                        {canManage && (
+                          <th style={{ width: '40px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={
+                                paginatedOvertimes.length > 0 &&
+                                paginatedOvertimes.every((o) => selectedIds.includes(o.id))
+                              }
+                              onChange={() => {
+                                const pageIds = paginatedOvertimes.map((o) => o.id);
+                                const allChecked = pageIds.every((id) => selectedIds.includes(id));
+                                setSelectedIds(
+                                  allChecked
+                                    ? selectedIds.filter((id) => !pageIds.includes(id))
+                                    : Array.from(new Set([...selectedIds, ...pageIds]))
+                                );
+                              }}
+                              style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                              aria-label="Pilih semua klaim pada halaman ini"
+                            />
+                          </th>
+                        )}
+                        <th className="sticky-col-left">STAFF MEMBER</th>
                         <th>EVENT / ASSIGNMENT</th>
                         <th>DATE</th>
                         <th>HOURS</th>
                         <th>STATUS</th>
                         <th>REMARKS</th>
-                        <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                        <th className="sticky-col-right" style={{ textAlign: 'right' }}>ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedOvertimes.map(ot => {
+                        const isSelected = selectedIds.includes(ot.id);
                         return (
-                          <tr key={ot.id} style={{ cursor: 'pointer' }} onClick={() => setViewingOT(ot)}>
-                            <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                          <tr
+                            key={ot.id}
+                            style={{
+                              cursor: 'pointer',
+                              background: isSelected ? 'rgba(0, 168, 255, 0.08)' : undefined
+                            }}
+                            onClick={() => setViewingOT(ot)}
+                          >
+                            {canManage && (
+                              <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() =>
+                                    setSelectedIds((prev) =>
+                                      prev.includes(ot.id)
+                                        ? prev.filter((item) => item !== ot.id)
+                                        : [...prev, ot.id]
+                                    )
+                                  }
+                                  style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                />
+                              </td>
+                            )}
+                            <td className="sticky-col-left" style={{ fontWeight: '600', color: 'var(--text-main)' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <div style={{ 
                                   width: '28px', 
@@ -799,7 +893,7 @@ const Overtime = () => {
                             <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ot.remarks}>
                               {ot.remarks || '-'}
                             </td>
-                            <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                            <td className="sticky-col-right" style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                               <div style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
                                 
                                 {/* Quick Manager 1-Click Approve / Reject */}
@@ -866,11 +960,67 @@ const Overtime = () => {
                         );
                       })}
                       {filteredOvertimes.length === 0 && (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>No overtime claims matching criteria.</td></tr>
+                        <tr>
+                          <td colSpan={canManage ? 8 : 7} style={{ padding: 0 }}>
+                            <EmptyState
+                              icon={<Clock size={22} />}
+                              title="Belum ada klaim lembur pada filter ini"
+                              description="Ubah filter periode/status atau ajukan catatan lembur baru."
+                              actionLabel={searchTerm || statusFilter !== 'All' || staffFilter !== 'All' || periodFilter !== 'All' ? 'Reset Filter' : ''}
+                              onAction={() => {
+                                setSearchTerm('');
+                                setStatusFilter('All');
+                                setStaffFilter('All');
+                                setPeriodFilter('All');
+                              }}
+                              compact
+                            />
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
+                )}
+
+                {canManage && (
+                  <FloatingBulkBar
+                    count={selectedIds.length}
+                    itemLabel="klaim lembur"
+                    onClear={() => setSelectedIds([])}
+                  >
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Approved')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(16, 185, 129, 0.16)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      <Check size={14} /> Approve Terpilih
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Rejected')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(239, 68, 68, 0.16)',
+                        color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      <XCircle size={14} /> Reject Terpilih
+                    </button>
+                  </FloatingBulkBar>
+                )}
 
                 {/* Pagination */}
                 <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)' }}>

@@ -1,8 +1,11 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 import { useCorporate } from '../context/CorporateContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -13,6 +16,12 @@ import {
   AccountDossierDrawer,
   ConfirmDeleteModal
 } from '../components/corporate/CorporateModals';
+import {
+  formatCorporateIdr,
+  parseCommaNumber,
+  normalizeFeeProfile,
+  serializeFeeProfile
+} from '../utils/corporateFeeHelpers';
 import { 
   Building, Briefcase, Plus, Edit2, Trash2, BarChart2, 
   TrendingUp, DollarSign, Activity, Upload, Users,
@@ -26,29 +35,25 @@ import {
 const CATEGORIES = ['Flight', 'Hotel', 'Other', 'All Sales'];
 const PAGE_SIZE = 15;
 
-const formatCurrencyIdr = (val) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0
-  }).format(Number(val) || 0);
-};
+const formatCurrencyIdr = (val) => formatCorporateIdr(val);
 
 const Corporate = () => {
   const { 
     corporateAccounts, addAccount, updateAccount, deleteAccount,
-    corporateSales, addSales, updateSales, deleteSales, bulkImportSales 
+    corporateSales, addSales, updateSales, deleteSales, bulkImportSales,
+    loading: corpLoading
   } = useCorporate();
   
   const { user } = useAuth();
   const { theme } = useTheme();
   const { toast } = useToast();
+  const location = useLocation();
   
   const isLight = theme === 'light';
   const neonBlue = isLight ? '#0284c7' : '#00d4ff';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => (location.state?.openId ? 'accounts' : 'dashboard'));
   const [selectedAccountFilter, setSelectedAccountFilter] = useState('All');
   
   // Matrix Table State
@@ -77,8 +82,25 @@ const Corporate = () => {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
-  const [viewingAccount, setViewingAccount] = useState(null);
+  const [viewingAccount, setViewingAccount] = useState(() => {
+    if (location.state?.openId && corporateAccounts?.length) {
+      return corporateAccounts.find((a) => a.id === location.state.openId) || null;
+    }
+    return null;
+  });
   const [editingSales, setEditingSales] = useState(null);
+
+  // React to deep-link from Command Palette even when already mounted on /corporate
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openId) {
+      setActiveTab('accounts');
+      const found = (corporateAccounts || []).find((a) => a.id === location.state.openId);
+      if (found) setViewingAccount(found);
+    }
+  }
 
   // Delete Confirm Modal State
   const [deleteConfirm, setDeleteConfirm] = useState({
@@ -95,8 +117,8 @@ const Corporate = () => {
   const initialAccountData = {
     accountCode: '', corporateName: '', companyName: '', address: '', creditLimit: '', status: 'Active',
     picName: '', picPhone: '', picOfficeEmail: '', picPersonalEmail: '', remarks: '',
-    flightFee: { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
-    hotelFee: { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
+    flightFee: normalizeFeeProfile({}),
+    hotelFee: normalizeFeeProfile({}),
     airlinesCode: '', detailLink: ''
   };
 
@@ -355,8 +377,8 @@ const Corporate = () => {
         picOfficeEmail: acc.picOfficeEmail || '',
         picPersonalEmail: acc.picPersonalEmail || '',
         remarks: acc.remarks || '',
-        flightFee: acc.flightFee || { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
-        hotelFee: acc.hotelFee || { domestic: 0, international: 0, reissued: 0, refund: 0, void: 0, revalidate: 0 },
+        flightFee: normalizeFeeProfile(acc.flightFee),
+        hotelFee: normalizeFeeProfile(acc.hotelFee),
         airlinesCode: acc.airlinesCode || '',
         detailLink: acc.detailLink || ''
       });
@@ -374,18 +396,25 @@ const Corporate = () => {
       return;
     }
 
+    const sanitizedAccountPayload = {
+      ...accountFormData,
+      creditLimit: parseCommaNumber(accountFormData.creditLimit),
+      flightFee: serializeFeeProfile(accountFormData.flightFee),
+      hotelFee: serializeFeeProfile(accountFormData.hotelFee)
+    };
+
     if (editingAccount) {
-      const res = await updateAccount(editingAccount.id, accountFormData);
+      const res = await updateAccount(editingAccount.id, sanitizedAccountPayload);
       if (res?.success) {
-        toast.success(`Corporate account "${accountFormData.accountCode}" updated.`);
+        toast.success(`Corporate account "${sanitizedAccountPayload.accountCode}" updated.`);
         setIsAccountModalOpen(false);
       } else {
         toast.error(res?.error || 'Failed to update account.');
       }
     } else {
-      const res = await addAccount(accountFormData);
+      const res = await addAccount(sanitizedAccountPayload);
       if (res?.success) {
-        toast.success(`Corporate account "${accountFormData.accountCode}" registered.`);
+        toast.success(`Corporate account "${sanitizedAccountPayload.accountCode}" registered.`);
         setIsAccountModalOpen(false);
       } else {
         toast.error(res?.error || 'Failed to create account.');
@@ -422,8 +451,14 @@ const Corporate = () => {
       return;
     }
 
+    const sanitizedSalesPayload = {
+      ...salesFormData,
+      salesAmount: parseCommaNumber(salesFormData.salesAmount),
+      profitAmount: parseCommaNumber(salesFormData.profitAmount)
+    };
+
     if (editingSales) {
-      const res = await updateSales(editingSales.id, salesFormData);
+      const res = await updateSales(editingSales.id, sanitizedSalesPayload);
       if (res?.success) {
         toast.success('Sales record updated.');
         setIsSalesModalOpen(false);
@@ -431,7 +466,7 @@ const Corporate = () => {
         toast.error(res?.error || 'Failed to update sales.');
       }
     } else {
-      const res = await addSales(salesFormData);
+      const res = await addSales(sanitizedSalesPayload);
       if (res?.success) {
         toast.success('Sales record created.');
         setIsSalesModalOpen(false);
@@ -1261,6 +1296,9 @@ const Corporate = () => {
                 </div>
 
                 {/* Accounts Data Table */}
+                {corpLoading && corporateAccounts.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div className="table-sticky-wrapper">
                   <table className="data-table" style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse' }}>
                     <thead>
@@ -1377,11 +1415,26 @@ const Corporate = () => {
                         );
                       })}
                       {filteredAccounts.length === 0 && (
-                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>No corporate accounts matching search criteria.</td></tr>
+                        <tr>
+                          <td colSpan="6" style={{ padding: 0 }}>
+                            <EmptyState
+                              icon={<Building size={22} />}
+                              title="Tidak ada akun korporasi ditemukan"
+                              description="Coba kata kunci lain atau tambahkan akun corporate baru."
+                              actionLabel={accountsSearch || accountsStatusFilter !== 'All' ? 'Reset Filter' : ''}
+                              onAction={() => {
+                                setAccountsSearch('');
+                                setAccountsStatusFilter('All');
+                              }}
+                              compact
+                            />
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
+                )}
 
                 {/* Pagination */}
                 <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)' }}>

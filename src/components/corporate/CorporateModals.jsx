@@ -1,8 +1,21 @@
+import { useState, useMemo } from 'react';
 import { 
   Building, Phone, Mail, ExternalLink, Edit2, 
   CreditCard, Plane, DollarSign, Calendar, MessageSquare, X, ShieldAlert
 } from 'lucide-react';
 import SlideOverDrawer from '../SlideOverDrawer';
+import DraftBanner from '../DraftBanner';
+import ConfirmModal from '../ConfirmModal';
+import { useFormDraft } from '../../hooks/useFormDraft';
+import {
+  CORPORATE_FEE_KEYS,
+  CORPORATE_FEE_LABELS,
+  parseCommaNumber,
+  formatCommaNumber,
+  sanitizePercentInput,
+  parseFeeEntry,
+  formatFeeEntryDisplay
+} from '../../utils/corporateFeeHelpers';
 
 // Helper to format WhatsApp link
 const getWhatsAppUrl = (phone) => {
@@ -100,11 +113,47 @@ export const AccountFormModal = ({
   isEditing,
   neonBlue = '#00d4ff'
 }) => {
+  const isNewMode = isOpen && !isEditing;
+  const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
+    'new_corporate_account',
+    accountFormData,
+    setAccountFormData,
+    isNewMode
+  );
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  const isDirty = useMemo(() => {
+    if (!isOpen) return false;
+    return Boolean(
+      accountFormData?.accountCode?.trim() ||
+      accountFormData?.corporateName?.trim() ||
+      accountFormData?.companyName?.trim() ||
+      accountFormData?.picName?.trim()
+    );
+  }, [isOpen, accountFormData]);
+
   if (!isOpen) return null;
 
+  const handleRequestClose = () => {
+    if (!isEditing && isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    clearDraft();
+    handleSubmit(e);
+  };
+
   return (
-    <div className="modal-overlay fade-in" style={{ zIndex: 1050 }}>
-      <div className="modal-content" style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+    <div className="modal-overlay fade-in" style={{ zIndex: 1050 }} onClick={handleRequestClose}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+      >
         <div className="modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: `${neonBlue}18`, color: neonBlue, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -119,10 +168,16 @@ export const AccountFormModal = ({
               </p>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose}><X size={22} /></button>
+          <button type="button" className="close-btn" onClick={handleRequestClose}><X size={22} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+        <form onSubmit={handleFormSubmit} style={{ padding: '1.5rem' }}>
+          <DraftBanner
+            hasSavedDraft={isNewMode && hasSavedDraft}
+            draftSavedAt={draftSavedAt}
+            onRestore={restoreDraft}
+            onDiscard={clearDraft}
+          />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* General Info */}
             <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -169,13 +224,44 @@ export const AccountFormModal = ({
                 </div>
                 <div className="input-group">
                   <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Credit Limit (IDR)</label>
-                  <input 
-                    type="number" 
-                    placeholder="0"
-                    value={accountFormData.creditLimit} 
-                    onChange={e => setAccountFormData({ ...accountFormData, creditLimit: e.target.value })} 
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '0.85rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        color: 'var(--text-muted)',
+                        pointerEvents: 'none'
+                      }}
+                    >
+                      Rp
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
+                      className="font-mono"
+                      value={formatCommaNumber(accountFormData.creditLimit)}
+                      onChange={(e) =>
+                        setAccountFormData({
+                          ...accountFormData,
+                          creditLimit: e.target.value.trim() === '' ? '' : parseCommaNumber(e.target.value)
+                        })
+                      }
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        padding: '0.65rem 0.85rem 0.65rem 2.45rem',
+                        borderRadius: '8px',
+                        width: '100%',
+                        fontWeight: '600'
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                   <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Office Address</label>
@@ -239,51 +325,254 @@ export const AccountFormModal = ({
               </div>
             </div>
 
-            {/* Service Fees */}
+            {/* Service Fees (Nominal Rp or Percentage %) */}
             <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 1rem 0', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
-                <DollarSign size={16} /> Service Fees Profile (IDR)
-              </h4>
-              
-              <div style={{ marginBottom: '1.25rem' }}>
-                <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)', fontSize: '0.85rem' }}>Flight Service Fees</h5>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.75rem' }}>
-                  {['domestic', 'international', 'reissued', 'refund', 'void', 'revalidate'].map(fee => (
-                    <div className="input-group" key={`flight-${fee}`}>
-                      <label style={{ fontSize: '0.725rem', textTransform: 'capitalize', color: 'var(--text-muted)' }}>{fee}</label>
-                      <input 
-                        type="number" 
-                        value={accountFormData.flightFee?.[fee] ?? 0} 
-                        onChange={e => setAccountFormData({
-                          ...accountFormData, 
-                          flightFee: { ...accountFormData.flightFee, [fee]: Number(e.target.value) || 0 }
-                        })} 
-                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '6px', fontSize: '0.85rem' }} 
-                      />
-                    </div>
-                  ))}
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                <h4 style={{ margin: 0, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
+                  <DollarSign size={16} /> Service Fees Profile (Rp / %)
+                </h4>
+                <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                  Pilih satuan <strong>Rp</strong> (nominal) atau <strong>%</strong> (persentase) pada setiap komponen biaya
+                </span>
               </div>
 
-              <div>
-                <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)', fontSize: '0.85rem' }}>Hotel Service Fees</h5>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.75rem' }}>
-                  {['domestic', 'international', 'reissued', 'refund', 'void', 'revalidate'].map(fee => (
-                    <div className="input-group" key={`hotel-${fee}`}>
-                      <label style={{ fontSize: '0.725rem', textTransform: 'capitalize', color: 'var(--text-muted)' }}>{fee}</label>
-                      <input 
-                        type="number" 
-                        value={accountFormData.hotelFee?.[fee] ?? 0} 
-                        onChange={e => setAccountFormData({
-                          ...accountFormData, 
-                          hotelFee: { ...accountFormData.hotelFee, [fee]: Number(e.target.value) || 0 }
-                        })} 
-                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.5rem', borderRadius: '6px', fontSize: '0.85rem' }} 
-                      />
+              {[
+                { key: 'flightFee', title: 'Flight Service Fees', accent: neonBlue },
+                { key: 'hotelFee', title: 'Hotel Service Fees', accent: '#10b981' }
+              ].map((section, sIdx) => {
+                const sectionFees = accountFormData[section.key] || {};
+
+                const setAllSectionUnit = (targetUnit) => {
+                  const updatedSection = {};
+                  CORPORATE_FEE_KEYS.forEach((feeKey) => {
+                    const current = parseFeeEntry(sectionFees[feeKey]);
+                    if (current.type === targetUnit) {
+                      updatedSection[feeKey] = current;
+                    } else if (targetUnit === 'percent') {
+                      updatedSection[feeKey] = { type: 'percent', value: 0, rawInput: '' };
+                    } else {
+                      updatedSection[feeKey] = { type: 'nominal', value: 0 };
+                    }
+                  });
+                  setAccountFormData({
+                    ...accountFormData,
+                    [section.key]: updatedSection
+                  });
+                };
+
+                const handleFeeUnitChange = (feeKey, nextUnit) => {
+                  const current = parseFeeEntry(sectionFees[feeKey]);
+                  if (current.type === nextUnit) return;
+                  setAccountFormData({
+                    ...accountFormData,
+                    [section.key]: {
+                      ...sectionFees,
+                      [feeKey]:
+                        nextUnit === 'percent'
+                          ? { type: 'percent', value: 0, rawInput: '' }
+                          : { type: 'nominal', value: 0 }
+                    }
+                  });
+                };
+
+                const handleFeeValueChange = (feeKey, rawVal) => {
+                  const current = parseFeeEntry(sectionFees[feeKey]);
+                  if (current.type === 'percent') {
+                    const sanitized = sanitizePercentInput(rawVal);
+                    const numeric = parseFloat(sanitized);
+                    setAccountFormData({
+                      ...accountFormData,
+                      [section.key]: {
+                        ...sectionFees,
+                        [feeKey]: {
+                          type: 'percent',
+                          value: Number.isFinite(numeric) ? numeric : 0,
+                          rawInput: sanitized
+                        }
+                      }
+                    });
+                  } else {
+                    const num = parseCommaNumber(rawVal);
+                    setAccountFormData({
+                      ...accountFormData,
+                      [section.key]: {
+                        ...sectionFees,
+                        [feeKey]: {
+                          type: 'nominal',
+                          value: num
+                        }
+                      }
+                    });
+                  }
+                };
+
+                return (
+                  <div key={section.key} style={{ marginBottom: sIdx === 0 ? '1.35rem' : 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <h5 style={{ margin: 0, color: section.accent, fontSize: '0.86rem', fontWeight: 700 }}>
+                        {section.title}
+                      </h5>
+                      <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setAllSectionUnit('nominal')}
+                          style={{
+                            padding: '0.18rem 0.52rem',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Semua Rp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAllSectionUnit('percent')}
+                          style={{
+                            padding: '0.18rem 0.52rem',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Semua %
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(195px, 1fr))', gap: '0.75rem' }}>
+                      {CORPORATE_FEE_KEYS.map((feeKey) => {
+                        const entry = parseFeeEntry(sectionFees[feeKey]);
+                        const isPercent = entry.type === 'percent';
+                        const displayVal = isPercent
+                          ? (entry.rawInput !== undefined ? entry.rawInput : (entry.value > 0 ? String(entry.value) : ''))
+                          : formatCommaNumber(entry.value);
+
+                        return (
+                          <div
+                            className="input-group"
+                            key={`${section.key}-${feeKey}`}
+                            style={{
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '9px',
+                              padding: '0.55rem 0.65rem',
+                              margin: 0
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.38rem' }}>
+                              <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', margin: 0 }}>
+                                {CORPORATE_FEE_LABELS[feeKey] || feeKey}
+                              </label>
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  borderRadius: '6px',
+                                  overflow: 'hidden',
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--bg-surface)'
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleFeeUnitChange(feeKey, 'nominal')}
+                                  style={{
+                                    padding: '0.12rem 0.42rem',
+                                    border: 'none',
+                                    fontSize: '0.67rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: !isPercent ? section.accent : 'transparent',
+                                    color: !isPercent ? '#ffffff' : 'var(--text-muted)'
+                                  }}
+                                >
+                                  Rp
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFeeUnitChange(feeKey, 'percent')}
+                                  style={{
+                                    padding: '0.12rem 0.42rem',
+                                    border: 'none',
+                                    fontSize: '0.67rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: isPercent ? '#f59e0b' : 'transparent',
+                                    color: isPercent ? '#ffffff' : 'var(--text-muted)'
+                                  }}
+                                >
+                                  %
+                                </button>
+                              </div>
+                            </div>
+
+                            <div style={{ position: 'relative' }}>
+                              {!isPercent && (
+                                <span
+                                  style={{
+                                    position: 'absolute',
+                                    left: '0.6rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    fontSize: '0.73rem',
+                                    fontWeight: 700,
+                                    color: 'var(--text-subtle)',
+                                    pointerEvents: 'none'
+                                  }}
+                                >
+                                  Rp
+                                </span>
+                              )}
+                              <input
+                                type="text"
+                                inputMode={isPercent ? 'decimal' : 'numeric'}
+                                placeholder={isPercent ? '0.0' : '0'}
+                                className="font-mono"
+                                value={displayVal}
+                                onChange={(e) => handleFeeValueChange(feeKey, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  background: 'var(--bg-surface)',
+                                  border: '1px solid var(--border)',
+                                  color: 'var(--text-main)',
+                                  padding: isPercent ? '0.42rem 1.75rem 0.42rem 0.6rem' : '0.42rem 0.6rem 0.42rem 1.95rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.84rem',
+                                  fontWeight: 600
+                                }}
+                              />
+                              {isPercent && (
+                                <span
+                                  style={{
+                                    position: 'absolute',
+                                    right: '0.6rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 700,
+                                    color: '#f59e0b',
+                                    pointerEvents: 'none'
+                                  }}
+                                >
+                                  %
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Additional Details */}
@@ -326,7 +615,7 @@ export const AccountFormModal = ({
           </div>
 
           <div className="modal-footer" style={{ marginTop: '1.5rem', padding: '1rem 0 0 0', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <button type="button" className="btn" onClick={onClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '8px', padding: '0.65rem 1.25rem' }}>
+            <button type="button" className="btn" onClick={handleRequestClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '8px', padding: '0.65rem 1.25rem' }}>
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', borderRadius: '8px', padding: '0.65rem 1.5rem', fontWeight: '600' }}>
@@ -335,6 +624,19 @@ export const AccountFormModal = ({
           </div>
         </form>
       </div>
+      <ConfirmModal
+        isOpen={showConfirmClose}
+        title="Buang perubahan yang belum disimpan?"
+        message="Anda memiliki isian formulir akun korporasi yang belum disimpan. Yakin ingin menutup jendela ini?"
+        confirmText="Tutup & Buang"
+        cancelText="Lanjutkan Mengisi"
+        variant="warning"
+        onConfirm={() => {
+          setShowConfirmClose(false);
+          onClose();
+        }}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </div>
   );
 };
@@ -414,26 +716,114 @@ export const SalesFormModal = ({
             </div>
             <div className="input-group">
               <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Sales Amount (IDR) <span style={{ color: '#ef4444' }}>*</span></label>
-              <input 
-                type="number" 
-                required 
-                placeholder="0"
-                value={salesFormData.salesAmount} 
-                onChange={e => setSalesFormData({ ...salesFormData, salesAmount: e.target.value })} 
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-              />
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '0.85rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none'
+                  }}
+                >
+                  Rp
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  placeholder="0"
+                  className="font-mono"
+                  value={formatCommaNumber(salesFormData.salesAmount, { allowZero: salesFormData.salesAmount === 0 })}
+                  onChange={(e) =>
+                    setSalesFormData({
+                      ...salesFormData,
+                      salesAmount: e.target.value.trim() === '' ? '' : parseCommaNumber(e.target.value)
+                    })
+                  }
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)',
+                    padding: '0.65rem 0.85rem 0.65rem 2.45rem',
+                    borderRadius: '8px',
+                    width: '100%',
+                    fontWeight: 600
+                  }}
+                />
+              </div>
             </div>
             <div className="input-group">
               <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Profit Amount (IDR) <span style={{ color: '#ef4444' }}>*</span></label>
-              <input 
-                type="number" 
-                required 
-                placeholder="0"
-                value={salesFormData.profitAmount} 
-                onChange={e => setSalesFormData({ ...salesFormData, profitAmount: e.target.value })} 
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-              />
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '0.85rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none'
+                  }}
+                >
+                  Rp
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  placeholder="0"
+                  className="font-mono"
+                  value={formatCommaNumber(salesFormData.profitAmount, { allowZero: salesFormData.profitAmount === 0 })}
+                  onChange={(e) =>
+                    setSalesFormData({
+                      ...salesFormData,
+                      profitAmount: e.target.value.trim() === '' ? '' : parseCommaNumber(e.target.value)
+                    })
+                  }
+                  style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)',
+                    padding: '0.65rem 0.85rem 0.65rem 2.45rem',
+                    borderRadius: '8px',
+                    width: '100%',
+                    fontWeight: 600
+                  }}
+                />
+              </div>
             </div>
+            {parseCommaNumber(salesFormData.salesAmount) > 0 && (
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  padding: '0.5rem 0.8rem',
+                  borderRadius: '8px',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.78rem',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                <span>Estimasi Margin Transaksi</span>
+                <strong className="font-mono" style={{ color: '#10b981' }}>
+                  {(
+                    (parseCommaNumber(salesFormData.profitAmount) /
+                      parseCommaNumber(salesFormData.salesAmount)) *
+                    100
+                  ).toFixed(2)}
+                  %
+                </strong>
+              </div>
+            )}
             <div className="input-group" style={{ gridColumn: '1 / -1' }}>
               <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Remarks / Notes</label>
               <textarea 
@@ -667,19 +1057,43 @@ export const AccountDossierDrawer = ({
         {/* Fee Structures */}
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '1.25rem' }}>
           <h4 style={{ margin: '0 0 1rem 0', color: '#f59e0b', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <DollarSign size={16} /> Service Fee Profiles
+            <DollarSign size={16} /> Service Fee Profiles (Rp / %)
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
               <div style={{ fontSize: '0.8rem', fontWeight: '600', color: neonBlue, marginBottom: '0.5rem' }}>Flight Fees</div>
               <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                 <tbody>
-                  {Object.entries(account.flightFee || {}).map(([k, v]) => (
-                    <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '0.35rem 0', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{k}</td>
-                      <td style={{ padding: '0.35rem 0', textAlign: 'right', color: 'var(--text-main)', fontWeight: '500' }}>{formatCurrency(v)}</td>
-                    </tr>
-                  ))}
+                  {Object.entries(account.flightFee || {}).map(([k, v]) => {
+                    const parsed = parseFeeEntry(v);
+                    const isPct = parsed.type === 'percent';
+                    return (
+                      <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.35rem 0', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                          {CORPORATE_FEE_LABELS[k] || k}
+                        </td>
+                        <td className="font-mono" style={{ padding: '0.35rem 0', textAlign: 'right', color: 'var(--text-main)', fontWeight: '600' }}>
+                          {isPct ? (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '0.08rem 0.45rem',
+                                borderRadius: '999px',
+                                background: 'rgba(245, 158, 11, 0.14)',
+                                color: '#f59e0b',
+                                fontSize: '0.76rem',
+                                fontWeight: 700
+                              }}
+                            >
+                              {formatFeeEntryDisplay(v)}
+                            </span>
+                          ) : (
+                            formatFeeEntryDisplay(v)
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {Object.keys(account.flightFee || {}).length === 0 && (
                     <tr><td colSpan="2" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0.5rem 0' }}>No fee configured.</td></tr>
                   )}
@@ -690,12 +1104,36 @@ export const AccountDossierDrawer = ({
               <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#10b981', marginBottom: '0.5rem' }}>Hotel Fees</div>
               <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                 <tbody>
-                  {Object.entries(account.hotelFee || {}).map(([k, v]) => (
-                    <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '0.35rem 0', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{k}</td>
-                      <td style={{ padding: '0.35rem 0', textAlign: 'right', color: 'var(--text-main)', fontWeight: '500' }}>{formatCurrency(v)}</td>
-                    </tr>
-                  ))}
+                  {Object.entries(account.hotelFee || {}).map(([k, v]) => {
+                    const parsed = parseFeeEntry(v);
+                    const isPct = parsed.type === 'percent';
+                    return (
+                      <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.35rem 0', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                          {CORPORATE_FEE_LABELS[k] || k}
+                        </td>
+                        <td className="font-mono" style={{ padding: '0.35rem 0', textAlign: 'right', color: 'var(--text-main)', fontWeight: '600' }}>
+                          {isPct ? (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '0.08rem 0.45rem',
+                                borderRadius: '999px',
+                                background: 'rgba(245, 158, 11, 0.14)',
+                                color: '#f59e0b',
+                                fontSize: '0.76rem',
+                                fontWeight: 700
+                              }}
+                            >
+                              {formatFeeEntryDisplay(v)}
+                            </span>
+                          ) : (
+                            formatFeeEntryDisplay(v)
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {Object.keys(account.hotelFee || {}).length === 0 && (
                     <tr><td colSpan="2" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0.5rem 0' }}>No fee configured.</td></tr>
                   )}

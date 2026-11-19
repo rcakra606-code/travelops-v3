@@ -194,8 +194,10 @@ export const exportPassengerConfirmationExcel = async (tour) => {
   ws.getCell(`A${r}`).value = 'Total Room';
   ws.getCell(`B${r}`).value = ':';
   ws.getCell(`C${r}`).value = `${Math.ceil(data.paxCount / 2)} Room`;
+  ws.getCell(`C${r}`).font = { name: 'Calibri', size: 10, bold: true };
   ws.getCell(`D${r}`).value = '+';
-  ws.getCell(`E${r}`).value = 'SINGLE / TWN';
+  ws.mergeCells(`E${r}:G${r}`);
+  ws.getCell(`E${r}`).value = 'Single / Twin / Double *Sesuai request';
   r++;
 
   applyBoxBorder(ws, infoStartRow - 1, 1, r, 7);

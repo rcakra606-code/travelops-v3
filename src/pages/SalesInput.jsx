@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import SlideOverDrawer from '../components/SlideOverDrawer';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 import CsvImportUtility from '../components/CsvImportUtility';
 import ExportMenu from '../components/ExportMenu';
 import { useSales } from '../context/SalesContext';
@@ -9,11 +11,6 @@ import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { useProductivity } from '../context/ProductivityContext';
-import { useTours } from '../context/TourContext';
-import { useCruises } from '../context/CruiseContext';
-import { useHotels } from '../context/HotelContext';
-import { useDocuments } from '../context/DocumentContext';
 import {
   BarChart,
   Bar,
@@ -45,7 +42,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
+  Clock,
   Copy,
   UploadCloud,
   Search,
@@ -155,6 +152,51 @@ const periodMatchesHorizon = (periodStr, horizonMode, selectedPeriod, selectedYe
   return periodStr === selectedPeriod;
 };
 
+const formatLastUpdatedWib = (isoStr) => {
+  if (!isoStr) return '';
+  const dt = new Date(isoStr);
+  if (Number.isNaN(dt.getTime())) return '';
+  const datePart = dt.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+  const timePart = dt.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return `${datePart} · ${timePart} WIB`;
+};
+
+const formatRelativeTimeId = (isoStr) => {
+  if (!isoStr) return '';
+  const dt = new Date(isoStr);
+  if (Number.isNaN(dt.getTime())) return '';
+  const diffSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+  if (diffSec < 0) return 'Terjadwal';
+  if (diffSec < 60) return 'Baru saja';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} menit lalu`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} jam lalu`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 30) return `${diffDay} hari lalu`;
+  return `${Math.floor(diffDay / 30)} bulan lalu`;
+};
+
+const toDatetimeLocalInput = (isoStr) => {
+  const dt = isoStr ? new Date(isoStr) : new Date();
+  if (Number.isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const mm = String(dt.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+
 const SalesChartTooltip = ({ active, payload, label, isLight, isPercent = false }) => {
   if (!active || !payload || payload.length === 0) return null;
   return (
@@ -208,25 +250,20 @@ const SalesChartTooltip = ({ active, payload, label, isLight, isPercent = false 
 const SalesInput = () => {
   const {
     sales: salesData,
+    lastUpdatedMeta,
+    loading: salesLoading,
     addSale,
     updateSale,
     deleteSale,
     bulkDeleteSales,
     clonePeriodTargets,
-    bulkSyncWorkspaceActuals,
-    bulkImportSales
+    bulkImportSales,
+    recordSalesLastUpdate
   } = useSales();
   const { users } = useUsers();
   const { user } = useAuth();
   const { theme } = useTheme();
   const { toast } = useToast();
-
-  // Cross-module workspace feeds for Live Actuals Estimator & Sync
-  const { productivityData } = useProductivity();
-  const { tours } = useTours();
-  const { cruises } = useCruises();
-  const { hotels } = useHotels();
-  const { documents } = useDocuments();
 
   const isLight = theme === 'light';
   const currentUserName = user?.name || '';
@@ -287,9 +324,75 @@ const SalesInput = () => {
   // SlideOverDrawer Consultant Scorecard State
   const [inspectStaffName, setInspectStaffName] = useState(null);
 
+  // Admin Last-Update Stamp Editor State
+  const [showStampEditor, setShowStampEditor] = useState(false);
+  const [stampDateTime, setStampDateTime] = useState(() => toDatetimeLocalInput());
+  const [stampNote, setStampNote] = useState('');
+  const [isSavingStamp, setIsSavingStamp] = useState(false);
+
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
   const closeMobile = () => {
     if (window.innerWidth <= 768) setIsSidebarOpen(false);
+  };
+
+  // Resolve effective Last Update info (official Admin stamp, or newest DB record fallback)
+  const effectiveLastUpdate = useMemo(() => {
+    if (lastUpdatedMeta?.updatedAt) {
+      return {
+        ...lastUpdatedMeta,
+        isOfficialStamp: true
+      };
+    }
+    const latestRow = (salesData || [])
+      .filter((r) => r.updatedAt || r.createdAt)
+      .sort((a, b) =>
+        String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt))
+      )[0];
+
+    if (latestRow) {
+      return {
+        updatedAt: latestRow.updatedAt || latestRow.createdAt,
+        updatedBy: 'Admin',
+        updatedRole: 'Admin',
+        period: latestRow.period || '',
+        action: 'Tercatat otomatis dari entri data terbaru',
+        note: '',
+        isOfficialStamp: false
+      };
+    }
+    return null;
+  }, [lastUpdatedMeta, salesData]);
+
+  const handleOpenStampEditor = () => {
+    setStampDateTime(toDatetimeLocalInput(effectiveLastUpdate?.updatedAt));
+    setStampNote(effectiveLastUpdate?.note || '');
+    setShowStampEditor((prev) => !prev);
+  };
+
+  const handleSaveManualStamp = async (e) => {
+    e.preventDefault();
+    setIsSavingStamp(true);
+    try {
+      const parsedDt = stampDateTime ? new Date(stampDateTime) : new Date();
+      const isoTime = Number.isNaN(parsedDt.getTime())
+        ? new Date().toISOString()
+        : parsedDt.toISOString();
+
+      await recordSalesLastUpdate({
+        updatedAt: isoTime,
+        updatedBy: currentUserName || 'Admin',
+        updatedRole: currentUserRole || 'Admin',
+        period: horizonMode === 'month' ? selectedPeriod : '',
+        action: 'Konfirmasi pembaruan data oleh Admin',
+        note: stampNote.trim()
+      });
+      setShowStampEditor(false);
+      toast.success('Info waktu terakhir update data berhasil diperbarui.');
+    } catch (err) {
+      toast.error(err?.message || 'Gagal memperbarui info waktu update data.');
+    } finally {
+      setIsSavingStamp(false);
+    }
   };
 
   const availableYears = useMemo(() => {
@@ -301,129 +404,6 @@ const SalesInput = () => {
     });
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [salesData, initialMonth]);
-
-  // Compute live workspace revenue, profit & deal counts per (staffName, YYYY-MM)
-  const workspaceByPeriodStaff = useMemo(() => {
-    const map = {};
-    const ensureBucket = (period, staff) => {
-      if (!period || !staff) return null;
-      const cleanPeriod = period.substring(0, 7);
-      if (!/^\d{4}-\d{2}$/.test(cleanPeriod)) return null;
-      const cleanStaff = staff.trim();
-      if (!cleanStaff) return null;
-      if (!map[cleanPeriod]) map[cleanPeriod] = {};
-      const lower = cleanStaff.toLowerCase();
-      if (!map[cleanPeriod][lower]) {
-        map[cleanPeriod][lower] = {
-          staffName: cleanStaff,
-          productivitySales: 0,
-          productivityProfit: 0,
-          productivityCount: 0,
-          tourSales: 0,
-          tourProfit: 0,
-          tourCount: 0,
-          docSales: 0,
-          docCount: 0,
-          cruiseCount: 0,
-          hotelCount: 0
-        };
-      }
-      return map[cleanPeriod][lower];
-    };
-
-    (productivityData || []).forEach((p) => {
-      const b = ensureBucket(p.date, p.staff);
-      if (b) {
-        b.productivitySales += Number(p.salesAmount) || 0;
-        b.productivityProfit += Number(p.profitAmount) || 0;
-        b.productivityCount += 1;
-      }
-    });
-
-    (tours || []).forEach((t) => {
-      if (['Cancel', 'Cancelled'].includes(t.status)) return;
-      const tDate = t.internals?.bookingDate || t.departureDate || '';
-      const tStaff = t.staffName || t.internals?.staffName || '';
-      const b = ensureBucket(tDate, tStaff);
-      if (b) {
-        const rev =
-          Number(
-            t.totalOmset ??
-              t.financials?.totalSellingPrice ??
-              t.financials?.totalOmset
-          ) || 0;
-        const prof =
-          Number(
-            t.financials?.profit ??
-              (Number(t.totalSellingPrice || 0) - Number(t.totalNettPrice || 0))
-          ) || 0;
-        b.tourSales += rev;
-        b.tourProfit += prof;
-        b.tourCount += 1;
-      }
-    });
-
-    (documents || []).forEach((d) => {
-      const b = ensureBucket(d.receiveDate, d.staff);
-      if (b) {
-        b.docSales += Number(d.price) || 0;
-        b.docCount += 1;
-      }
-    });
-
-    (cruises || []).forEach((c) => {
-      if (['Cancel', 'Cancelled'].includes(c.status)) return;
-      const b = ensureBucket(c.sailingStart, c.staff);
-      if (b) b.cruiseCount += 1;
-    });
-
-    (hotels || []).forEach((h) => {
-      if (['Cancel', 'Cancelled'].includes(h.status)) return;
-      const b = ensureBucket(h.checkIn, h.staff);
-      if (b) b.hotelCount += 1;
-    });
-
-    return map;
-  }, [productivityData, tours, documents, cruises, hotels]);
-
-  const getLiveStatsForStaffHorizon = (staffName, mode, period, year, quarter) => {
-    const lower = (staffName || '').trim().toLowerCase();
-    const acc = {
-      sales: 0,
-      profit: 0,
-      productivitySales: 0,
-      productivityProfit: 0,
-      productivityCount: 0,
-      tourSales: 0,
-      tourProfit: 0,
-      tourCount: 0,
-      docSales: 0,
-      docCount: 0,
-      cruiseCount: 0,
-      hotelCount: 0
-    };
-    if (!lower) return acc;
-
-    Object.keys(workspaceByPeriodStaff).forEach((pKey) => {
-      if (!periodMatchesHorizon(pKey, mode, period, year, quarter)) return;
-      const entry = workspaceByPeriodStaff[pKey]?.[lower];
-      if (!entry) return;
-      acc.productivitySales += entry.productivitySales;
-      acc.productivityProfit += entry.productivityProfit;
-      acc.productivityCount += entry.productivityCount;
-      acc.tourSales += entry.tourSales;
-      acc.tourProfit += entry.tourProfit;
-      acc.tourCount += entry.tourCount;
-      acc.docSales += entry.docSales;
-      acc.docCount += entry.docCount;
-      acc.cruiseCount += entry.cruiseCount;
-      acc.hotelCount += entry.hotelCount;
-    });
-
-    acc.sales = acc.productivitySales + acc.tourSales + acc.docSales;
-    acc.profit = acc.productivityProfit + acc.tourProfit;
-    return acc;
-  };
 
   // Keep formData.period synced when user changes selectedPeriod via top controls
   const handleSelectPeriod = (nextPeriod) => {
@@ -512,30 +492,6 @@ const SalesInput = () => {
       achievementProfit: ''
     });
     setEditingId(null);
-  };
-
-  const handleFillFormWithLiveActuals = () => {
-    if (!formData.staffName || !formData.period) {
-      toast.warning('Select a Consultant and Period first to pull live actuals.');
-      return;
-    }
-    const live = getLiveStatsForStaffHorizon(
-      formData.staffName,
-      'month',
-      formData.period,
-      formData.period.substring(0, 4),
-      'Q1'
-    );
-    setFormData((prev) => ({
-      ...prev,
-      achievementSales: String(Math.round(live.sales)),
-      achievementProfit: String(Math.round(live.profit))
-    }));
-    toast.info(
-      `Loaded live tracked actuals (${formatIdr(live.sales)} sales, ${formatIdr(
-        live.profit
-      )} profit) for ${formData.staffName}.`
-    );
   };
 
   const handleApplyTargetMarginPct = (pct) => {
@@ -669,80 +625,6 @@ const SalesInput = () => {
     }
   };
 
-  const handleSyncTeamLiveActuals = async () => {
-    const monthBucket = workspaceByPeriodStaff[selectedPeriod] || {};
-    const actualsMap = {};
-
-    // Include existing quota staff in selectedPeriod as well as active staff with deals
-    (salesData || [])
-      .filter((s) => s.period === selectedPeriod)
-      .forEach((s) => {
-        const live = monthBucket[s.staffName.toLowerCase()];
-        actualsMap[s.staffName] = {
-          sales: live
-            ? live.productivitySales + live.tourSales + live.docSales
-            : s.achievementSales,
-          profit: live
-            ? live.productivityProfit + live.tourProfit
-            : s.achievementProfit
-        };
-      });
-
-    Object.values(monthBucket).forEach((entry) => {
-      const existingKey = Object.keys(actualsMap).find(
-        (k) => k.toLowerCase() === entry.staffName.toLowerCase()
-      );
-      if (!existingKey) {
-        actualsMap[entry.staffName] = {
-          sales: entry.productivitySales + entry.tourSales + entry.docSales,
-          profit: entry.productivityProfit + entry.tourProfit
-        };
-      }
-    });
-
-    if (Object.keys(actualsMap).length === 0) {
-      toast.warning(
-        `No tracked bookings or quota rows found in ${formatPeriodLabel(selectedPeriod)}.`
-      );
-      return;
-    }
-
-    try {
-      const res = await bulkSyncWorkspaceActuals(selectedPeriod, actualsMap);
-      toast.success(
-        `Synced live workspace actuals for ${formatPeriodLabel(selectedPeriod)} (${
-          res.updated
-        } updated, ${res.created} added).`
-      );
-    } catch (err) {
-      toast.error(err?.message || 'Failed to sync workspace actuals.');
-    }
-  };
-
-  const handleSyncSingleConsultant = async (row) => {
-    if (!row || horizonMode !== 'month') return;
-    try {
-      if (row.id) {
-        await updateSale(row.id, {
-          achievementSales: Math.round(row.liveSales),
-          achievementProfit: Math.round(row.liveProfit)
-        });
-      } else {
-        await addSale({
-          staffName: row.staffName,
-          period: selectedPeriod,
-          targetSales: 0,
-          targetProfit: 0,
-          achievementSales: Math.round(row.liveSales),
-          achievementProfit: Math.round(row.liveProfit)
-        });
-      }
-      toast.success(`Synced live workspace actuals for ${row.staffName}.`);
-    } catch (err) {
-      toast.error(err?.message || 'Failed to sync consultant actuals.');
-    }
-  };
-
   const handleCsvImport = async (rows) => {
     try {
       const count = await bulkImportSales(rows, selectedPeriod);
@@ -810,14 +692,6 @@ const SalesInput = () => {
       if (r.targetSales > 0 && salesPct >= 100) attainmentBand = 'achieved';
       else if (r.targetSales > 0 && salesPct >= 70) attainmentBand = 'on_track';
 
-      const live = getLiveStatsForStaffHorizon(
-        r.staffName,
-        horizonMode,
-        selectedPeriod,
-        selectedYear,
-        selectedQuarter
-      );
-
       return {
         ...r,
         salesPct,
@@ -826,20 +700,15 @@ const SalesInput = () => {
         marginPct,
         salesVariance,
         profitVariance,
-        attainmentBand,
-        liveSales: live.sales,
-        liveProfit: live.profit,
-        liveDetails: live
+        attainmentBand
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     salesData,
     horizonMode,
     selectedPeriod,
     selectedYear,
-    selectedQuarter,
-    workspaceByPeriodStaff
+    selectedQuarter
   ]);
 
   const horizonLabel = useMemo(() => {
@@ -857,17 +726,13 @@ const SalesInput = () => {
         acc.targetProfit += curr.targetProfit;
         acc.achievementSales += curr.achievementSales;
         acc.achievementProfit += curr.achievementProfit;
-        acc.liveSales += curr.liveSales;
-        acc.liveProfit += curr.liveProfit;
         return acc;
       },
       {
         targetSales: 0,
         targetProfit: 0,
         achievementSales: 0,
-        achievementProfit: 0,
-        liveSales: 0,
-        liveProfit: 0
+        achievementProfit: 0
       }
     );
 
@@ -1066,30 +931,15 @@ const SalesInput = () => {
             : 0
       }));
 
-    const live = getLiveStatsForStaffHorizon(
-      inspectStaffName,
-      horizonMode,
-      selectedPeriod,
-      selectedYear,
-      selectedQuarter
-    );
-
     return {
       staffName: inspectStaffName,
       currentRow,
-      historyRows,
-      live
+      historyRows
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     inspectStaffName,
     horizonRows,
-    salesData,
-    horizonMode,
-    selectedPeriod,
-    selectedYear,
-    selectedQuarter,
-    workspaceByPeriodStaff
+    salesData
   ]);
 
   const getStatusBadgeForPercent = (percent) => {
@@ -1152,8 +1002,7 @@ const SalesInput = () => {
         targetProfit: r.targetProfit,
         achievementProfit: r.achievementProfit,
         profitPctFormatted: formatPercent(r.profitPct, 2),
-        marginPctFormatted: formatPercent(r.marginPct, 2),
-        liveWorkspaceSales: Math.round(r.liveSales)
+        marginPctFormatted: formatPercent(r.marginPct, 2)
       })),
     [displayRows, horizonMode, horizonLabel]
   );
@@ -1168,8 +1017,7 @@ const SalesInput = () => {
     { header: 'Target Profit (IDR)', key: 'targetProfit', format: 'currency' },
     { header: 'Actual Profit (IDR)', key: 'achievementProfit', format: 'currency' },
     { header: 'Profit Attainment %', key: 'profitPctFormatted', format: null },
-    { header: 'Realized Margin %', key: 'marginPctFormatted', format: null },
-    { header: 'Live Tracked Sales (IDR)', key: 'liveWorkspaceSales', format: 'currency' }
+    { header: 'Realized Margin %', key: 'marginPctFormatted', format: null }
   ];
 
   const chipStyle = (active) => ({
@@ -1252,7 +1100,7 @@ const SalesInput = () => {
                     color: 'var(--text-muted)'
                   }}
                 >
-                  Track consultant sales targets, sync live workspace revenue, and benchmark profit margins across any horizon.
+                  Pantau target penjualan &amp; pencapaian profit konsultan berdasarkan data rekap resmi yang diperbarui oleh Admin.
                 </p>
               </div>
 
@@ -1265,40 +1113,22 @@ const SalesInput = () => {
                 }}
               >
                 {canAdd && horizonMode === 'month' && (
-                  <>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={handleClonePreviousMonth}
-                      title={`Copy consultant quotas from ${formatPeriodLabel(
-                        shiftMonthString(selectedPeriod, -1)
-                      )}`}
-                      style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text-main)',
-                        fontSize: '0.8rem'
-                      }}
-                    >
-                      <Copy size={15} /> Copy Prev Month
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={handleSyncTeamLiveActuals}
-                      title="Pull live tracked sales & profit from Productivity, Tours, and Visas"
-                      style={{
-                        background: isLight
-                          ? 'rgba(0, 168, 255, 0.1)'
-                          : 'rgba(56, 189, 248, 0.14)',
-                        border: '1px solid rgba(0, 168, 255, 0.3)',
-                        color: 'var(--primary)',
-                        fontSize: '0.8rem'
-                      }}
-                    >
-                      <RefreshCw size={15} /> Sync Live Actuals
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleClonePreviousMonth}
+                    title={`Copy consultant quotas from ${formatPeriodLabel(
+                      shiftMonthString(selectedPeriod, -1)
+                    )}`}
+                    style={{
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    <Copy size={15} /> Copy Prev Month
+                  </button>
                 )}
 
                 {canAdd && (
@@ -1341,6 +1171,194 @@ const SalesInput = () => {
                   <Printer size={15} /> Print
                 </button>
               </div>
+            </div>
+
+            {/* Last Update Data Info Module (Visible to all users; editable by Admin/Manager) */}
+            <div
+              className="card"
+              style={{
+                marginBottom: '1.15rem',
+                padding: '0.85rem 1.15rem',
+                background: isLight
+                  ? 'linear-gradient(90deg, #f8fbff 0%, #ffffff 100%)'
+                  : 'rgba(255, 255, 255, 0.025)',
+                border: '1px solid var(--border)'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      background: 'var(--primary-soft)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          color: 'var(--text-muted)'
+                        }}
+                      >
+                        Last Update Data Sales &amp; Target
+                      </span>
+                      {effectiveLastUpdate?.updatedAt && (
+                        <span className="badge badge-primary" style={{ fontSize: '0.68rem' }}>
+                          {formatRelativeTimeId(effectiveLastUpdate.updatedAt)}
+                        </span>
+                      )}
+                      {effectiveLastUpdate?.period && (
+                        <span className="badge badge-neutral" style={{ fontSize: '0.68rem' }}>
+                          Periode {formatPeriodLabel(effectiveLastUpdate.period)}
+                        </span>
+                      )}
+                    </div>
+
+                    {effectiveLastUpdate?.updatedAt ? (
+                      <div style={{ marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                        <strong
+                          className="font-mono"
+                          style={{ fontSize: '0.88rem', color: 'var(--text-main)' }}
+                        >
+                          {formatLastUpdatedWib(effectiveLastUpdate.updatedAt)}
+                        </strong>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          · Diupdate oleh <strong style={{ color: 'var(--text-main)' }}>{effectiveLastUpdate.updatedBy}</strong>
+                          {effectiveLastUpdate.updatedRole ? ` (${effectiveLastUpdate.updatedRole})` : ''}
+                        </span>
+                        {(effectiveLastUpdate.note || effectiveLastUpdate.action) && (
+                          <span style={{ fontSize: '0.76rem', color: 'var(--text-subtle)' }}>
+                            — {effectiveLastUpdate.note || effectiveLastUpdate.action}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '0.18rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        Belum ada catatan waktu pembaruan data dari Admin.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {canEditAny && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary no-print"
+                    onClick={handleOpenStampEditor}
+                    style={{
+                      fontSize: '0.76rem',
+                      padding: '0.42rem 0.8rem',
+                      color: showStampEditor ? 'var(--primary)' : 'var(--text-main)',
+                      borderColor: showStampEditor ? 'var(--primary)' : 'var(--border)'
+                    }}
+                  >
+                    <Edit2 size={13} />
+                    {showStampEditor ? 'Tutup Panel Update' : 'Update Info Tanggal'}
+                  </button>
+                )}
+              </div>
+
+              {/* Admin Inline Last-Update Stamp Editor */}
+              {canEditAny && showStampEditor && (
+                <form
+                  onSubmit={handleSaveManualStamp}
+                  className="fade-in no-print"
+                  style={{
+                    marginTop: '0.85rem',
+                    paddingTop: '0.85rem',
+                    borderTop: '1px dashed var(--border)',
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(210px, 0.8fr) 1.4fr auto',
+                    gap: '0.65rem',
+                    alignItems: 'end'
+                  }}
+                >
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                      Tanggal &amp; Waktu Update (WIB)
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <input
+                        type="datetime-local"
+                        value={stampDateTime}
+                        onChange={(e) => setStampDateTime(e.target.value)}
+                        required
+                        style={{
+                          flex: 1,
+                          padding: '0.45rem 0.6rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-surface)',
+                          color: 'var(--text-main)',
+                          fontSize: '0.8rem'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setStampDateTime(toDatetimeLocalInput())}
+                        style={{ fontSize: '0.72rem', padding: '0.4rem 0.6rem', whiteSpace: 'nowrap' }}
+                      >
+                        Sekarang
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                      Catatan Pembaruan (Opsional — tampil ke semua staff)
+                    </label>
+                    <input
+                      type="text"
+                      value={stampNote}
+                      onChange={(e) => setStampNote(e.target.value)}
+                      placeholder="Contoh: Rekap sesuai laporan finance per 20 Nov 2026"
+                      maxLength={160}
+                      style={{
+                        width: '100%',
+                        padding: '0.45rem 0.7rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-surface)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.8rem'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={isSavingStamp}
+                      style={{ fontSize: '0.78rem', padding: '0.48rem 0.9rem', whiteSpace: 'nowrap' }}
+                    >
+                      {isSavingStamp ? 'Menyimpan...' : 'Simpan Status'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
 
             {/* Collapsible Spreadsheet Import Panel */}
@@ -2491,22 +2509,6 @@ const SalesInput = () => {
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
-                        {isFormOpen && formData.staffName && (
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={handleFillFormWithLiveActuals}
-                            style={{
-                              padding: '0.32rem 0.65rem',
-                              fontSize: '0.75rem',
-                              background: 'rgba(0, 168, 255, 0.12)',
-                              color: 'var(--primary)',
-                              border: '1px solid rgba(0, 168, 255, 0.25)'
-                            }}
-                          >
-                            <RefreshCw size={13} /> Pull Live Actuals
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => setIsFormOpen((prev) => !prev)}
@@ -2985,6 +2987,9 @@ const SalesInput = () => {
                 </div>
 
                 {/* Quota & Achievement Data Table */}
+                {salesLoading && salesData.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: '14px', border: '1px solid var(--border)', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
                   <div className="table-sticky-wrapper">
                     <table
@@ -2993,9 +2998,7 @@ const SalesInput = () => {
                     >
                       <thead
                         style={{
-                          background: isLight
-                            ? '#f1f7fe'
-                            : 'rgba(14, 24, 45, 0.92)',
+                          background: 'var(--bg-surface)',
                           borderBottom: '1px solid var(--border)'
                         }}
                       >
@@ -3119,10 +3122,6 @@ const SalesInput = () => {
                       </thead>
                       <tbody>
                         {displayRows.map((row) => {
-                          const hasUnsyncedLive =
-                            Math.round(row.liveSales) > 0 &&
-                            Math.round(row.liveSales) !==
-                              Math.round(row.achievementSales);
                           const isChecked =
                             row.id && selectedIds.includes(row.id);
 
@@ -3194,17 +3193,6 @@ const SalesInput = () => {
                                 >
                                   {formatIdr(row.achievementSales)}
                                 </div>
-                                {hasUnsyncedLive && (
-                                  <div
-                                    style={{
-                                      fontSize: '0.7rem',
-                                      color: 'var(--primary)',
-                                      marginTop: '0.15rem'
-                                    }}
-                                  >
-                                    Tracked: {formatCompactIdr(row.liveSales)}
-                                  </div>
-                                )}
                               </td>
                               <td>
                                 <div
@@ -3324,27 +3312,6 @@ const SalesInput = () => {
                                     <Eye size={14} />
                                   </button>
 
-                                  {canEditAny &&
-                                    horizonMode === 'month' &&
-                                    hasUnsyncedLive && (
-                                      <button
-                                        type="button"
-                                        className="btn"
-                                        title="Sync Live Workspace Actuals"
-                                        onClick={() =>
-                                          handleSyncSingleConsultant(row)
-                                        }
-                                        style={{
-                                          padding: '0.4rem',
-                                          background:
-                                            'rgba(16, 185, 129, 0.14)',
-                                          color: '#10b981'
-                                        }}
-                                      >
-                                        <RefreshCw size={14} />
-                                      </button>
-                                    )}
-
                                   <button
                                     type="button"
                                     onClick={() => canEditAny && handleEdit(row)}
@@ -3419,15 +3386,13 @@ const SalesInput = () => {
 
                         {displayRows.length === 0 && (
                           <tr>
-                            <td
-                              colSpan={horizonMode === 'month' && canDelete ? 10 : 9}
-                              style={{
-                                textAlign: 'center',
-                                padding: '2.5rem 1rem',
-                                color: 'var(--text-muted)'
-                              }}
-                            >
-                              No quota records found for {horizonLabel}.
+                            <td colSpan={horizonMode === 'month' && canDelete ? 10 : 9} style={{ padding: 0 }}>
+                              <EmptyState
+                                icon={<Target size={22} />}
+                                title={`Belum ada data target untuk ${horizonLabel}`}
+                                description="Tambahkan kuota baru atau ganti periode/filter pencarian di atas."
+                                compact
+                              />
                             </td>
                           </tr>
                         )}
@@ -3531,6 +3496,7 @@ const SalesInput = () => {
                     </table>
                   </div>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -3556,27 +3522,13 @@ const SalesInput = () => {
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-end',
                 alignItems: 'center',
                 gap: '0.5rem',
                 width: '100%',
                 flexWrap: 'wrap'
               }}
             >
-              <button
-                type="button"
-                className="btn"
-                onClick={() =>
-                  handleSyncSingleConsultant(inspectedScorecard.currentRow)
-                }
-                style={{
-                  background: 'rgba(16, 185, 129, 0.14)',
-                  color: '#10b981',
-                  border: '1px solid rgba(16, 185, 129, 0.3)'
-                }}
-              >
-                <RefreshCw size={14} /> Apply Live Actuals
-              </button>
               <button
                 type="button"
                 className="btn btn-primary"
@@ -3789,138 +3741,6 @@ const SalesInput = () => {
                 No quota assigned in {horizonLabel} for this consultant.
               </div>
             )}
-
-            {/* Live Workspace Activity Breakdown */}
-            <div
-              style={{
-                padding: '1.05rem',
-                borderRadius: '0.85rem',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                Live Tracked Workspace Activity ({horizonLabel})
-              </div>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '0.7rem'
-                }}
-              >
-                <div
-                  style={{
-                    padding: '0.65rem 0.8rem',
-                    borderRadius: '0.65rem',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)'
-                  }}
-                >
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Daily Productivity ({inspectedScorecard.live.productivityCount})
-                  </div>
-                  <div
-                    className="font-mono"
-                    style={{
-                      fontWeight: 700,
-                      color: 'var(--text-main)',
-                      fontSize: '0.86rem',
-                      marginTop: '0.2rem'
-                    }}
-                  >
-                    {formatCompactIdr(inspectedScorecard.live.productivitySales)}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#10b981' }}>
-                    Profit: {formatCompactIdr(inspectedScorecard.live.productivityProfit)}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    padding: '0.65rem 0.8rem',
-                    borderRadius: '0.65rem',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)'
-                  }}
-                >
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Tours &amp; Trips ({inspectedScorecard.live.tourCount})
-                  </div>
-                  <div
-                    className="font-mono"
-                    style={{
-                      fontWeight: 700,
-                      color: 'var(--text-main)',
-                      fontSize: '0.86rem',
-                      marginTop: '0.2rem'
-                    }}
-                  >
-                    {formatCompactIdr(inspectedScorecard.live.tourSales)}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#10b981' }}>
-                    Profit: {formatCompactIdr(inspectedScorecard.live.tourProfit)}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    padding: '0.65rem 0.8rem',
-                    borderRadius: '0.65rem',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)'
-                  }}
-                >
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Visas &amp; Documents ({inspectedScorecard.live.docCount})
-                  </div>
-                  <div
-                    className="font-mono"
-                    style={{
-                      fontWeight: 700,
-                      color: 'var(--text-main)',
-                      fontSize: '0.86rem',
-                      marginTop: '0.2rem'
-                    }}
-                  >
-                    {formatCompactIdr(inspectedScorecard.live.docSales)}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    padding: '0.65rem 0.8rem',
-                    borderRadius: '0.65rem',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)'
-                  }}
-                >
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Cruises &amp; Hotels Handled
-                  </div>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: 'var(--text-main)',
-                      fontSize: '0.86rem',
-                      marginTop: '0.2rem'
-                    }}
-                  >
-                    {inspectedScorecard.live.cruiseCount} Cruises ·{' '}
-                    {inspectedScorecard.live.hotelCount} Hotels
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Historical Monthly Quota Trajectory */}
             <div

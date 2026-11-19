@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, ChevronDown, ChevronRight, Plus, Minus, Users, Star } from 'lucide-react';
+import { Copy, ChevronDown, ChevronRight, Plus, Minus, Users, Star, Phone } from 'lucide-react';
 import { formatCurrency, parseCurrency } from '../../../utils/currency';
 import { useTheme } from '../../../context/ThemeContext';
 import { useToast } from '../../../context/ToastContext';
@@ -105,6 +105,31 @@ const Step2PaxInfo = ({ data, updateData }) => {
       financials: nextFinancials
     });
     toast.success(`Applied Passenger 1 pricing across all ${updated.length} travelers!`);
+  };
+
+  const handleCopyFirstPaxContactToAll = () => {
+    if (paxList.length <= 1) return;
+    const source = paxList[0] || {};
+    const srcEmail = String(source.email || '').trim();
+    const srcPhone = String(source.phone || '').trim();
+
+    if (!srcEmail && !srcPhone) {
+      toast.warning('Isi Email atau Phone / WhatsApp pada Passenger 1 terlebih dahulu.');
+      return;
+    }
+
+    const updated = paxList.map((pax, idx) =>
+      idx === 0
+        ? pax
+        : {
+            ...pax,
+            email: srcEmail || pax.email || '',
+            phone: srcPhone || pax.phone || ''
+          }
+    );
+
+    commitPaxAndFinancials(updated);
+    toast.success(`Applied Passenger 1 contact across all ${updated.length} travelers!`);
   };
 
   const handleCalculatePpn = (index) => {
@@ -232,6 +257,23 @@ const Step2PaxInfo = ({ data, updateData }) => {
                 }}
               >
                 <Copy size={13} /> Copy Pax 1 Pricing to All ({paxList.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyFirstPaxContactToAll}
+                className="btn btn-secondary"
+                style={{
+                  padding: '0.45rem 0.85rem',
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  color: isLight ? '#047857' : '#34d399',
+                  borderColor: isLight ? '#a7f3d0' : 'rgba(16, 185, 129, 0.35)',
+                  background: isLight ? '#ecfdf5' : 'rgba(16, 185, 129, 0.1)'
+                }}
+                title="Salin Email & Phone / WhatsApp dari Passenger 1 ke seluruh peserta"
+              >
+                <Phone size={13} /> Copy Pax 1 Contact to All ({paxList.length})
               </button>
 
               <button

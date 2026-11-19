@@ -3,6 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import SlideOverDrawer from '../components/SlideOverDrawer';
+import FloatingBulkBar from '../components/FloatingBulkBar';
+import SkeletonLoader from '../components/SkeletonLoader';
+import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
+import DraftBanner from '../components/DraftBanner';
+import ConfirmModal from '../components/ConfirmModal';
+import { useFormDraft } from '../hooks/useFormDraft';
 import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
@@ -286,6 +292,7 @@ const CruiseChartTooltip = ({ active, payload, label, isLight }) => {
 const Cruise = () => {
   const {
     cruises,
+    loading: cruisesLoading,
     addCruise,
     updateCruise,
     deleteCruise,
@@ -331,7 +338,7 @@ const Cruise = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState(() =>
-    location.state?.openTab === 'database' ? 'database' : 'dashboard'
+    location.state?.openTab === 'database' || location.state?.openId ? 'database' : 'dashboard'
   );
   const [showImport, setShowImport] = useState(false);
   const [selectedYear, setSelectedYear] = useState('All');
@@ -345,8 +352,24 @@ const Cruise = () => {
   const [editingCruise, setEditingCruise] = useState(null);
   const [isDuplicateMode, setIsDuplicateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewCruiseId, setPreviewCruiseId] = useState(null);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [previewCruiseId, setPreviewCruiseId] = useState(() => location.state?.openId || null);
   const [participantInput, setParticipantInput] = useState('');
+
+  // React to deep-link / Quick Create navigation even when already mounted on /cruise
+  const navTs = location.state?._ts || null;
+  const [lastNavTs, setLastNavTs] = useState(navTs);
+  if (navTs && navTs !== lastNavTs) {
+    setLastNavTs(navTs);
+    if (location.state?.openNew) {
+      setEditingCruise(null);
+      setIsDuplicateMode(false);
+      setIsModalOpen(true);
+    } else if (location.state?.openId) {
+      setActiveTab('database');
+      setPreviewCruiseId(location.state.openId);
+    }
+  }
 
   const buildEmptyForm = (prefillDate = '') => ({
     cruiseBrand: '',
@@ -368,6 +391,32 @@ const Cruise = () => {
   const [formData, setFormData] = useState(() =>
     buildEmptyForm(location.state?.prefillDate || '')
   );
+
+  const isNewCruiseMode = isModalOpen && !editingCruise && !isDuplicateMode;
+  const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
+    'new_cruise',
+    formData,
+    setFormData,
+    isNewCruiseMode
+  );
+
+  const isCruiseFormDirty = useMemo(() => {
+    if (!isModalOpen) return false;
+    if (editingCruise) {
+      return (
+        formData.shipName !== (editingCruise.shipName || '') ||
+        formData.cruiseBrand !== (editingCruise.cruiseBrand || '') ||
+        formData.picName !== (editingCruise.picName || '') ||
+        formData.reservationCode !== (editingCruise.reservationCode || '')
+      );
+    }
+    return Boolean(
+      formData.shipName?.trim() ||
+      formData.cruiseBrand?.trim() ||
+      formData.picName?.trim() ||
+      formData.reservationCode?.trim()
+    );
+  }, [isModalOpen, editingCruise, formData]);
 
   const previewCruise = useMemo(
     () => cruises.find((c) => c.id === previewCruiseId) || null,
@@ -433,9 +482,18 @@ const Cruise = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setShowConfirmClose(false);
     setEditingCruise(null);
     setIsDuplicateMode(false);
     setParticipantInput('');
+  };
+
+  const handleRequestCloseModal = () => {
+    if (isCruiseFormDirty && !isSubmitting) {
+      setShowConfirmClose(true);
+    } else {
+      handleCloseModal();
+    }
   };
 
   const handleAddParticipantsFromInput = () => {
@@ -571,6 +629,7 @@ const Cruise = () => {
         toast.success(`Updated voyage on ${payload.shipName} (${payload.picName}).`);
       } else {
         await addCruise(payload);
+        clearDraft();
         toast.success(`Created cruise booking on ${payload.shipName} (${payload.picName}).`);
       }
       handleCloseModal();
@@ -2226,12 +2285,15 @@ const Cruise = () => {
                 </div>
 
                 {/* Theme-Aware Voyages Table */}
+                {cruisesLoading && cruises.length === 0 ? (
+                  <SkeletonLoader type="table" />
+                ) : (
                 <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '14px', border: '1px solid var(--border)', boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.25)' }}>
-                  <div className="table-sticky-wrapper">
+                  <div className="table-sticky-wrapper desktop-table-view">
                     <table className="data-table" style={{ width: '100%', minWidth: '1100px' }}>
                       <thead
                         style={{
-                          background: isLight ? '#f4f9ff' : 'rgba(15, 23, 42, 0.85)',
+                          background: 'var(--bg-surface)',
                           borderBottom: '1px solid var(--border)'
                         }}
                       >
@@ -2245,7 +2307,7 @@ const Cruise = () => {
                               style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                             />
                           </th>
-                          <th>
+                          <th className="sticky-col-left">
                             <div
                               style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}
                               onClick={() => handleSort('shipName')}
@@ -2317,7 +2379,7 @@ const Cruise = () => {
                               />
                             </div>
                           </th>
-                          <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                          <th className="sticky-col-right" style={{ textAlign: 'right' }}>ACTIONS</th>
                         </tr>
                       </thead>
 
@@ -2371,7 +2433,7 @@ const Cruise = () => {
                                 />
                               </td>
 
-                              <td>
+                              <td className="sticky-col-left">
                                 <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
                                   {crs.shipName || crs.cruiseBrand || '-'}
                                 </div>
@@ -2574,7 +2636,7 @@ const Cruise = () => {
                                 </span>
                               </td>
 
-                              <td onClick={(e) => e.stopPropagation()}>
+                              <td className="sticky-col-right" onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                                   <button
                                     type="button"
@@ -2691,6 +2753,86 @@ const Cruise = () => {
                     </table>
                   </div>
 
+                  {/* Mobile Operational Card View (<= 768px) */}
+                  <div className="mobile-card-list">
+                    {paginatedData.length > 0 ? (
+                      paginatedData.map((crs) => {
+                        const statusMeta = getStatusMeta(crs.status, isLight);
+                        return (
+                          <div
+                            key={`mob-cruise-${crs.id}`}
+                            onClick={() => setPreviewCruiseId(crs.id)}
+                            style={{
+                              padding: '0.95rem',
+                              borderRadius: '12px',
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.55rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                                  {crs.shipName || crs.cruiseBrand || '-'}
+                                </div>
+                                <div style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                  {crs.picName || 'Tamu'} · {crs.route || 'Rute'}
+                                </div>
+                              </div>
+                              <span className={`badge ${statusMeta.badgeClass}`} style={{ fontSize: '0.7rem' }}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                              <span>⛵ {formatDisplayDate(crs.sailingStart, true)} → {formatDisplayDate(crs.sailingEnd, true)}</span>
+                              <span>👤 {crs.staff || '-'}</span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingTop: '0.5rem',
+                                borderTop: '1px solid var(--border)'
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="font-mono" style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                                {crs.refCode ? `Ref: ${crs.refCode}` : 'No Ref'}
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <WhatsAppQuickMenu
+                                  moduleType="cruise"
+                                  record={{ ...crs, guestName: crs.picName, bookingRef: crs.refCode || crs.reservationCode || crs.bookingRef }}
+                                  phone={crs.phoneNumber}
+                                  compact
+                                  label="WA"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewCruiseId(crs.id)}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                                >
+                                  Detail
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        Tidak ada pelayaran cruise pada filter ini.
+                      </div>
+                    )}
+                  </div>
+
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -2698,7 +2840,55 @@ const Cruise = () => {
                     totalItems={totalItems}
                     itemsPerPage={itemsPerPage}
                   />
+
+                  <FloatingBulkBar
+                    count={selectedIds.length}
+                    itemLabel="cruise"
+                    onClear={() => setSelectedIds([])}
+                  >
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('AUTO')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(16, 185, 129, 0.16)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Sync Status
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleBulkStatus('Cancelled')}
+                      style={{
+                        padding: '0.35rem 0.72rem',
+                        fontSize: '0.78rem',
+                        background: 'rgba(245, 158, 11, 0.16)',
+                        color: '#f59e0b',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Mark Cancelled
+                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={handleBulkDelete}
+                        style={{ padding: '0.35rem 0.72rem', fontSize: '0.78rem', fontWeight: 700 }}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
+                  </FloatingBulkBar>
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -2707,9 +2897,10 @@ const Cruise = () => {
 
       {/* ADD / EDIT / DUPLICATE CABIN MODAL */}
       {isModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={handleRequestCloseModal}>
           <div
             className="modal-content fade-in"
+            onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '840px',
               background: 'var(--bg-card)',
@@ -2757,7 +2948,7 @@ const Cruise = () => {
 
               <button
                 type="button"
-                onClick={handleCloseModal}
+                onClick={handleRequestCloseModal}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -2773,6 +2964,12 @@ const Cruise = () => {
               onSubmit={handleSubmit}
               style={{ padding: '1.4rem 1.5rem', overflowY: 'auto' }}
             >
+              <DraftBanner
+                hasSavedDraft={isNewCruiseMode && hasSavedDraft}
+                draftSavedAt={draftSavedAt}
+                onRestore={restoreDraft}
+                onDiscard={clearDraft}
+              />
               <div className="form-grid">
                 {/* Row 1: Cruise Brand & Ship Name */}
                 <div className="input-group">
@@ -3317,6 +3514,17 @@ const Cruise = () => {
         footer={
           previewCruise ? (
             <>
+              <WhatsAppQuickMenu
+                moduleType="cruise"
+                record={{
+                  ...previewCruise,
+                  guestName: previewCruise.picName,
+                  bookingRef: previewCruise.reservationCode || previewCruise.bookingRef
+                }}
+                phone={previewCruise.phoneNumber}
+                align="left"
+                label="Template WA"
+              />
               <button
                 type="button"
                 className="btn"
@@ -3761,6 +3969,17 @@ const Cruise = () => {
           );
         })()}
       </SlideOverDrawer>
+
+      <ConfirmModal
+        isOpen={showConfirmClose}
+        title="Buang perubahan yang belum disimpan?"
+        message="Anda memiliki isian formulir booking cruise yang belum disimpan. Yakin ingin menutup jendela ini?"
+        confirmText="Tutup & Buang"
+        cancelText="Lanjutkan Mengisi"
+        variant="warning"
+        onConfirm={handleCloseModal}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </div>
   );
 };

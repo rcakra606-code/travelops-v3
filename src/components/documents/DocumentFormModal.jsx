@@ -12,6 +12,8 @@ import {
   Calendar,
   MapPin,
   Sparkles,
+  AlertTriangle,
+  CheckCircle2,
   X
 } from 'lucide-react';
 import {
@@ -40,9 +42,12 @@ const DocumentFormModal = ({
   onSubmit,
   activeStaff = [],
   currentUserName = '',
+  aiDraftMeta = null,
+  aiQueueInfo = null,
+  onOpenAiImport = null,
   isLight
 }) => {
-  const isNewDoc = !editingDoc && !isDuplicateMode;
+  const isNewDoc = !editingDoc && !isDuplicateMode && !aiDraftMeta;
   const { hasSavedDraft, draftSavedAt, restoreDraft, clearDraft } = useFormDraft(
     'new_document',
     formData,
@@ -169,30 +174,159 @@ const DocumentFormModal = ({
               <Stamp size={20} color="var(--primary)" />
               {editingDoc
                 ? 'Edit Visa / Document Record'
+                : aiDraftMeta
+                ? 'AI Draft — Verifikasi & Lengkapi Dokumen'
                 : isDuplicateMode
                 ? 'Duplicate for Family / Group Applicant'
                 : 'Add Visa / Document Record'}
+              {aiQueueInfo && aiQueueInfo.total > 1 && (
+                <span className="badge badge-info" style={{ fontSize: '0.72rem' }}>
+                  Pemohon {aiQueueInfo.current} / {aiQueueInfo.total}
+                </span>
+              )}
             </h2>
             {isDuplicateMode && (
               <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600 }}>
                 Destination, booking/tour code, SLA dates, and appointment slot pre-filled. Enter the next family/group member&apos;s name.
               </p>
             )}
+            {aiDraftMeta && (
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600 }}>
+                Sumber AI: {aiDraftMeta.fileName} — Mohon periksa anomali &amp; lengkapi Tour Code / Invoice / Jadwal Biometrik sebelum menyimpan.
+              </p>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleRequestClose}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {!editingDoc && !aiDraftMeta && onOpenAiImport && (
+              <button
+                type="button"
+                onClick={onOpenAiImport}
+                className="btn btn-secondary"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.36rem 0.72rem',
+                  background: 'var(--primary-soft)',
+                  borderColor: 'var(--border-glow)',
+                  color: 'var(--primary)'
+                }}
+              >
+                <Sparkles size={13} /> Isi Otomatis dari PDF Lark
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleRequestClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={22} />
+            </button>
+          </div>
+        </div>
+
+        {/* AI Draft Verification & Live Completion Checklist Banner */}
+        {aiDraftMeta && (
+          <div
             style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer'
+              margin: '0.9rem 1.5rem 0',
+              padding: '0.85rem 1rem',
+              borderRadius: '11px',
+              background: isLight ? '#fffbeb' : 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.55rem'
             }}
           >
-            <X size={22} />
-          </button>
-        </div>
+            {Array.isArray(aiDraftMeta.warnings) && aiDraftMeta.warnings.length > 0 && (
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.77rem',
+                    fontWeight: 700,
+                    color: isLight ? '#b45309' : '#fbbf24',
+                    marginBottom: '0.28rem'
+                  }}
+                >
+                  <AlertTriangle size={14} /> Catatan &amp; Anomali AI ({aiDraftMeta.warnings.length})
+                </div>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: '1.1rem',
+                    fontSize: '0.74rem',
+                    color: 'var(--text-main)',
+                    lineHeight: 1.42,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.18rem'
+                  }}
+                >
+                  {aiDraftMeta.warnings.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Live Completion Checklist */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.38rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.71rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.2rem' }}>
+                Checklist Draft:
+              </span>
+              {[
+                { label: 'Nama Pemohon', done: Boolean(formData.guestName?.trim()) },
+                { label: 'Negara', done: Boolean(formData.country?.trim()) },
+                { label: 'PIC Staff', done: Boolean(formData.staff?.trim()) },
+                { label: 'Booking / Approval', done: Boolean(formData.bookingCode?.trim()) },
+                { label: 'Tour Code', done: Boolean(formData.tourCode?.trim()), optional: true },
+                { label: 'Invoice No.', done: Boolean(formData.invoiceNumber?.trim()), optional: true },
+                { label: 'Appointment', done: Boolean(formData.appointmentDate), optional: true }
+              ].map((item) => (
+                <span
+                  key={item.label}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '999px',
+                    fontSize: '0.69rem',
+                    fontWeight: 600,
+                    background: item.done
+                      ? isLight ? '#dcfce7' : 'rgba(16, 185, 129, 0.16)'
+                      : item.optional
+                      ? isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.06)'
+                      : isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.18)',
+                    color: item.done
+                      ? isLight ? '#15803d' : '#34d399'
+                      : item.optional
+                      ? 'var(--text-muted)'
+                      : isLight ? '#b91c1c' : '#fca5a5',
+                    border: `1px solid ${
+                      item.done
+                        ? 'rgba(16, 185, 129, 0.35)'
+                        : item.optional
+                        ? 'var(--border)'
+                        : 'rgba(239, 68, 68, 0.35)'
+                    }`
+                  }}
+                >
+                  {item.done && <CheckCircle2 size={11} />}
+                  {item.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Draft Recovery Alert */}
         {hasSavedDraft && (
@@ -766,6 +900,10 @@ const DocumentFormModal = ({
                 ? 'Saving...'
                 : editingDoc
                 ? 'Save Changes'
+                : aiQueueInfo && aiQueueInfo.current < aiQueueInfo.total
+                ? `Simpan & Lanjut Pemohon ${aiQueueInfo.current + 1}/${aiQueueInfo.total}`
+                : aiDraftMeta
+                ? 'Konfirmasi & Simpan Draft'
                 : 'Create Document Record'}
             </button>
           </div>
