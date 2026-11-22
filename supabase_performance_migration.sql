@@ -1,0 +1,34 @@
+-- ============================================================================
+-- TRAVELOPS V4 - PERFORMANCE, EXTENSIONS, INDEXES, PGVECTOR & PG_CRON MIGRATION
+-- Reference copy of migrations applied to Supabase project xstefkhjifuqbnabnvyj:
+--   1. enable_extensions_and_indexes
+--   2. pgvector_rag_and_pgcron_status_sync
+-- ============================================================================
+-- Extensions enabled:
+--   - extensions.pg_trgm   (trigram fuzzy/substring search)
+--   - extensions.vector    (pgvector 768-dim HNSW semantic RAG search)
+--   - pg_catalog.pg_cron   (daily operational status sync at 00:05 WIB / 17:05 UTC)
+--
+-- Performance improvements applied:
+--   - 39 B-tree, JSONB expression, GIN, and GIN trigram indexes across all tables
+--   - Durable `public.travelops_reminder_dispatches` table for daily reminder idempotency
+--   - Fixed all 19 `auth_rls_initplan` policies using `(select auth.uid())`
+--   - Fixed all 5 `multiple_permissive_policies` warnings by scoping public SELECT to `TO anon`
+--   - Added `public.search_travelops_knowledge(...)` & `public.match_travelops_knowledge(...)` RPCs
+--   - Added `public.sync_travelops_statuses()` scheduled via `pg_cron` (`travelops-daily-status-sync`)
+--
+-- Optional: To also trigger Express backend daily reminder emails from Supabase pg_cron via pg_net:
+--   SELECT cron.schedule(
+--     'travelops-daily-reminder-webhook',
+--     '0 1 * * *', -- 08:00 WIB (01:00 UTC)
+--     $$
+--     SELECT net.http_post(
+--       url := 'https://YOUR-RAILWAY-APP.up.railway.app/api/cron/daily-reminders',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'x-cron-secret', 'YOUR_CRON_SECRET'
+--       ),
+--       body := '{}'::jsonb
+--     );
+--     $$
+--   );

@@ -1,7 +1,23 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
+import { normalizePicContacts, picContactsToLegacyFields } from '../utils/corporatePicHelpers';
 
 const CorporateContext = createContext(null);
+
+const resolvePicDbFields = (acc = {}) => {
+  const picContacts = normalizePicContacts(acc.picContacts ?? acc.pic_contacts, acc);
+  const legacy = picContactsToLegacyFields(picContacts);
+  return {
+    pic_contacts: picContacts,
+    pic_name: legacy.picName,
+    pic_phone: legacy.picPhone,
+    pic_office_email: legacy.picOfficeEmail,
+    pic_personal_email: legacy.picPersonalEmail
+  };
+};
 
 const loadCorporateFromDb = async () => {
   const [accRes, salesRes] = await Promise.all([
@@ -12,24 +28,29 @@ const loadCorporateFromDb = async () => {
   if (accRes.error) throw accRes.error;
   if (salesRes.error) throw salesRes.error;
 
-  const accounts = (accRes.data || []).map(a => ({
-    id: a.id,
-    accountCode: a.account_code || '',
-    companyName: a.company_name || '',
-    corporateName: a.company_name || '', // bidirectional compatibility
-    address: a.address || '',
-    creditLimit: Number(a.credit_limit) || 0,
-    status: a.status || 'Active',
-    picName: a.pic_name || '',
-    picPhone: a.pic_phone || '',
-    picOfficeEmail: a.pic_office_email || '',
-    picPersonalEmail: a.pic_personal_email || '',
-    remarks: a.remarks || '',
-    flightFee: a.flight_fee || {},
-    hotelFee: a.hotel_fee || {},
-    airlinesCode: a.airlines_code || '',
-    detailLink: a.detail_link || ''
-  }));
+  const accounts = (accRes.data || []).map((a) => {
+    const picContacts = normalizePicContacts(a.pic_contacts, a);
+    const legacy = picContactsToLegacyFields(picContacts);
+    return {
+      id: a.id,
+      accountCode: a.account_code || '',
+      companyName: a.company_name || '',
+      corporateName: a.company_name || '', // bidirectional compatibility
+      address: a.address || '',
+      creditLimit: Number(a.credit_limit) || 0,
+      status: a.status || 'Active',
+      picContacts,
+      picName: a.pic_name || legacy.picName || '',
+      picPhone: a.pic_phone || legacy.picPhone || '',
+      picOfficeEmail: a.pic_office_email || legacy.picOfficeEmail || '',
+      picPersonalEmail: a.pic_personal_email || legacy.picPersonalEmail || '',
+      remarks: a.remarks || '',
+      flightFee: a.flight_fee || {},
+      hotelFee: a.hotel_fee || {},
+      airlinesCode: a.airlines_code || '',
+      detailLink: a.detail_link || ''
+    };
+  });
 
   const sales = (salesRes.data || []).map(s => ({
     id: s.id,
@@ -45,48 +66,34 @@ const loadCorporateFromDb = async () => {
 };
 
 export const CorporateProvider = ({ children }) => {
-  const [corporateAccounts, setCorporateAccounts] = useState([]);
-  const [corporateSales, setCorporateSales] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.corporate,
+    queryFn: loadCorporateFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
+
+  const corporateAccounts = data?.accounts || [];
+  const corporateSales = data?.sales || [];
 
   const fetchData = useCallback(async () => {
     try {
-      const { accounts, sales } = await loadCorporateFromDb();
-      setCorporateAccounts(accounts);
-      setCorporateSales(sales);
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.corporate });
       return { success: true };
     } catch (err) {
       console.error('Error fetching corporate data:', err);
       return { success: false, error: err };
-    } finally {
-      setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadCorporateFromDb()
-      .then(({ accounts, sales }) => {
-        if (!cancelled) {
-          setCorporateAccounts(accounts);
-          setCorporateSales(sales);
-        }
-      })
-      .catch((err) => {
-        console.error('Initial fetch corporate error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [queryClient]);
 
   const addAccount = async (acc) => {
     try {
       const newId = `CORP-${Date.now()}`;
       const compName = acc.companyName || acc.corporateName || '';
+      const picFields = resolvePicDbFields(acc);
       const { error } = await supabase.from('travelops_corporate_accounts').insert([{
         id: newId,
         account_code: acc.accountCode?.trim() || '',
@@ -94,10 +101,7 @@ export const CorporateProvider = ({ children }) => {
         address: acc.address || '',
         credit_limit: Number(acc.creditLimit) || 0,
         status: acc.status || 'Active',
-        pic_name: acc.picName || '',
-        pic_phone: acc.picPhone || '',
-        pic_office_email: acc.picOfficeEmail || '',
-        pic_personal_email: acc.picPersonalEmail || '',
+        ...picFields,
         remarks: acc.remarks || '',
         flight_fee: acc.flightFee || {},
         hotel_fee: acc.hotelFee || {},
@@ -119,16 +123,23 @@ export const CorporateProvider = ({ children }) => {
         ? updated.companyName 
         : (updated.corporateName !== undefined ? updated.corporateName : undefined);
 
+      const hasPicUpdate =
+        updated.picContacts !== undefined ||
+        updated.pic_contacts !== undefined ||
+        updated.picName !== undefined ||
+        updated.picPhone !== undefined ||
+        updated.picOfficeEmail !== undefined ||
+        updated.picPersonalEmail !== undefined;
+
+      const picUpdates = hasPicUpdate ? resolvePicDbFields(updated) : {};
+
       const dbUpdates = {
         account_code: updated.accountCode !== undefined ? updated.accountCode.trim() : undefined,
         company_name: compName !== undefined ? compName.trim() : undefined,
         address: updated.address,
         credit_limit: updated.creditLimit !== undefined ? Number(updated.creditLimit) : undefined,
         status: updated.status,
-        pic_name: updated.picName,
-        pic_phone: updated.picPhone,
-        pic_office_email: updated.picOfficeEmail,
-        pic_personal_email: updated.picPersonalEmail,
+        ...picUpdates,
         remarks: updated.remarks,
         flight_fee: updated.flightFee,
         hotel_fee: updated.hotelFee,
@@ -171,10 +182,7 @@ export const CorporateProvider = ({ children }) => {
         address: d.address || '',
         credit_limit: Number(d.creditLimit ?? d.credit_limit) || 0,
         status: d.status || 'Active',
-        pic_name: d.picName || d.pic_name || '',
-        pic_phone: d.picPhone || d.pic_phone || '',
-        pic_office_email: d.picOfficeEmail || d.pic_office_email || '',
-        pic_personal_email: d.picPersonalEmail || d.pic_personal_email || '',
+        ...resolvePicDbFields(d),
         remarks: d.remarks || '',
         flight_fee: d.flightFee || d.flight_fee || {},
         hotel_fee: d.hotelFee || d.hotel_fee || {},
@@ -269,9 +277,79 @@ export const CorporateProvider = ({ children }) => {
     }
   };
 
+  const bulkUpsertAccounts = async (dataArray, { updateDuplicates = true } = {}) => {
+    try {
+      if (!Array.isArray(dataArray) || dataArray.length === 0) {
+        return { success: false, error: 'No account data provided' };
+      }
+
+      const toInsert = [];
+      const toUpdate = [];
+      let skippedCount = 0;
+
+      const buildDbRow = (d) => ({
+        account_code: (d.accountCode || d.account_code || '').trim(),
+        company_name: (d.companyName || d.corporateName || d.company_name || '').trim(),
+        address: d.address || '',
+        credit_limit: Number(d.creditLimit ?? d.credit_limit) || 0,
+        status: d.status || 'Active',
+        ...resolvePicDbFields(d),
+        remarks: d.remarks || '',
+        flight_fee: d.flightFee || d.flight_fee || {},
+        hotel_fee: d.hotelFee || d.hotel_fee || {},
+        airlines_code: d.airlinesCode || d.airlines_code || '',
+        detail_link: d.detailLink || d.detail_link || ''
+      });
+
+      const baseTs = Date.now();
+      dataArray.forEach((item, idx) => {
+        if (item._existingId) {
+          if (updateDuplicates) {
+            toUpdate.push({ id: item._existingId, updates: buildDbRow(item) });
+          } else {
+            skippedCount += 1;
+          }
+        } else {
+          toInsert.push({
+            id: item.id || `CORP-${baseTs}-${idx}`,
+            ...buildDbRow(item)
+          });
+        }
+      });
+
+      // Batch insert new accounts in chunks of 100
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+        const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase.from('travelops_corporate_accounts').insert(chunk);
+        if (error) throw error;
+      }
+
+      // Update matched existing accounts
+      for (const entry of toUpdate) {
+        const { error } = await supabase
+          .from('travelops_corporate_accounts')
+          .update(entry.updates)
+          .eq('id', entry.id);
+        if (error) throw error;
+      }
+
+      await fetchData();
+      return {
+        success: true,
+        insertedCount: toInsert.length,
+        updatedCount: toUpdate.length,
+        skippedCount
+      };
+    } catch (err) {
+      console.error('Error bulk upserting accounts:', err);
+      return { success: false, error: err?.message || 'Failed to save imported corporate accounts' };
+    }
+  };
+
   return (
     <CorporateContext.Provider value={{ 
-      corporateAccounts, addAccount, updateAccount, deleteAccount, bulkImportAccounts,
+      corporateAccounts, addAccount, updateAccount, deleteAccount, bulkImportAccounts, bulkUpsertAccounts,
       corporateSales, addSales, updateSales, deleteSales, bulkImportSales,
       loading, refreshData: fetchData 
     }}>

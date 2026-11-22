@@ -13,6 +13,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard'));
 const Settings = lazy(() => import('../pages/Settings'));
 const ToursManager = lazy(() => import('../pages/ToursManager'));
 const TourRegistrationForm = lazy(() => import('../pages/TourRegistrationForm'));
+const FlightBookingForm = lazy(() => import('../pages/FlightBookingForm'));
 const UserManager = lazy(() => import('../pages/UserManager'));
 const Profile = lazy(() => import('../pages/Profile'));
 const SalesInput = lazy(() => import('../pages/SalesInput'));
@@ -109,6 +110,7 @@ const AnimatedRoutes = () => {
           <Route path="/calendar" element={<ProtectedRoute><PageWrapper><OperationsCalendar /></PageWrapper></ProtectedRoute>} />
           <Route path="/tours" element={<ProtectedRoute><PageWrapper><ToursManager /></PageWrapper></ProtectedRoute>} />
           <Route path="/tour-registration-form" element={<ProtectedRoute><PageWrapper><TourRegistrationForm /></PageWrapper></ProtectedRoute>} />
+          <Route path="/flight-booking-form" element={<ProtectedRoute><PageWrapper><FlightBookingForm /></PageWrapper></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><PageWrapper><KnowledgeBase /></PageWrapper></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><RoleRoute allowedRoles={['Admin']}><PageWrapper><UserManager /></PageWrapper></RoleRoute></ProtectedRoute>} />
           <Route path="/sales" element={<ProtectedRoute><PageWrapper><SalesInput /></PageWrapper></ProtectedRoute>} />

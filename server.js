@@ -1,7 +1,9 @@
 import express from 'express';
 import * as Sentry from '@sentry/node';
-import nodemailer from 'nodemailer';
+import compression from 'compression';
 import cors from 'cors';
+import crypto from 'crypto';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -10,7 +12,46 @@ import { fileURLToPath } from 'url';
 import dns from 'dns';
 import { syncDatabase } from './scripts/db-sync.js';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
+import { logger, httpLogger } from './server/logger.js';
+import {
+  cacheGet,
+  cacheSet,
+  createRateLimitStore,
+  getCacheStatus
+} from './server/cache.js';
+import {
+  dispatchTransactionalEmail,
+  getMailerStatus
+} from './server/mailer.js';
+import {
+  getHybridOperationalGrounding,
+  backfillKnowledgeEmbeddings
+} from './server/rag.js';
+import { runServerDailyReminders } from './server/dailyReminderRunner.js';
+import {
+  createUserSchema,
+  resetPasswordSchema,
+  updateUserSchema,
+  sendEmailSchema,
+  copilotChatSchema,
+  generateDestinationSchema,
+  auditEntitySchema,
+  parseItineraryPdfSchema,
+  parseFormFileSchema,
+  biInsightsSchema,
+  parseCorporateExcelSchema,
+  parseFlightReservationSchema,
+  validateBody
+} from './src/schemas/apiSchemas.js';
+import {
+  validateCorporateExcelPayload,
+  buildCorporateExcelPrompt
+} from './src/utils/corporateAiPrompt.js';
+import {
+  validateFlightReservationPayload,
+  buildFlightReservationPrompt
+} from './src/utils/flightReservationPrompt.js';
 import {
   validateRegistrationFilePayload,
   buildTourRegistrationPrompt
@@ -24,6 +65,11 @@ import {
   buildBiAnalystPrompt,
   normalizeBiAiResponse
 } from './src/utils/biAiPrompt.js';
+import {
+  cleanJsonOutput,
+  buildGeminiJsonConfig,
+  buildGeminiChatConfig
+} from './src/utils/aiJsonHelpers.js';
 
 // Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
 // which causes ENETUNREACH errors when connecting to smtp.gmail.com
@@ -53,6 +99,20 @@ app.disable('x-powered-by');
 // Trust the first proxy (Railway load balancer) so express-rate-limit can accurately get IPs
 app.set('trust proxy', 1);
 
+// Structured HTTP request logging for /api/* routes (Pino)
+app.use(httpLogger);
+
+// Dynamic response compression (Gzip / Deflate for API JSON & dynamic responses)
+app.use(
+  compression({
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) return false;
+      return compression.filter(req, res);
+    }
+  })
+);
+
 // Security Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Disabled for React inline scripts compatibility if needed
@@ -78,17 +138,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate Limiting (General)
+// Rate Limiting (General — uses Upstash Redis when configured, MemoryStore fallback otherwise)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window`
+  max: 150, // Limit each IP to 150 requests per window
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  store: createRateLimitStore('api'),
   message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes.' }
 });
 
 // Rate Limiting (Strict for Email API)
 const emailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // Limit each IP to 10 emails per hour
+  max: 15, // Limit each IP to 15 emails per hour
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  store: createRateLimitStore('email'),
   message: { success: false, message: 'Email sending limit reached. Please try again in an hour.' }
 });
 
@@ -146,7 +212,7 @@ const requireAuth = async (req, res, next) => {
     }
     req.authUser = user;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ success: false, error: 'Unauthorized: Session verification failed.' });
   }
 };
@@ -195,6 +261,23 @@ const requireAdmin = async (req, res, next) => {
   }
 };
 
+// --- HEALTH & READINESS ENDPOINT ---
+app.get('/api/health', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json({
+    status: 'ok',
+    service: 'travelops-v4',
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+    integrations: {
+      supabaseAdmin: Boolean(supabaseAdmin),
+      geminiAi: Boolean(getAiClient()),
+      cache: getCacheStatus(),
+      mailer: getMailerStatus()
+    }
+  });
+});
+
 // --- API ENDPOINTS FOR USER MANAGEMENT ---
 
 // Get Client IP Endpoint
@@ -208,7 +291,7 @@ app.get('/api/client-info', (req, res) => {
 });
 
 // Create User
-app.post('/api/admin/users', requireAdmin, async (req, res) => {
+app.post('/api/admin/users', requireAdmin, validateBody(createUserSchema), async (req, res) => {
   const { email, password, name, role, status, mustChangePassword } = req.body;
   
   try {
@@ -246,7 +329,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
 });
 
 // Reset Password
-app.put('/api/admin/users/:id/password', requireAdmin, async (req, res) => {
+app.put('/api/admin/users/:id/password', requireAdmin, validateBody(resetPasswordSchema), async (req, res) => {
   const { id } = req.params;
   const { newPassword } = req.body;
 
@@ -274,7 +357,7 @@ app.put('/api/admin/users/:id/password', requireAdmin, async (req, res) => {
 });
 
 // Update User Profile & Privileges (Admin Only)
-app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/users/:id', requireAdmin, validateBody(updateUserSchema), async (req, res) => {
   const { id } = req.params;
   const { name, email, role, status, is_locked, isLocked, must_change_password, mustChangePassword } = req.body;
 
@@ -356,12 +439,20 @@ app.get('/api/public/track/:code', async (req, res) => {
 
   // Sanitize tracking code to prevent filter injection (alphanumeric, dash, underscore, dot)
   const cleanCode = code.trim();
-  const sanitizedCode = cleanCode.replace(/[^a-zA-Z0-9_\-\.]/g, '');
+  const sanitizedCode = cleanCode.replace(/[^a-zA-Z0-9_.-]/g, '');
   if (!sanitizedCode) {
     return res.status(400).json({ success: false, error: 'Invalid tracking code format' });
   }
 
   try {
+    const cacheKey = `track:${sanitizedCode.toLowerCase()}`;
+    const cachedRecord = await cacheGet(cacheKey);
+    if (cachedRecord) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.status(200).json({ success: true, data: cachedRecord });
+    }
+    res.setHeader('X-Cache', 'MISS');
+
     const client = supabaseAdmin || createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY);
 
     // 1. Search in Documents (Visas / Passports)
@@ -373,28 +464,27 @@ app.get('/api/public/track/:code', async (req, res) => {
 
     if (docs && docs.length > 0) {
       const d = docs[0];
-      return res.status(200).json({
-        success: true,
-        data: {
-          type: 'document',
-          id: d.id,
-          docType: d.doc_type || 'Visa / Passport',
-          guestName: d.guest_name,
-          country: d.country,
-          processType: d.process_type || 'Normal',
-          receiveDate: d.receive_date,
-          estimatedDone: d.estimated_done,
-          sendDate: d.send_date,
-          bookingCode: d.booking_code,
-          invoiceNumber: d.invoice_number,
-          shippingStatus: d.shipping_status || 'Processing',
-          shippingMethod: d.shipping_method,
-          shippingCourier: d.shipping_courier,
-          shippingResi: d.shipping_resi,
-          shippingNotes: d.shipping_notes,
-          receivedStatus: d.received_status
-        }
-      });
+      const payload = {
+        type: 'document',
+        id: d.id,
+        docType: d.doc_type || 'Visa / Passport',
+        guestName: d.guest_name,
+        country: d.country,
+        processType: d.process_type || 'Normal',
+        receiveDate: d.receive_date,
+        estimatedDone: d.estimated_done,
+        sendDate: d.send_date,
+        bookingCode: d.booking_code,
+        invoiceNumber: d.invoice_number,
+        shippingStatus: d.shipping_status || 'Processing',
+        shippingMethod: d.shipping_method,
+        shippingCourier: d.shipping_courier,
+        shippingResi: d.shipping_resi,
+        shippingNotes: d.shipping_notes,
+        receivedStatus: d.received_status
+      };
+      await cacheSet(cacheKey, payload, 45);
+      return res.status(200).json({ success: true, data: payload });
     }
 
     // 2. Search in Tours
@@ -406,22 +496,21 @@ app.get('/api/public/track/:code', async (req, res) => {
 
     if (tours && tours.length > 0) {
       const t = tours[0];
-      return res.status(200).json({
-        success: true,
-        data: {
-          type: 'tour',
-          id: t.id,
-          tourCode: t.internals?.tourCode || t.id,
-          bookingCode: t.internals?.bookingCode || t.id,
-          country: t.country,
-          category: t.category,
-          departureDate: t.departure_date,
-          returnDate: t.return_date,
-          paxCount: t.internals?.paxCount || 1,
-          status: t.status,
-          paxList: (t.pax_info || []).map(p => ({ name: p.name, title: p.title }))
-        }
-      });
+      const payload = {
+        type: 'tour',
+        id: t.id,
+        tourCode: t.internals?.tourCode || t.id,
+        bookingCode: t.internals?.bookingCode || t.id,
+        country: t.country,
+        category: t.category,
+        departureDate: t.departure_date,
+        returnDate: t.return_date,
+        paxCount: t.internals?.paxCount || 1,
+        status: t.status,
+        paxList: (t.pax_info || []).map(p => ({ name: p.name, title: p.title }))
+      };
+      await cacheSet(cacheKey, payload, 45);
+      return res.status(200).json({ success: true, data: payload });
     }
 
     // 3. Search in Hotels
@@ -433,20 +522,19 @@ app.get('/api/public/track/:code', async (req, res) => {
 
     if (hotels && hotels.length > 0) {
       const h = hotels[0];
-      return res.status(200).json({
-        success: true,
-        data: {
-          type: 'hotel',
-          id: h.id,
-          hotelName: h.hotel_name,
-          region: h.region,
-          checkIn: h.check_in,
-          checkOut: h.check_out,
-          roomType: h.room_type,
-          confirmationNumber: h.confirmation_number,
-          status: h.status
-        }
-      });
+      const payload = {
+        type: 'hotel',
+        id: h.id,
+        hotelName: h.hotel_name,
+        region: h.region,
+        checkIn: h.check_in,
+        checkOut: h.check_out,
+        roomType: h.room_type,
+        confirmationNumber: h.confirmation_number,
+        status: h.status
+      };
+      await cacheSet(cacheKey, payload, 45);
+      return res.status(200).json({ success: true, data: payload });
     }
 
     // 4. Search in Cruises
@@ -458,20 +546,19 @@ app.get('/api/public/track/:code', async (req, res) => {
 
     if (cruises && cruises.length > 0) {
       const c = cruises[0];
-      return res.status(200).json({
-        success: true,
-        data: {
-          type: 'cruise',
-          id: c.id,
-          shipName: c.ship_name,
-          cruiseBrand: c.cruise_brand,
-          bookingRef: c.booking_ref,
-          sailingStart: c.sailing_start,
-          sailingEnd: c.sailing_end,
-          route: c.route,
-          status: c.status
-        }
-      });
+      const payload = {
+        type: 'cruise',
+        id: c.id,
+        shipName: c.ship_name,
+        cruiseBrand: c.cruise_brand,
+        bookingRef: c.booking_ref,
+        sailingStart: c.sailing_start,
+        sailingEnd: c.sailing_end,
+        route: c.route,
+        status: c.status
+      };
+      await cacheSet(cacheKey, payload, 45);
+      return res.status(200).json({ success: true, data: payload });
     }
 
     return res.status(404).json({
@@ -486,41 +573,6 @@ app.get('/api/public/track/:code', async (req, res) => {
 
 
 // --- DESTINATION & KNOWLEDGE BASE AI ENDPOINTS ---
-
-// Helper to clean JSON returned from LLMs
-function cleanJsonOutput(text) {
-  if (!text) return null;
-  let cleaned = text.trim();
-  if (cleaned.startsWith('```json')) {
-    cleaned = cleaned.substring(7);
-  } else if (cleaned.startsWith('```')) {
-    cleaned = cleaned.substring(3);
-  }
-  if (cleaned.endsWith('```')) {
-    cleaned = cleaned.substring(0, cleaned.length - 3);
-  }
-  cleaned = cleaned.trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (err) {
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      try {
-        return JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
-      } catch (e) {}
-    }
-    const firstBracket = cleaned.indexOf('[');
-    const lastBracket = cleaned.lastIndexOf(']');
-    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-      try {
-        return JSON.parse(cleaned.substring(firstBracket, lastBracket + 1));
-      } catch (e) {}
-    }
-    throw err;
-  }
-}
 
 // Resilient model fallback executor for Gemini models
 async function runWithModelFallback(runnerFn) {
@@ -537,95 +589,8 @@ async function runWithModelFallback(runnerFn) {
   throw lastError || new Error('All Gemini models failed to process request');
 }
 
-// RAG Operational Grounding Retriever for TravelOps AI Copilot
-async function getOperationalGrounding(message, currentPath) {
-  const contextNotes = [];
-
-  // 1. Determine module and operational context from current URL path
-  const path = (currentPath || '').toLowerCase();
-  let moduleContext = 'TravelOps General Operations (Ticketing, Customer Service, General Inquiries)';
-  if (path.includes('/tour')) {
-    moduleContext = 'Tour Management & Itinerary Planning (Focus: tour schedules, group pacing, driver hours, itinerary breakdown, FOC, margin calculation)';
-  } else if (path.includes('/document')) {
-    moduleContext = 'Document & Visa Operations (Focus: passport validity min 6 months, visa requirements for Indonesian passport holders, embassy appointments, biometrics, document completion tracking)';
-  } else if (path.includes('/hotel')) {
-    moduleContext = 'Hotel Reservations & Accommodations (Focus: group rates, rooming list formats, bed types Twin/Double, city tax, early check-in/late check-out, breakfast vouchers)';
-  } else if (path.includes('/cruise')) {
-    moduleContext = 'Cruise Bookings & Sea Packages (Focus: cabin categories, port taxes, gratuities, shore excursion timing, passenger manifest)';
-  } else if (path.includes('/corporate')) {
-    moduleContext = 'Corporate Accounts & MICE (Focus: B2B proposals, corporate travel policy adherence, RFP quotations, payment terms, attendee rosters)';
-  } else if (path.includes('/knowledge') || path.includes('/destination')) {
-    moduleContext = 'Destination Knowledge Base & Intelligence (Focus: plug/voltage standards, local currency & tipping etiquette, emergency numbers, cultural dos & donts)';
-  }
-  contextNotes.push(`[Active Screen / Module Context]: ${moduleContext}`);
-
-  // 2. Query Supabase for destination intelligence grounding if relevant
-  if (supabaseAdmin) {
-    try {
-      const msgLower = (message || '').toLowerCase();
-
-      // Retrieve country intelligence if country is mentioned or relevant
-      const { data: countries } = await supabaseAdmin
-        .from('travelops_dest_countries')
-        .select('name, general_info, currency, emergency, power_plugs, visa_info, customs_etiquette')
-        .limit(25);
-
-      if (countries && countries.length > 0) {
-        const matchedCountries = countries.filter(c => 
-          c.name && (msgLower.includes(c.name.toLowerCase()) || (c.id && msgLower.includes(c.id.toLowerCase())))
-        );
-
-        if (matchedCountries.length > 0) {
-          contextNotes.push('\n[Verified Company Destination Knowledge (RAG)] :');
-          for (const c of matchedCountries.slice(0, 3)) {
-            const vInfo = typeof c.visa_info === 'object' ? JSON.stringify(c.visa_info) : c.visa_info;
-            const plugInfo = typeof c.power_plugs === 'object' ? JSON.stringify(c.power_plugs) : c.power_plugs;
-            const currInfo = typeof c.currency === 'object' ? JSON.stringify(c.currency) : c.currency;
-            contextNotes.push(`• Country: ${c.name} | Visa: ${vInfo || 'Check requirements'} | Plugs: ${plugInfo || 'Standard'} | Currency: ${currInfo || 'Local'}`);
-            if (c.general_info) {
-              contextNotes.push(`  Overview: ${c.general_info}`);
-            }
-          }
-        }
-      }
-
-      // Ground with tour routes if query relates to itineraries, routes, or tour planning
-      if (
-        msgLower.includes('itinerary') || 
-        msgLower.includes('rute') || 
-        msgLower.includes('tour') || 
-        msgLower.includes('paket') || 
-        msgLower.includes('hari') ||
-        path.includes('/tour')
-      ) {
-        const { data: routes } = await supabaseAdmin
-          .from('travelops_tour_routes')
-          .select('title, country_name, duration_days, duration_nights, cities_sequence, route_highlights')
-          .limit(10);
-
-        if (routes && routes.length > 0) {
-          const relevantRoutes = routes.filter(r => 
-            (r.country_name && msgLower.includes(r.country_name.toLowerCase())) ||
-            (r.title && msgLower.includes(r.title.toLowerCase()))
-          );
-          const pool = relevantRoutes.length > 0 ? relevantRoutes : routes.slice(0, 3);
-          contextNotes.push('\n[Company Master Tour Routes Reference]:');
-          for (const r of pool.slice(0, 3)) {
-            const cities = Array.isArray(r.cities_sequence) ? r.cities_sequence.join(' ➔ ') : r.cities_sequence;
-            contextNotes.push(`• Route: "${r.title}" (${r.duration_days}D${r.duration_nights}N in ${r.country_name || 'Destination'}) | Cities: ${cities || '-'}`);
-          }
-        }
-      }
-    } catch (dbErr) {
-      console.warn('[Copilot RAG Grounding] Non-blocking DB fetch warning:', dbErr.message);
-    }
-  }
-
-  return contextNotes.join('\n');
-}
-
 // 1. Parse Tour Itinerary PDF with Gemini Multimodal
-app.post('/api/knowledge/parse-itinerary-pdf', requireAuth, async (req, res) => {
+app.post('/api/knowledge/parse-itinerary-pdf', requireAuth, validateBody(parseItineraryPdfSchema), async (req, res) => {
   try {
     const { pdfBase64, fileName, prompt: customPrompt } = req.body;
     if (!pdfBase64) {
@@ -657,7 +622,7 @@ app.post('/api/knowledge/parse-itinerary-pdf', requireAuth, async (req, res) => 
 
     // Sanitize fileName to prevent directory traversal or script extensions
     const cleanFileName = (fileName || 'Itinerary.pdf')
-      .replace(/[^a-zA-Z0-9_\-\. ]/g, '')
+      .replace(/[^a-zA-Z0-9_.\- ]/g, '')
       .trim();
 
     const prompt = customPrompt || `
@@ -738,8 +703,8 @@ Analyze the attached tour itinerary PDF thoroughly. Extract and organize all tra
 IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without any introductory or commentary text.
 `;
 
-    const response = await runWithModelFallback(async (model) => {
-      return await client.models.generateContent({
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
         model,
         contents: [
           {
@@ -755,14 +720,10 @@ IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without 
             ]
           }
         ],
-        config: {
-          responseMimeType: 'application/json'
-        }
+        config: buildGeminiJsonConfig(model, { temperature: 0.1 })
       });
+      return cleanJsonOutput(response.text);
     });
-
-    const rawText = response.text;
-    const parsedData = cleanJsonOutput(rawText);
 
     res.status(200).json({
       success: true,
@@ -779,7 +740,7 @@ IMPORTANT: Respond ONLY with valid, parseable JSON matching this format without 
 });
 
 // 1b. Parse Tour Registration Form (PDF / Image) into TourWizard Draft via Gemini Multimodal
-app.post('/api/tours/parse-registration-form', requireAuth, async (req, res) => {
+app.post('/api/tours/parse-registration-form', requireAuth, validateBody(parseFormFileSchema), async (req, res) => {
   try {
     const { fileBase64, mimeType, fileName, staffList } = req.body || {};
 
@@ -805,8 +766,8 @@ app.post('/api/tours/parse-registration-form', requireAuth, async (req, res) => 
 
     const prompt = buildTourRegistrationPrompt(Array.isArray(staffList) ? staffList : []);
 
-    const response = await runWithModelFallback(async (model) => {
-      return await client.models.generateContent({
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
         model,
         contents: [
           {
@@ -822,17 +783,14 @@ app.post('/api/tours/parse-registration-form', requireAuth, async (req, res) => 
             ]
           }
         ],
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
-        }
+        config: buildGeminiJsonConfig(model, { temperature: 0.1 })
       });
+      const parsed = cleanJsonOutput(response.text);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI tidak dapat mengekstrak data terstruktur dari dokumen ini.');
+      }
+      return parsed;
     });
-
-    const parsedData = cleanJsonOutput(response.text);
-    if (!parsedData || typeof parsedData !== 'object') {
-      throw new Error('AI tidak dapat mengekstrak data terstruktur dari dokumen ini.');
-    }
 
     res.status(200).json({
       success: true,
@@ -849,7 +807,7 @@ app.post('/api/tours/parse-registration-form', requireAuth, async (req, res) => 
 });
 
 // 1c. Parse Visa / Document Request Form (Lark PDF / Image) into Document Draft(s) via Gemini Multimodal
-app.post('/api/documents/parse-request-form', requireAuth, async (req, res) => {
+app.post('/api/documents/parse-request-form', requireAuth, validateBody(parseFormFileSchema), async (req, res) => {
   try {
     const { fileBase64, mimeType, fileName, staffList } = req.body || {};
 
@@ -875,8 +833,8 @@ app.post('/api/documents/parse-request-form', requireAuth, async (req, res) => {
 
     const prompt = buildDocumentRequestPrompt(Array.isArray(staffList) ? staffList : []);
 
-    const response = await runWithModelFallback(async (model) => {
-      return await client.models.generateContent({
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
         model,
         contents: [
           {
@@ -892,17 +850,14 @@ app.post('/api/documents/parse-request-form', requireAuth, async (req, res) => {
             ]
           }
         ],
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
-        }
+        config: buildGeminiJsonConfig(model, { temperature: 0.1 })
       });
+      const parsed = cleanJsonOutput(response.text);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI tidak dapat mengekstrak data terstruktur dari dokumen ini.');
+      }
+      return parsed;
     });
-
-    const parsedData = cleanJsonOutput(response.text);
-    if (!parsedData || typeof parsedData !== 'object') {
-      throw new Error('AI tidak dapat mengekstrak data terstruktur dari dokumen ini.');
-    }
 
     res.status(200).json({
       success: true,
@@ -919,7 +874,7 @@ app.post('/api/documents/parse-request-form', requireAuth, async (req, res) => {
 });
 
 // 2. Generate or Enrich Destination Intelligence on-demand with AI
-app.post('/api/knowledge/generate-destination-ai', requireAuth, async (req, res) => {
+app.post('/api/knowledge/generate-destination-ai', requireAuth, validateBody(generateDestinationSchema), async (req, res) => {
   try {
     const { query, type, context } = req.body;
     if (!query || !type) {
@@ -985,15 +940,15 @@ ${type === 'country' ? `
 `}
 `;
 
-    const response = await runWithModelFallback(async (model) => {
-      return await client.models.generateContent({
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
         model,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: 'application/json' }
+        config: buildGeminiJsonConfig(model, { temperature: 0.2 })
       });
+      return cleanJsonOutput(response.text);
     });
 
-    const parsedData = cleanJsonOutput(response.text);
     res.status(200).json({ success: true, data: parsedData });
   } catch (error) {
     console.error('Error generating destination AI dossier:', error);
@@ -1002,7 +957,7 @@ ${type === 'country' ? `
 });
 
 // 2b. Audit Destination Entity Freshness with AI
-app.post('/api/knowledge/audit-entity', requireAuth, async (req, res) => {
+app.post('/api/knowledge/audit-entity', requireAuth, validateBody(auditEntitySchema), async (req, res) => {
   try {
     const { prompt } = req.body;
     if (!prompt) {
@@ -1014,15 +969,15 @@ app.post('/api/knowledge/audit-entity', requireAuth, async (req, res) => {
       return res.status(500).json({ success: false, error: 'GEMINI_API_KEY is not configured on the server.' });
     }
 
-    const response = await runWithModelFallback(async (model) => {
-      return await client.models.generateContent({
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
         model,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: { responseMimeType: 'application/json' }
+        config: buildGeminiJsonConfig(model, { temperature: 0.2 })
       });
+      return cleanJsonOutput(response.text);
     });
 
-    const parsedData = cleanJsonOutput(response.text);
     res.status(200).json({ success: true, data: parsedData });
   } catch (error) {
     console.error('Error auditing destination entity:', error);
@@ -1030,13 +985,10 @@ app.post('/api/knowledge/audit-entity', requireAuth, async (req, res) => {
   }
 });
 
-// 3. AI Operations Copilot Assistant (Proxied for security, protects API key, RAG grounded)
-app.post('/api/ai/copilot-chat', requireAuth, async (req, res) => {
+// 3. AI Operations Copilot Assistant (Proxied for security, protects API key, Hybrid pgvector + pg_trgm RAG)
+app.post('/api/ai/copilot-chat', requireAuth, validateBody(copilotChatSchema), async (req, res) => {
   try {
     const { message, history, userContext, currentPath } = req.body;
-    if (!message || !message.trim()) {
-      return res.status(400).json({ success: false, error: 'Message cannot be empty.' });
-    }
 
     const client = getAiClient();
     if (!client) {
@@ -1046,8 +998,13 @@ app.post('/api/ai/copilot-chat', requireAuth, async (req, res) => {
       });
     }
 
-    // 1. Retrieve RAG database facts and current workspace context
-    const groundingContext = await getOperationalGrounding(message, currentPath);
+    // 1. Retrieve Hybrid RAG (pgvector + pg_trgm + cache) database facts and workspace context
+    const { contextText: groundingContext, grounded } = await getHybridOperationalGrounding({
+      supabaseAdmin,
+      aiClient: client,
+      message,
+      currentPath
+    });
 
     const systemPrompt = `You are the "TravelOps AI Operations Copilot", a senior travel operations manager, master itinerary architect, and professional travel communications specialist built inside the TravelOps travel agency ERP platform.
 
@@ -1103,10 +1060,10 @@ Provide a structured, accurate, and actionable response based on the above opera
       return await client.models.generateContent({
         model,
         contents,
-        config: {
+        config: buildGeminiChatConfig(model, {
           temperature: 0.65,
-          maxOutputTokens: 2048
-        }
+          maxOutputTokens: 4096
+        })
       });
     });
 
@@ -1118,10 +1075,10 @@ Provide a structured, accurate, and actionable response based on the above opera
     res.status(200).json({ 
       success: true, 
       text: replyText,
-      grounded: Boolean(groundingContext && groundingContext.includes('[Verified Company'))
+      grounded
     });
   } catch (error) {
-    console.error('Error in copilot-chat endpoint:', error);
+    logger.error({ err: error.message }, 'Error in copilot-chat endpoint');
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to generate response from AI Copilot.'
@@ -1129,11 +1086,69 @@ Provide a structured, accurate, and actionable response based on the above opera
   }
 });
 
-// 3b. Enterprise Business Intelligence AI Analyst (PII-Free Aggregated KPIs -> Structured 7-Element JSON)
-app.post('/api/bi/generate-insights', requireAuth, async (req, res) => {
+// 3b. Enterprise Business Intelligence AI Analyst (PII-Free Aggregated KPIs -> Structured 7-Element JSON, Cached 5m)
+app.post('/api/bi/generate-insights', requireAuth, validateBody(biInsightsSchema), async (req, res) => {
   try {
     const { snapshot } = req.body || {};
     const validation = validateBiSnapshotPayload(snapshot);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const snapshotHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify(snapshot))
+      .digest('hex')
+      .slice(0, 24);
+    const cacheKey = `bi:insights:${snapshotHash}`;
+    const cachedInsights = await cacheGet(cacheKey);
+    if (cachedInsights) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.status(200).json({ success: true, cached: true, data: cachedInsights });
+    }
+    res.setHeader('X-Cache', 'MISS');
+
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({
+        success: false,
+        error: 'GEMINI_API_KEY belum terkonfigurasi di server. Harap cek environment variables.'
+      });
+    }
+
+    const prompt = buildBiAnalystPrompt(snapshot);
+    const normalized = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: buildGeminiJsonConfig(model, {
+          temperature: 0.2,
+          maxOutputTokens: 8192
+        })
+      });
+      const parsedData = cleanJsonOutput(response.text);
+      return normalizeBiAiResponse(parsedData);
+    });
+
+    await cacheSet(cacheKey, normalized, 300);
+
+    res.status(200).json({
+      success: true,
+      data: normalized
+    });
+  } catch (error) {
+    logger.error({ err: error.message }, 'Error generating BI insights with Gemini');
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Gagal menghasilkan analisis AI Business Intelligence.'
+    });
+  }
+});
+
+// 3c. AI Corporate Accounts Excel / CSV Schema Mapper & Form Extractor
+app.post('/api/corporate/parse-accounts-excel', requireAuth, validateBody(parseCorporateExcelSchema), async (req, res) => {
+  try {
+    const validation = validateCorporateExcelPayload(req.body);
     if (!validation.valid) {
       return res.status(400).json({ success: false, error: validation.error });
     }
@@ -1146,121 +1161,247 @@ app.post('/api/bi/generate-insights', requireAuth, async (req, res) => {
       });
     }
 
-    const prompt = buildBiAnalystPrompt(snapshot);
-    const response = await runWithModelFallback(async (model) => {
-      return await client.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-          maxOutputTokens: 3072
-        }
-      });
+    const cleanFileName = (req.body.fileName || 'Corporate_Accounts.xlsx')
+      .replace(/[^a-zA-Z0-9_.\- ]/g, '')
+      .trim();
+
+    const prompt = buildCorporateExcelPrompt({
+      sheetName: validation.sheetName,
+      fileName: cleanFileName,
+      totalRows: validation.totalRows,
+      previewRows: validation.previewRows
     });
 
-    const parsedData = cleanJsonOutput(response.text);
-    const normalized = normalizeBiAiResponse(parsedData);
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: buildGeminiJsonConfig(model, {
+          temperature: 0.1,
+          maxOutputTokens: 8192
+        })
+      });
+      const parsed = cleanJsonOutput(response.text);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI tidak dapat memetakan struktur Excel akun corporate.');
+      }
+      return parsed;
+    });
 
     res.status(200).json({
       success: true,
-      data: normalized
+      fileName: cleanFileName,
+      sheetName: validation.sheetName,
+      data: parsedData
     });
   } catch (error) {
-    console.error('Error generating BI insights with Gemini:', error);
+    logger.error({ err: error.message }, 'Error parsing corporate accounts Excel with Gemini');
     res.status(500).json({
       success: false,
-      error: error.message || 'Gagal menghasilkan analisis AI Business Intelligence.'
+      error: error.message || 'Gagal memproses file Excel Akun Corporate dengan AI.'
     });
   }
 });
 
-// Server-side in-memory dispatch tracker to prevent duplicate reminder emails per day
-const dailyRemindersDispatched = new Map();
-
-app.post('/api/send-email', requireAuth, emailLimiter, async (req, res) => {
-  const { to, subject, text, html, smtpConfig, category } = req.body;
-
-  const host = smtpConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = Number(smtpConfig?.port || process.env.SMTP_PORT || 587);
-  const user = smtpConfig?.user || process.env.SMTP_USER;
-  const pass = smtpConfig?.pass || process.env.SMTP_PASS;
-  const senderName = smtpConfig?.senderName || 'TravelOps System';
-
-  if (!to) {
-    return res.status(400).json({ success: false, error: 'Recipient email (to) is required.' });
-  }
-
-  // Idempotency guard: prevent duplicate automated daily reminder emails per calendar day per category
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const catKey = category || 'general';
-  const dispatchKey = `${catKey}_${to.toLowerCase().trim()}_${todayStr}`;
-
-  if ((category === 'daily_reminder' || category === 'daily_operational_reminder' || category === 'daily_admin_reminder' || category === 'daily_document_reminder') && dailyRemindersDispatched.has(dispatchKey)) {
-    console.log(`[EMAIL DISPATCH] Daily reminder (${category}) already sent to ${to} today (${todayStr}). Skipping duplicate.`);
-    return res.status(200).json({ 
-      success: true, 
-      skipped: true, 
-      message: `Daily reminder (${category}) already delivered to ${to} today (${todayStr}). Skipped to prevent spam.` 
-    });
-  }
-
-  // Verify that SMTP variables are provided
-  if (!user || !pass || user === 'your_email@gmail.com' || pass === 'your_app_password') {
-    console.error("[EMAIL ERROR] SMTP_USER or SMTP_PASS is missing or using placeholder values!");
-    return res.status(400).json({ 
-      success: false, 
-      error: 'SMTP credentials missing. Please enter your valid SMTP Username/Email and Password in Settings.' 
-    });
-  }
-
+// 3d. AI Flight Ticket Reservation Parser (Screenshot / PDF / Pure GDS Text)
+app.post('/api/flights/parse-reservation', requireAuth, validateBody(parseFlightReservationSchema), async (req, res) => {
   try {
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000
-    });
-
-    await transporter.verify();
-
-    const info = await transporter.sendMail({
-      from: `"${senderName}" <${user}>`,
-      to,
-      subject: subject || 'TravelOps Test Email',
-      text: text || 'This is a test email from TravelOps.',
-      html: html || '<b>This is a test email from TravelOps.</b>'
-    });
-
-    if (category === 'daily_reminder' || category === 'daily_operational_reminder' || category === 'daily_admin_reminder') {
-      dailyRemindersDispatched.set(dispatchKey, Date.now());
+    const validation = validateFlightReservationPayload(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
     }
 
-    console.log(`[EMAIL DISPATCH] Email successfully sent to ${to}. MessageID: ${info.messageId}`);
-    return res.status(200).json({ 
-      success: true, 
-      message: `Email successfully delivered to ${to}! MessageID: ${info.messageId}` 
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({
+        success: false,
+        error: 'GEMINI_API_KEY belum terkonfigurasi di server. Harap cek environment variables.'
+      });
+    }
+
+    const prompt = buildFlightReservationPrompt({
+      textInput: validation.textInput
+    });
+
+    const parts = [];
+    if (validation.hasFile) {
+      parts.push({
+        inlineData: {
+          mimeType: validation.mimeType,
+          data: validation.cleanBase64
+        }
+      });
+    }
+    parts.push({ text: prompt });
+
+    const parsedData = await runWithModelFallback(async (model) => {
+      const response = await client.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts }],
+        config: buildGeminiJsonConfig(model, {
+          temperature: 0.1,
+          maxOutputTokens: 8192
+        })
+      });
+      const parsed = cleanJsonOutput(response.text);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('AI tidak dapat mengekstrak jadwal penerbangan dari data yang diberikan.');
+      }
+      return parsed;
+    });
+
+    res.status(200).json({
+      success: true,
+      fileName: validation.fileName || undefined,
+      data: parsedData
     });
   } catch (error) {
-    console.error(`[EMAIL ERROR] Failed to send email to ${to}:`, error.message);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Failed to dispatch email via SMTP server.' 
+    logger.error({ err: error.message }, 'Error parsing flight reservation with Gemini');
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Gagal memproses data reservasi tiket pesawat dengan AI.'
     });
   }
 });
 
+// 4. Transactional Email Dispatch (Resend HTTP API primary + Pooled SMTP fallback + DB Idempotency)
+app.post('/api/send-email', requireAuth, emailLimiter, validateBody(sendEmailSchema), async (req, res) => {
+  const { to, subject, text, html, smtpConfig, category } = req.body;
 
-// Serve static files from the Vite build output
-app.use(express.static(path.join(__dirname, 'dist')));
+  try {
+    const result = await dispatchTransactionalEmail({
+      to,
+      subject,
+      text,
+      html,
+      smtpConfig,
+      category,
+      supabaseAdmin
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    const statusCode = Number(error?.statusCode || 500);
+    logger.error({ err: error.message, to, category }, 'Failed to dispatch transactional email');
+    return res.status(statusCode).json({
+      success: false,
+      error: error.message || 'Failed to dispatch email.'
+    });
+  }
+});
+
+// 5. Server-Side Daily Reminders Cron Endpoint (Triggered via Supabase pg_cron + pg_net or Admin)
+const requireCronOrAdmin = (req, res, next) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const incomingSecret = req.headers['x-cron-secret'];
+  if (cronSecret && incomingSecret && incomingSecret === cronSecret) {
+    return next();
+  }
+  return requireAdmin(req, res, next);
+};
+
+app.post('/api/cron/daily-reminders', requireCronOrAdmin, async (req, res) => {
+  try {
+    const overrideRecipient = req.body?.recipient || '';
+    const summary = await runServerDailyReminders({ supabaseAdmin, overrideRecipient });
+    return res.status(200).json(summary);
+  } catch (error) {
+    logger.error({ err: error.message }, 'Server daily reminders cron failed');
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 6. Admin pgvector Embedding Backfill Endpoint for Knowledge Base
+app.post('/api/admin/knowledge/backfill-embeddings', requireAdmin, async (req, res) => {
+  try {
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({ success: false, error: 'GEMINI_API_KEY is not configured.' });
+    }
+    const limitPerTable = Math.min(100, Math.max(1, Number(req.body?.limitPerTable) || 50));
+    const summary = await backfillKnowledgeEmbeddings({
+      supabaseAdmin,
+      aiClient: client,
+      limitPerTable
+    });
+    return res.status(200).json({ success: true, summary });
+  } catch (error) {
+    logger.error({ err: error.message }, 'Knowledge Base embedding backfill failed');
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Serve pre-compressed Brotli (.br) / Gzip (.gz) Vite build assets with immutable cache headers
+const distDir = path.join(__dirname, 'dist');
+const STATIC_MIME_TYPES = {
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
+  '.wasm': 'application/wasm'
+};
+
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path.startsWith('/api/') || req.path.endsWith('.map')) return next();
+
+  const ext = path.extname(req.path).toLowerCase();
+  const contentType = STATIC_MIME_TYPES[ext];
+  if (!contentType) return next();
+
+  const acceptEncoding = String(req.headers['accept-encoding'] || '');
+  const relativePath = req.path.replace(/^\/+/, '');
+  const resolvedBase = path.resolve(distDir, relativePath);
+  if (!resolvedBase.startsWith(distDir)) return next();
+
+  const tryServeEncoded = (suffix, encoding) => {
+    const encodedPath = `${resolvedBase}${suffix}`;
+    if (!fs.existsSync(encodedPath)) return false;
+    req.url = `${req.path}${suffix}`;
+    res.setHeader('Content-Encoding', encoding);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Vary', 'Accept-Encoding');
+    return true;
+  };
+
+  if (acceptEncoding.includes('br') && tryServeEncoded('.br', 'br')) {
+    return next();
+  }
+  if (acceptEncoding.includes('gzip') && tryServeEncoded('.gz', 'gzip')) {
+    return next();
+  }
+  return next();
+});
+
+app.use(
+  express.static(distDir, {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      const normalized = filePath.replace(/\\/g, '/');
+      if (normalized.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (
+        normalized.endsWith('/index.html') ||
+        normalized.endsWith('/sw.js') ||
+        normalized.endsWith('/registerSW.js') ||
+        normalized.endsWith('/manifest.json') ||
+        normalized.endsWith('/sw.js.br') ||
+        normalized.endsWith('/sw.js.gz')
+      ) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    }
+  })
+);
 
 // Catch-all route to serve index.html for client-side routing
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(distDir, 'index.html'));
 });
 
 // Sentry Express error handler (must come after all routes/controllers and before custom error middleware)
@@ -1269,6 +1410,7 @@ Sentry.setupExpressErrorHandler(app);
 app.use((err, req, res, _next) => {
   const status = Number(err?.status || err?.statusCode || 500);
   if (res.headersSent) return;
+  logger.error({ err: err?.message, status, path: req.originalUrl }, 'Unhandled Express error');
   res.status(status).json({
     success: false,
     error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err?.message || 'Internal Server Error',
@@ -1279,6 +1421,13 @@ app.use((err, req, res, _next) => {
 // Run schema sync before starting the server
 syncDatabase().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
+    logger.info(
+      {
+        port: PORT,
+        cache: getCacheStatus(),
+        mailer: getMailerStatus()
+      },
+      `TravelOps server is running on port ${PORT}`
+    );
   });
 });

@@ -2,6 +2,10 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { sentryVitePlugin } from '@sentry/bundler-plugins/vite';
+import { compression } from 'vite-plugin-compression2';
+import { VitePWA } from 'vite-plugin-pwa';
+import { ViteImageOptimizer } from 'vite-plugin-image-optimizer';
+import { visualizer } from 'rollup-plugin-visualizer';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -18,49 +22,23 @@ import {
   buildBiAnalystPrompt,
   normalizeBiAiResponse
 } from './src/utils/biAiPrompt.js';
+import {
+  cleanJsonOutput,
+  buildGeminiJsonConfig,
+  buildGeminiChatConfig
+} from './src/utils/aiJsonHelpers.js';
+import {
+  validateCorporateExcelPayload,
+  buildCorporateExcelPrompt
+} from './src/utils/corporateAiPrompt.js';
+import {
+  validateFlightReservationPayload,
+  buildFlightReservationPrompt
+} from './src/utils/flightReservationPrompt.js';
 
 dotenv.config();
 
 const devDailyRemindersDispatched = new Map();
-
-// Helper to clean JSON output returned by LLMs
-function cleanJsonOutput(text) {
-  if (!text) return null;
-  let cleaned = text.trim();
-  if (cleaned.startsWith('```json')) {
-    cleaned = cleaned.substring(7);
-  } else if (cleaned.startsWith('```')) {
-    cleaned = cleaned.substring(3);
-  }
-  if (cleaned.endsWith('```')) {
-    cleaned = cleaned.substring(0, cleaned.length - 3);
-  }
-  cleaned = cleaned.trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (err) {
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      try {
-        return JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
-      } catch (e) {
-        // continue
-      }
-    }
-    const firstBracket = cleaned.indexOf('[');
-    const lastBracket = cleaned.lastIndexOf(']');
-    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-      try {
-        return JSON.parse(cleaned.substring(firstBracket, lastBracket + 1));
-      } catch (e) {
-        // continue
-      }
-    }
-    throw err;
-  }
-}
 
 // Resilient fallback executor for Gemini models
 async function runGeminiFallback(client, runnerFn) {
@@ -183,7 +161,7 @@ const devApiPlugin = () => ({
         req.on('data', chunk => { body += chunk; });
         req.on('end', async () => {
           try {
-            const { prompt, entity, type } = JSON.parse(body || '{}');
+            const { prompt } = JSON.parse(body || '{}');
             if (!prompt) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
@@ -200,15 +178,15 @@ const devApiPlugin = () => ({
               }));
             }
 
-            const response = await runGeminiFallback(client, async (model) => {
-              return await client.models.generateContent({
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: { responseMimeType: 'application/json' }
+                config: buildGeminiJsonConfig(model, { temperature: 0.2 })
               });
+              return cleanJsonOutput(response.text);
             });
 
-            const parsedData = cleanJsonOutput(response.text);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({ success: true, data: parsedData }));
@@ -247,15 +225,15 @@ const devApiPlugin = () => ({
 
             const prompt = `You are a travel destination intelligence expert. Generate comprehensive, practical travel operations data for ${type}: "${query}". ${context ? `Context: ${context}` : ''}. Respond ONLY with valid JSON.`;
 
-            const response = await runGeminiFallback(client, async (model) => {
-              return await client.models.generateContent({
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: { responseMimeType: 'application/json' }
+                config: buildGeminiJsonConfig(model, { temperature: 0.2 })
               });
+              return cleanJsonOutput(response.text);
             });
 
-            const parsedData = cleanJsonOutput(response.text);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({ success: true, data: parsedData }));
@@ -301,7 +279,7 @@ const devApiPlugin = () => ({
               return await client.models.generateContent({
                 model,
                 contents,
-                config: { temperature: 0.65, maxOutputTokens: 2048 }
+                config: buildGeminiChatConfig(model, { temperature: 0.65, maxOutputTokens: 4096 })
               });
             });
 
@@ -344,8 +322,8 @@ const devApiPlugin = () => ({
             }
             cleanBase64 = cleanBase64.replace(/\s+/g, '');
 
-            const response = await runGeminiFallback(client, async (model) => {
-              return await client.models.generateContent({
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
                 model,
                 contents: [
                   {
@@ -361,11 +339,11 @@ const devApiPlugin = () => ({
                     ]
                   }
                 ],
-                config: { responseMimeType: 'application/json' }
+                config: buildGeminiJsonConfig(model, { temperature: 0.1 })
               });
+              return cleanJsonOutput(response.text);
             });
 
-            const parsedData = cleanJsonOutput(response.text);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({ success: true, data: parsedData }));
@@ -401,8 +379,8 @@ const devApiPlugin = () => ({
             }
 
             const prompt = buildTourRegistrationPrompt(Array.isArray(staffList) ? staffList : []);
-            const response = await runGeminiFallback(client, async (model) => {
-              return await client.models.generateContent({
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
                 model,
                 contents: [
                   {
@@ -418,14 +396,11 @@ const devApiPlugin = () => ({
                     ]
                   }
                 ],
-                config: {
-                  responseMimeType: 'application/json',
-                  temperature: 0.1
-                }
+                config: buildGeminiJsonConfig(model, { temperature: 0.1 })
               });
+              return cleanJsonOutput(response.text);
             });
 
-            const parsedData = cleanJsonOutput(response.text);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({
@@ -468,8 +443,8 @@ const devApiPlugin = () => ({
             }
 
             const prompt = buildDocumentRequestPrompt(Array.isArray(staffList) ? staffList : []);
-            const response = await runGeminiFallback(client, async (model) => {
-              return await client.models.generateContent({
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
                 model,
                 contents: [
                   {
@@ -485,14 +460,11 @@ const devApiPlugin = () => ({
                     ]
                   }
                 ],
-                config: {
-                  responseMimeType: 'application/json',
-                  temperature: 0.1
-                }
+                config: buildGeminiJsonConfig(model, { temperature: 0.1 })
               });
+              return cleanJsonOutput(response.text);
             });
 
-            const parsedData = cleanJsonOutput(response.text);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({
@@ -535,20 +507,16 @@ const devApiPlugin = () => ({
             }
 
             const prompt = buildBiAnalystPrompt(snapshot);
-            const response = await runGeminiFallback(client, async (model) => {
-              return await client.models.generateContent({
+            const normalized = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
                 model,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                  responseMimeType: 'application/json',
-                  temperature: 0.2,
-                  maxOutputTokens: 3072
-                }
+                config: buildGeminiJsonConfig(model, { temperature: 0.2, maxOutputTokens: 8192 })
               });
+              const parsedData = cleanJsonOutput(response.text);
+              return normalizeBiAiResponse(parsedData);
             });
 
-            const parsedData = cleanJsonOutput(response.text);
-            const normalized = normalizeBiAiResponse(parsedData);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({ success: true, data: normalized }));
@@ -559,6 +527,141 @@ const devApiPlugin = () => ({
             return res.end(JSON.stringify({
               success: false,
               error: err.message || 'Gagal menghasilkan analisis AI Business Intelligence.'
+            }));
+          }
+        });
+        return;
+      }
+
+      // 9. AI Corporate Accounts Excel / CSV Parser (Dev Middleware Parity)
+      if (req.url === '/api/corporate/parse-accounts-excel' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body || '{}');
+            const validation = validateCorporateExcelPayload(payload);
+            if (!validation.valid) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: validation.error }));
+            }
+
+            const client = getDevAiClient();
+            if (!client) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY belum terkonfigurasi.' }));
+            }
+
+            const cleanFileName = (payload.fileName || 'Corporate_Accounts.xlsx')
+              .replace(/[^a-zA-Z0-9_.\- ]/g, '')
+              .trim();
+
+            const prompt = buildCorporateExcelPrompt({
+              sheetName: validation.sheetName,
+              fileName: cleanFileName,
+              totalRows: validation.totalRows,
+              previewRows: validation.previewRows
+            });
+
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
+                model,
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                config: buildGeminiJsonConfig(model, { temperature: 0.1, maxOutputTokens: 8192 })
+              });
+              const parsed = cleanJsonOutput(response.text);
+              if (!parsed || typeof parsed !== 'object') {
+                throw new Error('AI tidak dapat memetakan struktur Excel akun corporate.');
+              }
+              return parsed;
+            });
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              fileName: cleanFileName,
+              sheetName: validation.sheetName,
+              data: parsedData
+            }));
+          } catch (err) {
+            console.error('[DEV CORPORATE EXCEL AI ERROR]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err.message || 'Gagal memproses file Excel Akun Corporate dengan AI.'
+            }));
+          }
+        });
+        return;
+      }
+
+      // 10. AI Flight Ticket Reservation Parser (Screenshot / PDF / Pure GDS Text)
+      if (req.url === '/api/flights/parse-reservation' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body || '{}');
+            const validation = validateFlightReservationPayload(payload);
+            if (!validation.valid) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: validation.error }));
+            }
+
+            const client = getDevAiClient();
+            if (!client) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY belum terkonfigurasi.' }));
+            }
+
+            const prompt = buildFlightReservationPrompt({
+              textInput: validation.textInput
+            });
+
+            const parts = [];
+            if (validation.hasFile) {
+              parts.push({
+                inlineData: {
+                  mimeType: validation.mimeType,
+                  data: validation.cleanBase64
+                }
+              });
+            }
+            parts.push({ text: prompt });
+
+            const parsedData = await runGeminiFallback(client, async (model) => {
+              const response = await client.models.generateContent({
+                model,
+                contents: [{ role: 'user', parts }],
+                config: buildGeminiJsonConfig(model, { temperature: 0.1, maxOutputTokens: 8192 })
+              });
+              const parsed = cleanJsonOutput(response.text);
+              if (!parsed || typeof parsed !== 'object') {
+                throw new Error('AI tidak dapat mengekstrak jadwal penerbangan dari data ini.');
+              }
+              return parsed;
+            });
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              fileName: validation.fileName || undefined,
+              data: parsedData
+            }));
+          } catch (err) {
+            console.error('[DEV FLIGHT RESERVATION AI ERROR]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err.message || 'Gagal memproses data reservasi tiket pesawat dengan AI.'
             }));
           }
         });
@@ -576,11 +679,66 @@ export default defineConfig(({ mode }) => {
   const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN || env.SENTRY_AUTH_TOKEN;
   const sentryRelease = process.env.VITE_SENTRY_RELEASE || env.VITE_SENTRY_RELEASE || 'travelops-frontend@4.0.0';
 
+  const isAnalyze = mode === 'analyze' || process.env.ANALYZE === 'true' || env.ANALYZE === 'true';
+
   return {
     plugins: [
       react(),
       tailwindcss(),
       devApiPlugin(),
+      ViteImageOptimizer({
+        test: /\.(jpe?g|png|gif|tiff|webp|avif)$/i, // Exclude SVG sprites (public/icons.svg)
+        png: { quality: 80 },
+        jpeg: { quality: 80 },
+        jpg: { quality: 80 },
+        webp: { lossless: false, quality: 80 }
+      }),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        manifest: false, // Uses existing public/manifest.json
+        workbox: {
+          sourcemap: false,
+          globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff2}'],
+          globIgnores: ['**/*.map', '**/dist-bundle-stats.html'],
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+          cleanupOutdatedCaches: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'google-fonts-stylesheets',
+                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 30 }
+              }
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-webfonts',
+                cacheableResponse: { statuses: [0, 200] },
+                expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 }
+              }
+            }
+          ]
+        }
+      }),
+      compression({
+        algorithms: ['gzip', 'brotliCompress'],
+        threshold: 1024,
+        exclude: [/\.(map|png|jpe?g|webp|avif|gif|ico|woff2)$/i]
+      }),
+      isAnalyze
+        ? visualizer({
+            filename: 'dist-bundle-stats.html',
+            gzipSize: true,
+            brotliSize: true,
+            open: false
+          })
+        : null,
       // Sentry Vite plugin MUST come after all other plugins; uploads hidden source maps on production builds when SENTRY_AUTH_TOKEN is set
       sentryAuthToken
         ? sentryVitePlugin({
@@ -600,17 +758,18 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('@sentry')) return 'vendor-sentry';
-              if (id.includes('exceljs')) return 'vendor-excel';
-              if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
-              if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
-              if (id.includes('@supabase')) return 'vendor-supabase';
-              if (id.includes('lucide-react')) return 'vendor-icons';
-              if (id.includes('framer-motion')) return 'vendor-motion';
-              if (id.includes('react-router-dom')) return 'vendor-router';
-              if (id.includes('react') || id.includes('react-dom')) return 'vendor-react-core';
-            }
+            if (!id.includes('node_modules')) return;
+            // Normalize Windows backslashes so regex matching is identical on Windows & Linux (Railway)
+            const normalized = id.replace(/\\/g, '/');
+            // Let dynamic-import heavy libraries (jspdf, exceljs, html2canvas, papaparse, recharts)
+            // split naturally along lazy route/import boundaries so they NEVER modulepreload on /login or /track.
+            if (/\/node_modules\/@sentry\//.test(normalized)) return 'vendor-sentry';
+            if (/\/node_modules\/@supabase\//.test(normalized)) return 'vendor-supabase';
+            if (/\/node_modules\/@tanstack\//.test(normalized)) return 'vendor-tanstack';
+            if (/\/node_modules\/lucide-react\//.test(normalized)) return 'vendor-icons';
+            if (/\/node_modules\/(framer-motion|motion-dom|motion-utils)\//.test(normalized)) return 'vendor-motion';
+            if (/\/node_modules\/(react-router|react-router-dom)\//.test(normalized)) return 'vendor-router';
+            if (/\/node_modules\/(react|react-dom|scheduler)\//.test(normalized)) return 'vendor-react-core';
           }
         }
       }

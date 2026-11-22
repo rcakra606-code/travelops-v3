@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const DocumentContext = createContext(null);
 
@@ -85,16 +88,6 @@ const loadDocumentsFromDb = async () => {
   return (data || []).map((d) => {
     const syncedStatus = resolveLogisticsStatus(d.shipping_status, d.received_status, d.send_date);
 
-    if (syncedStatus !== d.shipping_status) {
-      supabase
-        .from('travelops_documents')
-        .update({ shipping_status: syncedStatus })
-        .eq('id', d.id)
-        .then(({ error: syncErr }) => {
-          if (syncErr) console.error('Document status auto-sync error:', syncErr);
-        });
-    }
-
     return {
       id: d.id,
       docType: d.doc_type || '',
@@ -126,33 +119,23 @@ const loadDocumentsFromDb = async () => {
 };
 
 export const DocumentProvider = ({ children }) => {
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: documents = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.documents,
+    queryFn: loadDocumentsFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchDocuments = useCallback(async () => {
-    try {
-      const mapped = await loadDocumentsFromDb();
-      setDocuments(mapped);
-    } catch (err) {
-      console.error('Fetch documents error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents });
+  }, [queryClient]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    loadDocumentsFromDb()
-      .then((mapped) => {
-        if (!cancelled) setDocuments(mapped);
-      })
-      .catch((err) => {
-        console.error('Fetch documents error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    if (!user) return undefined;
+    let debounceTimer = null;
 
     const channel = supabase
       .channel('travelops_documents_realtime')
@@ -160,22 +143,19 @@ export const DocumentProvider = ({ children }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'travelops_documents' },
         () => {
-          if (!cancelled) {
-            loadDocumentsFromDb()
-              .then((mapped) => {
-                if (!cancelled) setDocuments(mapped);
-              })
-              .catch((err) => console.error('Realtime sync error:', err));
-          }
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents });
+          }, 400);
         }
       )
       .subscribe();
 
     return () => {
-      cancelled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user, queryClient]);
 
   const addDocument = async (docData) => {
     try {

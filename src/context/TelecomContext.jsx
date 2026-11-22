@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const TelecomContext = createContext(null);
 
@@ -120,36 +123,19 @@ const loadTelecomsFromDb = async () => {
 };
 
 export const TelecomProvider = ({ children }) => {
-  const [telecoms, setTelecoms] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: telecoms = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.telecoms,
+    queryFn: loadTelecomsFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchTelecoms = useCallback(async () => {
-    try {
-      const mapped = await loadTelecomsFromDb();
-      setTelecoms(mapped);
-    } catch (err) {
-      console.error('Fetch telecoms error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadTelecomsFromDb()
-      .then((mapped) => {
-        if (!cancelled) setTelecoms(mapped);
-      })
-      .catch((err) => {
-        console.error('Fetch telecoms error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.telecoms });
+  }, [queryClient]);
 
   const addTelecom = async (telecomData) => {
     try {

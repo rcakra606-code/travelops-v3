@@ -30,19 +30,20 @@ CREATE TABLE travelops_sales_targets (
 -- 2. Create Corporate Accounts Table
 CREATE TABLE travelops_corporate_accounts (
   id VARCHAR(50) PRIMARY KEY,
-  account_code VARCHAR(100),
-  company_name VARCHAR(255),
+  account_code TEXT,
+  company_name TEXT,
   address TEXT,
   credit_limit DECIMAL,
   status VARCHAR(50),
-  pic_name VARCHAR(255),
-  pic_phone VARCHAR(50),
-  pic_office_email VARCHAR(255),
-  pic_personal_email VARCHAR(255),
+  pic_name TEXT,
+  pic_phone TEXT,
+  pic_office_email TEXT,
+  pic_personal_email TEXT,
+  pic_contacts JSONB NOT NULL DEFAULT '[]'::jsonb,
   remarks TEXT,
   flight_fee JSONB,
   hotel_fee JSONB,
-  airlines_code VARCHAR(100),
+  airlines_code TEXT,
   detail_link TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

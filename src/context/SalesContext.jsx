@@ -1,5 +1,7 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
 import { useAuth } from './AuthContext';
 
 const SalesContext = createContext(null);
@@ -112,41 +114,21 @@ const loadSalesFromDb = async () => {
 
 export const SalesProvider = ({ children }) => {
   const { user } = useAuth();
-  const [sales, setSales] = useState([]);
-  const [lastUpdatedMeta, setLastUpdatedMeta] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.sales,
+    queryFn: loadSalesFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
+
+  const sales = data?.mappedSales || [];
+  const lastUpdatedMeta = data?.lastUpdatedMeta || null;
 
   const fetchSales = useCallback(async () => {
-    try {
-      const { mappedSales, lastUpdatedMeta: meta } = await loadSalesFromDb();
-      setSales(mappedSales);
-      setLastUpdatedMeta(meta);
-    } catch (err) {
-      console.error('Fetch sales targets error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadSalesFromDb()
-      .then(({ mappedSales, lastUpdatedMeta: meta }) => {
-        if (!cancelled) {
-          setSales(mappedSales);
-          setLastUpdatedMeta(meta);
-        }
-      })
-      .catch((err) => {
-        console.error('Fetch sales targets error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sales });
+  }, [queryClient]);
 
   /**
    * Persist official Last Updated metadata for Sales & Target into travelops_settings
@@ -170,10 +152,13 @@ export const SalesProvider = ({ children }) => {
       });
 
       if (error) throw error;
-      setLastUpdatedMeta(payload);
+      queryClient.setQueryData(QUERY_KEYS.sales, (prev) => ({
+        mappedSales: prev?.mappedSales || [],
+        lastUpdatedMeta: payload
+      }));
       return payload;
     },
-    [user?.name, user?.role]
+    [user?.name, user?.role, queryClient]
   );
 
   // Best-effort auto stamp whenever Admin/Manager modifies sales & target data

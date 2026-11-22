@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { 
-  Building, Phone, Mail, ExternalLink, Edit2, 
+  Building, Phone, Mail, ExternalLink, Edit2, Plus, Trash2, Users,
   CreditCard, Plane, DollarSign, Calendar, MessageSquare, X, ShieldAlert
 } from 'lucide-react';
 import SlideOverDrawer from '../SlideOverDrawer';
@@ -16,11 +16,19 @@ import {
   parseFeeEntry,
   formatFeeEntryDisplay
 } from '../../utils/corporateFeeHelpers';
+import {
+  createEmptyPicContact,
+  normalizePicContacts,
+  picContactsToLegacyFields,
+  isPicContactEmpty
+} from '../../utils/corporatePicHelpers';
 
-// Helper to format WhatsApp link
+// Helper to format WhatsApp link for a single phone number
 const getWhatsAppUrl = (phone) => {
   if (!phone) return null;
-  const cleaned = phone.replace(/[^0-9]/g, '');
+  const firstPhone = String(phone).split(',')[0].trim();
+  const cleaned = firstPhone.replace(/[^0-9]/g, '');
+  if (!cleaned) return null;
   const international = cleaned.startsWith('0') ? '62' + cleaned.slice(1) : cleaned;
   return `https://wa.me/${international}`;
 };
@@ -122,15 +130,53 @@ export const AccountFormModal = ({
   );
   const [showConfirmClose, setShowConfirmClose] = useState(false);
 
+  const picRows = useMemo(() => {
+    if (Array.isArray(accountFormData?.picContacts) && accountFormData.picContacts.length > 0) {
+      return accountFormData.picContacts;
+    }
+    const normalized = normalizePicContacts(accountFormData?.picContacts, accountFormData || {});
+    return normalized.length > 0 ? normalized : [createEmptyPicContact()];
+  }, [accountFormData]);
+
+  const setPicRows = (nextRows) => {
+    const safeRows = nextRows.length > 0 ? nextRows : [createEmptyPicContact()];
+    const legacy = picContactsToLegacyFields(safeRows);
+    setAccountFormData((prev) => ({
+      ...prev,
+      picContacts: safeRows,
+      ...legacy
+    }));
+  };
+
+  const handlePicCellChange = (rowIndex, field, value) => {
+    const nextRows = picRows.map((row, idx) =>
+      idx === rowIndex ? { ...row, [field]: value } : row
+    );
+    setPicRows(nextRows);
+  };
+
+  const handleAddPicRow = () => {
+    setPicRows([...picRows, createEmptyPicContact()]);
+  };
+
+  const handleRemovePicRow = (rowIndex) => {
+    if (picRows.length <= 1) {
+      setPicRows([createEmptyPicContact()]);
+      return;
+    }
+    setPicRows(picRows.filter((_, idx) => idx !== rowIndex));
+  };
+
   const isDirty = useMemo(() => {
     if (!isOpen) return false;
+    const hasAnyPic = picRows.some((p) => !isPicContactEmpty(p));
     return Boolean(
       accountFormData?.accountCode?.trim() ||
       accountFormData?.corporateName?.trim() ||
       accountFormData?.companyName?.trim() ||
-      accountFormData?.picName?.trim()
+      hasAnyPic
     );
-  }, [isOpen, accountFormData]);
+  }, [isOpen, accountFormData, picRows]);
 
   if (!isOpen) return null;
 
@@ -276,53 +322,133 @@ export const AccountFormModal = ({
               </div>
             </div>
 
-            {/* PIC Info */}
+            {/* Multi-PIC / Booker Table */}
             <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 1rem 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
-                <Phone size={16} /> PIC / Booker Contact Details
-              </h4>
-              <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="input-group">
-                  <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>PIC Full Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. John Doe"
-                    value={accountFormData.picName} 
-                    onChange={e => setAccountFormData({ ...accountFormData, picName: e.target.value })} 
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-                  />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.9rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h4 style={{ margin: 0, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
+                    <Users size={16} /> Daftar PIC / Booker
+                  </h4>
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      fontWeight: '700',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: 'rgba(16, 185, 129, 0.14)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.28)'
+                    }}
+                  >
+                    {picRows.filter((p) => !isPicContactEmpty(p)).length || picRows.length} Orang
+                  </span>
                 </div>
-                <div className="input-group">
-                  <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Phone / WhatsApp Number</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. 08123456789"
-                    value={accountFormData.picPhone} 
-                    onChange={e => setAccountFormData({ ...accountFormData, picPhone: e.target.value })} 
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-                  />
-                </div>
-                <div className="input-group">
-                  <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Office Email</label>
-                  <input 
-                    type="email" 
-                    placeholder="pic@corporate.com"
-                    value={accountFormData.picOfficeEmail} 
-                    onChange={e => setAccountFormData({ ...accountFormData, picOfficeEmail: e.target.value })} 
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-                  />
-                </div>
-                <div className="input-group">
-                  <label style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Personal Email</label>
-                  <input 
-                    type="email" 
-                    placeholder="john@gmail.com"
-                    value={accountFormData.picPersonalEmail} 
-                    onChange={e => setAccountFormData({ ...accountFormData, picPersonalEmail: e.target.value })} 
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.65rem 0.85rem', borderRadius: '8px' }} 
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={handleAddPicRow}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.38rem 0.78rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#10b981',
+                    fontSize: '0.78rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={14} /> Tambah PIC
+                </button>
               </div>
+
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg-card)' }}>
+                <table style={{ width: '100%', minWidth: '640px', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                      <th style={{ padding: '0.55rem 0.6rem', width: '36px', textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '0.55rem 0.5rem' }}>Nama PIC</th>
+                      <th style={{ padding: '0.55rem 0.5rem', width: '155px' }}>No. HP / WA</th>
+                      <th style={{ padding: '0.55rem 0.5rem' }}>Email Kantor</th>
+                      <th style={{ padding: '0.55rem 0.5rem' }}>Email Pribadi / Alt</th>
+                      <th style={{ padding: '0.55rem 0.5rem', width: '44px', textAlign: 'center' }}>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {picRows.map((pic, idx) => (
+                      <tr key={`pic-row-${idx}`} style={{ borderBottom: idx < picRows.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <td style={{ padding: '0.45rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.74rem' }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: '0.45rem 0.4rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Nama PIC..."
+                            value={pic.name || ''}
+                            onChange={(e) => handlePicCellChange(idx, 'name', e.target.value)}
+                            style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.48rem 0.6rem', borderRadius: '7px', fontSize: '0.8rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.45rem 0.4rem' }}>
+                          <input
+                            type="text"
+                            placeholder="0812..."
+                            value={pic.phone || ''}
+                            onChange={(e) => handlePicCellChange(idx, 'phone', e.target.value)}
+                            style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.48rem 0.6rem', borderRadius: '7px', fontSize: '0.8rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.45rem 0.4rem' }}>
+                          <input
+                            type="text"
+                            inputMode="email"
+                            placeholder="pic@corporate.com"
+                            value={pic.officeEmail || ''}
+                            onChange={(e) => handlePicCellChange(idx, 'officeEmail', e.target.value)}
+                            style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.48rem 0.6rem', borderRadius: '7px', fontSize: '0.8rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.45rem 0.4rem' }}>
+                          <input
+                            type="text"
+                            inputMode="email"
+                            placeholder="alternatif@gmail.com"
+                            value={pic.personalEmail || ''}
+                            onChange={(e) => handlePicCellChange(idx, 'personalEmail', e.target.value)}
+                            style={{ width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.48rem 0.6rem', borderRadius: '7px', fontSize: '0.8rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.45rem 0.4rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePicRow(idx)}
+                            title={picRows.length <= 1 ? 'Kosongkan baris PIC' : 'Hapus PIC ini'}
+                            style={{
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: '7px',
+                              border: '1px solid rgba(239, 68, 68, 0.28)',
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              color: '#ef4444',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ margin: '0.55rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Anda dapat menambahkan lebih dari satu PIC/Booker dalam satu akun corporate.
+              </p>
             </div>
 
             {/* Service Fees (Nominal Rp or Percentage %) */}
@@ -874,7 +1000,7 @@ export const AccountDossierDrawer = ({
   const isOverLimit = utilizationRatio >= 100;
   const isWarningLimit = utilizationRatio >= 80 && utilizationRatio < 100;
 
-  const waUrl = getWhatsAppUrl(account.picPhone);
+  const picContactsList = normalizePicContacts(account.picContacts, account);
 
   return (
     <SlideOverDrawer
@@ -958,61 +1084,105 @@ export const AccountDossierDrawer = ({
           </div>
         </div>
 
-        {/* PIC & Quick Contact Shortcuts */}
+        {/* PIC Table & Direct Contact Shortcuts */}
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '1.25rem' }}>
-          <h4 style={{ margin: '0 0 1rem 0', color: neonBlue, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Phone size={16} /> PIC & Direct Contact Shortcuts
-          </h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PIC Name:</span>
-              <div style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-main)' }}>{account.picName || '-'}</div>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Phone Number:</span>
-              <div style={{ fontSize: '0.95rem', fontWeight: '500', color: 'var(--text-main)' }}>{account.picPhone || '-'}</div>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Office Email:</span>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', wordBreak: 'break-all' }}>{account.picOfficeEmail || '-'}</div>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Personal Email:</span>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', wordBreak: 'break-all' }}>{account.picPersonalEmail || '-'}</div>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem' }}>
+            <h4 style={{ margin: 0, color: neonBlue, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={16} /> Daftar PIC / Booker ({picContactsList.length})
+            </h4>
           </div>
 
-          {/* Quick Action Pills */}
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-            {account.picPhone && (
-              <>
-                <a 
-                  href={`tel:${account.picPhone}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px', borderRadius: '20px', background: `${neonBlue}15`, color: neonBlue, textDecoration: 'none', border: `1px solid ${neonBlue}30` }}
-                >
-                  <Phone size={13} /> Call
-                </a>
-                {waUrl && (
-                  <a 
-                    href={waUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px', borderRadius: '20px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', textDecoration: 'none', border: '1px solid rgba(16, 185, 129, 0.3)' }}
-                  >
-                    <MessageSquare size={13} /> WhatsApp
-                  </a>
-                )}
-              </>
-            )}
-            {account.picOfficeEmail && (
-              <a 
-                href={`mailto:${account.picOfficeEmail}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '6px 12px', borderRadius: '20px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', textDecoration: 'none', border: '1px solid rgba(245, 158, 11, 0.3)' }}
-              >
-                <Mail size={13} /> Email Office
-              </a>
-            )}
-          </div>
+          {picContactsList.length === 0 ? (
+            <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', padding: '0.65rem 0' }}>
+              Belum ada kontak PIC terdaftar.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg-card)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.79rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                    <th style={{ padding: '0.55rem 0.55rem', width: '30px', textAlign: 'center' }}>#</th>
+                    <th style={{ padding: '0.55rem 0.55rem' }}>PIC &amp; Kontak</th>
+                    <th style={{ padding: '0.55rem 0.55rem' }}>Email</th>
+                    <th style={{ padding: '0.55rem 0.55rem', textAlign: 'right', width: '115px' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {picContactsList.map((pic, idx) => {
+                    const picWaUrl = getWhatsAppUrl(pic.phone);
+                    const primaryEmail = (pic.officeEmail || pic.personalEmail || '').split(',')[0].trim();
+                    const firstPhone = (pic.phone || '').split(',')[0].trim();
+                    return (
+                      <tr
+                        key={`dossier-pic-${idx}`}
+                        style={{ borderBottom: idx < picContactsList.length - 1 ? '1px solid var(--border)' : 'none' }}
+                      >
+                        <td style={{ padding: '0.6rem 0.55rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: '700', verticalAlign: 'top' }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: '0.6rem 0.55rem', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                            {pic.name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Tanpa Nama</span>}
+                          </div>
+                          {pic.phone && (
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Phone size={11} /> {pic.phone}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.6rem 0.55rem', verticalAlign: 'top', wordBreak: 'break-word' }}>
+                          {pic.officeEmail && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-main)' }}>{pic.officeEmail}</div>
+                          )}
+                          {pic.personalEmail && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: pic.officeEmail ? '2px' : 0 }}>
+                              Alt: {pic.personalEmail}
+                            </div>
+                          )}
+                          {!pic.officeEmail && !pic.personalEmail && (
+                            <span style={{ color: 'var(--text-subtle)' }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.6rem 0.55rem', textAlign: 'right', verticalAlign: 'top' }}>
+                          <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {firstPhone && (
+                              <a
+                                href={`tel:${firstPhone}`}
+                                title={`Telepon ${pic.name || firstPhone}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', background: `${neonBlue}15`, color: neonBlue, border: `1px solid ${neonBlue}30`, textDecoration: 'none' }}
+                              >
+                                <Phone size={13} />
+                              </a>
+                            )}
+                            {picWaUrl && (
+                              <a
+                                href={picWaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`WhatsApp ${pic.name || firstPhone}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', textDecoration: 'none' }}
+                              >
+                                <MessageSquare size={13} />
+                              </a>
+                            )}
+                            {primaryEmail && (
+                              <a
+                                href={`mailto:${primaryEmail}`}
+                                title={`Email ${primaryEmail}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', textDecoration: 'none' }}
+                              >
+                                <Mail size={13} />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Corporate Profile & Credentials */}

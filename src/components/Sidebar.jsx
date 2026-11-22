@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Calendar, Users, Map, Settings, X, Phone,
   FileText, Ship, Building, Clock, TrendingUp, Briefcase,
   ChevronDown, ChevronRight, BarChart2, UserCheck, Compass, ExternalLink,
-  PanelLeftClose, PanelLeftOpen, WifiOff, ClipboardList, PieChart
+  PanelLeftClose, PanelLeftOpen, WifiOff, ClipboardList, PieChart, Plane
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, closeMobile }) => {
@@ -120,6 +120,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
       badgeTone: 'urgent'
     },
     { name: 'Form Pendaftaran Tour', path: '/tour-registration-form', icon: <ClipboardList size={16} /> },
+    { name: 'Form Pemesanan Tiket', path: '/flight-booking-form', icon: <Plane size={16} /> },
     { name: 'Reservasi Hotel', path: '/hotel', icon: <Building size={16} /> },
     { name: 'Pelayaran Cruise', path: '/cruise', icon: <Ship size={16} /> },
     {

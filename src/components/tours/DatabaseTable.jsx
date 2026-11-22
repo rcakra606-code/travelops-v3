@@ -19,6 +19,7 @@ import {
   buildPaxSearchBlob
 } from '../../utils/tourHelpers';
 import { useDataTable } from '../../hooks/useDataTable';
+import { useVirtualTable } from '../../hooks/useVirtualTable';
 import Pagination from '../Pagination';
 import ExportMenu from '../ExportMenu';
 import SlideOverDrawer from '../SlideOverDrawer';
@@ -348,6 +349,10 @@ const DatabaseTable = ({
     return list;
   }, [allFlatTours, customData, scope, quickChips, searchQuery, currentUserName]);
 
+  const [pageSize, setPageSize] = useState(10);
+  const effectivePageSize =
+    pageSize === 'all' ? Math.max(scopedAndSearchedTours.length, 10) : Number(pageSize) || 10;
+
   const {
     filters,
     handleSort,
@@ -358,7 +363,24 @@ const DatabaseTable = ({
     setCurrentPage,
     totalItems,
     itemsPerPage
-  } = useDataTable(scopedAndSearchedTours, { key: 'departureDate', direction: 'desc' }, 10);
+  } = useDataTable(scopedAndSearchedTours, { key: 'departureDate', direction: 'desc' }, effectivePageSize);
+
+  const {
+    scrollRef: tableScrollRef,
+    isVirtualized,
+    virtualItems,
+    paddingTop,
+    paddingBottom
+  } = useVirtualTable({
+    count: paginatedData.length,
+    estimateSize: tableDensity === 'compact' ? 54 : 68,
+    overscan: 8,
+    threshold: 40
+  });
+
+  const visibleTableRows = isVirtualized
+    ? virtualItems.map((vi) => paginatedData[vi.index]).filter(Boolean)
+    : paginatedData;
 
   const viewingTour = useMemo(
     () => allFlatTours.find((t) => t.id === viewingTourId) || null,
@@ -1171,7 +1193,11 @@ const DatabaseTable = ({
         }}
       >
         {/* Desktop Table View */}
-        <div className="table-sticky-wrapper desktop-table-view">
+        <div
+          ref={tableScrollRef}
+          className="table-sticky-wrapper desktop-table-view"
+          style={isVirtualized ? { maxHeight: '72vh', overflowY: 'auto' } : undefined}
+        >
           <table
             className={`data-table ${tableDensity === 'compact' ? 'table-compact' : 'table-comfortable'}`}
             style={{ width: '100%', minWidth: '1280px' }}
@@ -1427,7 +1453,13 @@ const DatabaseTable = ({
 
             <tbody>
               {paginatedData.length > 0 ? (
-                paginatedData.map((tour) => {
+                <>
+                {isVirtualized && paddingTop > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan="11" style={{ height: `${paddingTop}px`, padding: 0, border: 'none' }} />
+                  </tr>
+                )}
+                {visibleTableRows.map((tour) => {
                   const dur = getTripDurationInfo(tour.departureDate, tour.returnDate);
                   return (
                     <tr
@@ -1765,7 +1797,13 @@ const DatabaseTable = ({
                       </td>
                     </tr>
                   );
-                })
+                })}
+                {isVirtualized && paddingBottom > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan="11" style={{ height: `${paddingBottom}px`, padding: 0, border: 'none' }} />
+                  </tr>
+                )}
+                </>
               ) : (
                 <tr>
                   <td colSpan="11" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
@@ -1891,16 +1929,69 @@ const DatabaseTable = ({
       </div>
       )}
 
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={(page) => {
-          setCurrentPage(page);
-          setSelectedIds(new Set());
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginTop: '0.5rem'
         }}
-        totalItems={totalItems}
-        itemsPerPage={itemsPerPage}
-      />
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <span>Baris per halaman:</span>
+          {[10, 25, 50, 'all'].map((opt) => {
+            const active = pageSize === opt;
+            return (
+              <button
+                key={String(opt)}
+                type="button"
+                onClick={() => {
+                  setPageSize(opt);
+                  setCurrentPage(1);
+                  setSelectedIds(new Set());
+                }}
+                style={{
+                  padding: '0.24rem 0.55rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: active ? '700' : '500',
+                  cursor: 'pointer',
+                  border: active ? '1px solid var(--primary)' : '1px solid var(--border)',
+                  background: active ? 'rgba(0, 168, 255, 0.14)' : 'var(--bg-card)',
+                  color: active ? 'var(--primary)' : 'var(--text-muted)'
+                }}
+              >
+                {opt === 'all' ? 'All (Virtual)' : opt}
+              </button>
+            );
+          })}
+          {isVirtualized && (
+            <span
+              style={{
+                marginLeft: '0.35rem',
+                fontSize: '0.72rem',
+                color: '#10b981',
+                fontWeight: '600'
+              }}
+            >
+              ⚡ Virtualized ({paginatedData.length} rows)
+            </span>
+          )}
+        </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => {
+            setCurrentPage(page);
+            setSelectedIds(new Set());
+          }}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+        />
+      </div>
 
       {/* Floating Bulk Action Bar */}
       <FloatingBulkBar

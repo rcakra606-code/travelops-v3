@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const CruiseContext = createContext(null);
 
@@ -117,16 +120,6 @@ const loadCruisesFromDb = async () => {
         ? 1 + participants.length
         : Math.max(1, Number(c.pax_count) || 1);
 
-    if (computedStatus !== c.status) {
-      supabase
-        .from('travelops_cruises')
-        .update({ status: computedStatus })
-        .eq('id', c.id)
-        .then(({ error: syncErr }) => {
-          if (syncErr) console.error('Cruise status auto-sync error:', syncErr);
-        });
-    }
-
     const cleanBookingRef = c.booking_ref || '';
 
     return {
@@ -152,36 +145,19 @@ const loadCruisesFromDb = async () => {
 };
 
 export const CruiseProvider = ({ children }) => {
-  const [cruises, setCruises] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: cruises = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.cruises,
+    queryFn: loadCruisesFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchCruises = useCallback(async () => {
-    try {
-      const mapped = await loadCruisesFromDb();
-      setCruises(mapped);
-    } catch (err) {
-      console.error('Fetch cruises error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadCruisesFromDb()
-      .then((mapped) => {
-        if (!cancelled) setCruises(mapped);
-      })
-      .catch((err) => {
-        console.error('Fetch cruises error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cruises });
+  }, [queryClient]);
 
   const addCruise = async (cruiseData) => {
     try {

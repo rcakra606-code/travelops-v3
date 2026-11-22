@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useZodForm } from '../hooks/useZodForm';
+import { loginFormSchema } from '../schemas/formSchemas';
 import {
   Compass, Lock, Mail, AlertCircle, ArrowRight,
   Eye, EyeOff, Sun, Moon, Search, HelpCircle
@@ -9,11 +11,8 @@ import {
 import loginBg from '../assets/login-bg.jpg';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [logoutNotice] = useState(() => {
     try {
       const reason = sessionStorage.getItem('travelops_logout_reason');
@@ -30,12 +29,18 @@ const Login = () => {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    formState: { errors, isSubmitting: isLoading }
+  } = useZodForm(loginFormSchema, {
+    defaultValues: { email: '', password: '' }
+  });
+
   const isLight = theme === 'light';
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async ({ email, password }) => {
     setError('');
-    setIsLoading(true);
 
     try {
       const result = await login(email, password);
@@ -46,8 +51,6 @@ const Login = () => {
       }
     } catch {
       setError('Something went wrong while signing you in. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -174,7 +177,7 @@ const Login = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleFormSubmit(onSubmit)} noValidate>
           <div className="input-group" style={{ textAlign: 'left' }}>
             <label htmlFor="login-email">Work Email</label>
             <div style={{ position: 'relative' }}>
@@ -192,14 +195,18 @@ const Login = () => {
               <input
                 id="login-email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                {...register('email')}
                 placeholder="you@agency.com"
                 style={{ paddingLeft: '2.6rem', width: '100%' }}
                 autoComplete="email"
-                required
+                aria-invalid={Boolean(errors.email)}
               />
             </div>
+            {errors.email && (
+              <span style={{ display: 'block', marginTop: '0.35rem', fontSize: '0.75rem', color: '#f43f5e' }}>
+                {errors.email.message}
+              </span>
+            )}
           </div>
 
           <div className="input-group" style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
@@ -219,12 +226,11 @@ const Login = () => {
               <input
                 id="login-password"
                 type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...register('password')}
                 placeholder="Enter your password"
                 style={{ paddingLeft: '2.6rem', paddingRight: '2.75rem', width: '100%' }}
                 autoComplete="current-password"
-                required
+                aria-invalid={Boolean(errors.password)}
               />
               <button
                 type="button"
@@ -248,6 +254,11 @@ const Login = () => {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            {errors.password && (
+              <span style={{ display: 'block', marginTop: '0.35rem', fontSize: '0.75rem', color: '#f43f5e' }}>
+                {errors.password.message}
+              </span>
+            )}
           </div>
 
           <button

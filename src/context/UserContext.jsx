@@ -1,6 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 import { logSystemAction } from '../utils/logger';
+import { QUERY_KEYS } from '../lib/queryClient';
 import { useAuth } from './AuthContext';
 
 const UserContext = createContext();
@@ -29,39 +31,25 @@ const loadUsersFromDb = async () => {
 };
 
 export const UserProvider = ({ children }) => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: users = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.users,
+    queryFn: loadUsersFromDb,
+    enabled: Boolean(currentUser),
+    staleTime: 5 * 60 * 1000
+  });
 
   const fetchUsers = useCallback(async () => {
     try {
-      const mapped = await loadUsersFromDb();
-      setUsers(mapped);
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
       return { success: true };
     } catch (err) {
       console.error('Error fetching users:', err);
       return { success: false, error: err?.message || 'Failed to fetch users' };
-    } finally {
-      setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadUsersFromDb()
-      .then(mapped => {
-        if (!cancelled) setUsers(mapped);
-      })
-      .catch(err => {
-        console.error('Initial fetch users error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [queryClient]);
 
   const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();

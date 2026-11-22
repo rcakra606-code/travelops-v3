@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useState, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const KnowledgeContext = createContext(null);
 
@@ -116,11 +119,20 @@ const generateLocalAudit = (entity, type) => {
 };
 
 export const KnowledgeProvider = ({ children }) => {
-  const [countries, setCountries] = useState([]);
-  const [cities, setCities] = useState([]);
-  const [tourObjects, setTourObjects] = useState([]);
-  const [tourRoutes, setTourRoutes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: kbSnapshot, isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.knowledge,
+    queryFn: loadKnowledgeFromDb,
+    enabled: Boolean(user),
+    staleTime: 5 * 60 * 1000
+  });
+
+  const countries = kbSnapshot?.countries || [];
+  const cities = kbSnapshot?.cities || [];
+  const tourObjects = kbSnapshot?.tourObjects || [];
+  const tourRoutes = kbSnapshot?.tourRoutes || [];
 
   // Audit state
   const [isAuditing, setIsAuditing] = useState(false);
@@ -135,42 +147,16 @@ export const KnowledgeProvider = ({ children }) => {
   );
 
   const fetchKnowledge = useCallback(async () => {
-    try {
-      const snapshot = await loadKnowledgeFromDb();
-      setCountries(snapshot.countries);
-      setCities(snapshot.cities);
-      setTourObjects(snapshot.tourObjects);
-      setTourRoutes(snapshot.tourRoutes);
-      return snapshot;
-    } catch (err) {
-      console.error('Error fetching knowledge data:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadKnowledgeFromDb()
-      .then((snapshot) => {
-        if (!cancelled) {
-          setCountries(snapshot.countries);
-          setCities(snapshot.cities);
-          setTourObjects(snapshot.tourObjects);
-          setTourRoutes(snapshot.tourRoutes);
-        }
-      })
-      .catch((err) => {
-        console.error('Initial knowledge load error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.knowledge });
+    return (
+      queryClient.getQueryData(QUERY_KEYS.knowledge) || {
+        countries: [],
+        cities: [],
+        tourObjects: [],
+        tourRoutes: []
+      }
+    );
+  }, [queryClient]);
 
   // Helper to resolve country_id and country_name cleanly
   const resolveCountryRef = (rawId, rawName) => {

@@ -12,16 +12,16 @@ const __dirname = path.dirname(__filename);
 const schemaPath = path.join(__dirname, '../schema.config.json');
 
 export async function syncDatabase() {
-  if (!process.env.DATABASE_URL) {
-    console.warn("⚠️ Warning: DATABASE_URL is not set in your .env file.");
-    console.warn("Skipping automatic schema synchronization.");
+  if (!process.env.DATABASE_URL || process.env.SKIP_DB_SYNC === 'true') {
+    console.warn("⚠️ Auto-Schema Sync skipped (DATABASE_URL unset or SKIP_DB_SYNC=true).");
     return;
   }
 
   const { Client } = pg;
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000
   });
 
   try {
@@ -68,12 +68,12 @@ export async function syncDatabase() {
         // Grant permissions complying with Supabase PostgREST requirements
         if (!isSensitive) {
           await client.query(`GRANT SELECT ON public."${tableName}" TO anon;`);
-          await client.query(`CREATE POLICY "Allow public read access to ${tableName}" ON public."${tableName}" FOR SELECT TO public USING (true);`);
+          await client.query(`CREATE POLICY "Allow public read access to ${tableName}" ON public."${tableName}" FOR SELECT TO anon USING (true);`);
         }
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO authenticated;`);
         await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON public."${tableName}" TO service_role;`);
         
-        await client.query(`CREATE POLICY "Allow authenticated full access to ${tableName}" ON public."${tableName}" FOR ALL TO authenticated USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);`);
+        await client.query(`CREATE POLICY "Allow authenticated full access to ${tableName}" ON public."${tableName}" FOR ALL TO authenticated USING ((select auth.uid()) IS NOT NULL) WITH CHECK ((select auth.uid()) IS NOT NULL);`);
         
         console.log(`✅ Auto-Schema Sync: Table ${tableName} created and permissions granted successfully!`);
       } else {

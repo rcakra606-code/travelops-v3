@@ -25,3 +25,4 @@ dist-ssr
 .env
 
 .env.sentry-build-plugin
+dist-bundle-stats.html

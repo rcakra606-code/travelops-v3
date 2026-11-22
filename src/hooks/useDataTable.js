@@ -1,10 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useDeferredValue } from 'react';
 
 export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' }, itemsPerPage = 10) => {
   const [sortConfig, setSortConfig] = useState(defaultSort);
   const [filters, setFilters] = useState({});
   const [globalSearch, setGlobalSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Defer expensive full-table filtering while user types rapidly
+  const deferredSearch = useDeferredValue(globalSearch);
+  const deferredFilters = useDeferredValue(filters);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -29,8 +33,8 @@ export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' },
     let result = [...data];
 
     // Global Search
-    if (globalSearch) {
-      const lowerSearch = globalSearch.toLowerCase();
+    if (deferredSearch) {
+      const lowerSearch = deferredSearch.toLowerCase();
       result = result.filter(item => 
         Object.values(item).some(val => 
           val !== null && val !== undefined && String(val).toLowerCase().includes(lowerSearch)
@@ -39,10 +43,11 @@ export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' },
     }
 
     // Column Filters
-    Object.keys(filters).forEach(key => {
-      if (filters[key]) {
+    Object.keys(deferredFilters).forEach(key => {
+      if (deferredFilters[key]) {
+        const lowerFilter = deferredFilters[key].toLowerCase();
         result = result.filter(item => 
-          String(item[key] || '').toLowerCase().includes(filters[key].toLowerCase())
+          String(item[key] || '').toLowerCase().includes(lowerFilter)
         );
       }
     });
@@ -53,9 +58,6 @@ export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' },
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
         
-        // Handle nested values (e.g., in Tour financials) if specifically passed as raw data mapping
-        // It's recommended to map nested data to flat data before passing to this hook if sorting by it
-
         if (aVal === null || aVal === undefined) aVal = '';
         if (bVal === null || bVal === undefined) bVal = '';
 
@@ -69,7 +71,7 @@ export const useDataTable = (data, defaultSort = { key: '', direction: 'desc' },
     }
 
     return result;
-  }, [data, sortConfig, filters, globalSearch]);
+  }, [data, sortConfig, deferredFilters, deferredSearch]);
 
   const totalPages = Math.ceil(processedData.length / itemsPerPage);
   const activePage = totalPages > 0 ? Math.min(Math.max(1, currentPage), totalPages) : 1;

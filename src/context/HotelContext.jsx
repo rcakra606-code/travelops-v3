@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const HotelContext = createContext(null);
 
@@ -101,16 +104,6 @@ const loadHotelsFromDb = async () => {
   return (data || []).map((h) => {
     const computedStatus = computeHotelStayStatus(h.check_in, h.check_out, h.status);
 
-    if (computedStatus !== h.status) {
-      supabase
-        .from('travelops_hotels')
-        .update({ status: computedStatus })
-        .eq('id', h.id)
-        .then(({ error: syncErr }) => {
-          if (syncErr) console.error('Hotel status auto-sync error:', syncErr);
-        });
-    }
-
     return {
       id: h.id,
       hotelName: h.hotel_name || '',
@@ -129,36 +122,19 @@ const loadHotelsFromDb = async () => {
 };
 
 export const HotelProvider = ({ children }) => {
-  const [hotels, setHotels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: hotels = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.hotels,
+    queryFn: loadHotelsFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchHotels = useCallback(async () => {
-    try {
-      const mapped = await loadHotelsFromDb();
-      setHotels(mapped);
-    } catch (err) {
-      console.error('Fetch hotels error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadHotelsFromDb()
-      .then((mapped) => {
-        if (!cancelled) setHotels(mapped);
-      })
-      .catch((err) => {
-        console.error('Fetch hotels error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+  }, [queryClient]);
 
   const addHotel = async (data) => {
     try {

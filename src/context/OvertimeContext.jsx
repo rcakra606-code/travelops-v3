@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const OvertimeContext = createContext(null);
 
@@ -23,38 +26,25 @@ const loadOvertimesFromDb = async () => {
 };
 
 export const OvertimeProvider = ({ children }) => {
-  const [overtimes, setOvertimes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: overtimes = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.overtimes,
+    queryFn: loadOvertimesFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchOvertimes = useCallback(async () => {
     try {
-      const mapped = await loadOvertimesFromDb();
-      setOvertimes(mapped);
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overtimes });
       return { success: true };
     } catch (err) {
       console.error('Error fetching overtimes:', err);
       return { success: false, error: err };
-    } finally {
-      setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadOvertimesFromDb()
-      .then(mapped => {
-        if (!cancelled) setOvertimes(mapped);
-      })
-      .catch(err => {
-        console.error('Initial fetch overtimes error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [queryClient]);
 
   const addOvertime = async (data) => {
     try {

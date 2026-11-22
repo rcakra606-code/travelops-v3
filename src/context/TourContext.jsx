@@ -1,6 +1,9 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 import { normalizeFinancials, isTourPast } from '../utils/tourUtils';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const TourContext = createContext(null);
 
@@ -14,23 +17,15 @@ const loadToursFromDb = async () => {
   return (data || []).map(t => {
     let currentStatus = t.status;
     
-    // Auto-detect status based on return_date (or departure_date if no return_date)
+    // Compute effective display status in UI; database persistence runs daily via Supabase pg_cron
     const tourHasEnded = isTourPast(t.departure_date, t.return_date);
 
     if (tourHasEnded) {
-      // Tour has ended: transition to Past Date if not Cancelled
       if (currentStatus !== 'Past Date' && currentStatus !== 'Cancel' && currentStatus !== 'Cancelled') {
         currentStatus = 'Past Date';
-        // Background update to database
-        supabase.from('travelops_tours').update({ status: 'Past Date' }).eq('id', t.id).then();
       }
-    } else {
-      // Tour is still on-going or in the future:
-      // If status in database was erroneously recorded as "Past Date", recover to "Confirm"
-      if (currentStatus === 'Past Date') {
-        currentStatus = 'Confirm';
-        supabase.from('travelops_tours').update({ status: 'Confirm' }).eq('id', t.id).then();
-      }
+    } else if (currentStatus === 'Past Date') {
+      currentStatus = 'Confirm';
     }
 
     const fin = normalizeFinancials(t.financials || {});
@@ -74,33 +69,23 @@ const loadToursFromDb = async () => {
 };
 
 export const TourProvider = ({ children }) => {
-  const [tours, setTours] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: tours = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.tours,
+    queryFn: loadToursFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchTours = useCallback(async () => {
-    try {
-      const mapped = await loadToursFromDb();
-      setTours(mapped);
-    } catch (err) {
-      console.error('Error fetching tours:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tours });
+  }, [queryClient]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    loadToursFromDb()
-      .then((mapped) => {
-        if (!cancelled) setTours(mapped);
-      })
-      .catch((err) => {
-        console.error('Initial fetch tours error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    if (!user) return undefined;
+    let debounceTimer = null;
 
     const channel = supabase
       .channel('travelops_tours_realtime')
@@ -108,22 +93,19 @@ export const TourProvider = ({ children }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'travelops_tours' },
         () => {
-          if (!cancelled) {
-            loadToursFromDb()
-              .then((mapped) => {
-                if (!cancelled) setTours(mapped);
-              })
-              .catch((err) => console.error('Realtime sync error:', err));
-          }
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tours });
+          }, 400);
         }
       )
       .subscribe();
 
     return () => {
-      cancelled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user, queryClient]);
 
   const addTour = async (tourData) => {
     try {

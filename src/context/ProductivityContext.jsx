@@ -1,5 +1,8 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
+import { QUERY_KEYS } from '../lib/queryClient';
+import { useAuth } from './AuthContext';
 
 const ProductivityContext = createContext(null);
 
@@ -155,38 +158,20 @@ const loadProductivityFromDb = async () => {
 };
 
 export const ProductivityProvider = ({ children }) => {
-  const [productivityData, setProductivityData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: productivityData = [], isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.productivity,
+    queryFn: loadProductivityFromDb,
+    enabled: Boolean(user),
+    staleTime: 2 * 60 * 1000
+  });
 
   const fetchProductivity = useCallback(async () => {
-    try {
-      const mapped = await loadProductivityFromDb();
-      setProductivityData(mapped);
-      return mapped;
-    } catch (err) {
-      console.error('Fetch productivity error:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadProductivityFromDb()
-      .then((mapped) => {
-        if (!cancelled) setProductivityData(mapped);
-      })
-      .catch((err) => {
-        console.error('Initial productivity load error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.productivity });
+    return queryClient.getQueryData(QUERY_KEYS.productivity) || [];
+  }, [queryClient]);
 
   const addRecord = async (data) => {
     const cleanStaff = (data.staff || '').trim();

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor,
   Briefcase, Clock, Target, Building, Activity, ArrowRight, Compass, Calendar,
-  Sparkles, PlusCircle, Sun, Moon, ClipboardList, PieChart
+  Sparkles, PlusCircle, Sun, Moon, ClipboardList, PieChart, Plane
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -22,6 +22,7 @@ const staticCommands = [
   { id: 'ai-copilot', name: 'TravelOps AI Copilot', subtitle: 'Asisten operasional & pembuat template WA', icon: <Sparkles size={18} />, isAi: true },
   { id: 'tours', name: 'Tour & Perjalanan', subtitle: 'Series, Incentive & Consortium Tours', icon: <Map size={18} />, path: '/tours' },
   { id: 'tour-registration-form', name: 'Form Pendaftaran Tour', subtitle: 'Buat PDF Formulir Pendaftaran resmi Dwidayatour (2 hal.)', icon: <ClipboardList size={18} />, path: '/tour-registration-form' },
+  { id: 'flight-booking-form', name: 'Form Pemesanan Tiket Pesawat', subtitle: 'AI Parser Screenshot/PDF/GDS + Transit, H-1 Dinihari & PDF/WA', icon: <Plane size={18} />, path: '/flight-booking-form' },
   { id: 'documents', name: 'Visa & Dokumen', subtitle: 'Intake paspor, biometrik & resi AWB', icon: <FileText size={18} />, path: '/documents' },
   { id: 'hotel', name: 'Reservasi Hotel', subtitle: 'Database voucher & rooming hotel', icon: <Briefcase size={18} />, path: '/hotel' },
   { id: 'cruise', name: 'Pelayaran Cruise', subtitle: 'Manajemen kabin & jadwal kapal pesiar', icon: <Anchor size={18} />, path: '/cruise' },
@@ -40,6 +41,7 @@ const staticCommands = [
 const quickCreateCommands = [
   { id: 'new-tour', name: 'Buat Booking Tour Baru', subtitle: 'Buka wizard tambah tour (Series / Incentive / Consortium)', icon: <PlusCircle size={18} />, path: '/tours', navState: { openNew: true }, type: 'Aksi Cepat' },
   { id: 'new-tour-reg-form', name: 'Buat Formulir Pendaftaran Tour (PDF)', subtitle: 'Generate PDF 2 halaman untuk dikirim ke customer (Non-DB)', icon: <ClipboardList size={18} />, path: '/tour-registration-form', type: 'Aksi Cepat' },
+  { id: 'new-flight-booking-form', name: 'Buat Form Pemesanan Tiket Pesawat (AI)', subtitle: 'Parse screenshot/PDF/GDS otomatis ke format konfirmasi WA & PDF', icon: <Plane size={18} />, path: '/flight-booking-form', type: 'Aksi Cepat' },
   { id: 'new-doc', name: 'Buat Pengajuan Visa & Dokumen', subtitle: 'Input paspor / visa / biometrik baru', icon: <PlusCircle size={18} />, path: '/documents', navState: { openNew: true }, type: 'Aksi Cepat' },
   { id: 'new-hotel', name: 'Buat Reservasi Hotel Baru', subtitle: 'Catat booking kamar & check-in hotel', icon: <PlusCircle size={18} />, path: '/hotel', navState: { openNew: true }, type: 'Aksi Cepat' },
   { id: 'new-cruise', name: 'Buat Booking Cruise Baru', subtitle: 'Catat reservasi kabin kapal pesiar', icon: <PlusCircle size={18} />, path: '/cruise', navState: { openNew: true }, type: 'Aksi Cepat' },

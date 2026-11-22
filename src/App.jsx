@@ -1,6 +1,8 @@
 import './mobile.css';
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TourProvider } from './context/TourContext';
 import { UserProvider } from './context/UserContext';
@@ -60,9 +62,16 @@ const DataProviderStack = composeProviders(
   CorporateProvider
 );
 
-// Session-aware wrapper: dynamic key remounts domain providers immediately upon login or logout
-const AuthenticatedDataProviders = ({ children }) => {
+// Session-aware wrapper: skips mounting all 11 domain data providers on guest routes (/login, /track)
+// and clears React Query cache cleanly on sign-out so no cross-session data lingers.
+const AuthenticatedWorkspace = ({ showShortcuts, setShowShortcuts }) => {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      queryClient.clear();
+    }
+  }, [loading, user]);
 
   if (loading) {
     return (
@@ -99,9 +108,25 @@ const AuthenticatedDataProviders = ({ children }) => {
     );
   }
 
+  if (!user) {
+    return (
+      <>
+        <NetworkStatusBanner />
+        <ToastNotification />
+        <AnimatedRoutes />
+      </>
+    );
+  }
+
   return (
-    <DataProviderStack key={user?.id || 'guest'}>
-      {children}
+    <DataProviderStack key={user.id}>
+      <ReminderEngine />
+      <CommandPalette />
+      <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <AiCopilot />
+      <NetworkStatusBanner />
+      <ToastNotification />
+      <AnimatedRoutes />
     </DataProviderStack>
   );
 };
@@ -138,22 +163,19 @@ function App() {
 
   return (
     <GlobalErrorBoundary>
-      <BaseProviders>
-        <Router>
-          <AutoLogout>
-            <ForcePasswordChange />
-            <AuthenticatedDataProviders>
-              <ReminderEngine />
-              <CommandPalette />
-              <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-              <AiCopilot />
-              <NetworkStatusBanner />
-              <ToastNotification />
-              <AnimatedRoutes />
-            </AuthenticatedDataProviders>
-          </AutoLogout>
-        </Router>
-      </BaseProviders>
+      <QueryClientProvider client={queryClient}>
+        <BaseProviders>
+          <Router>
+            <AutoLogout>
+              <ForcePasswordChange />
+              <AuthenticatedWorkspace
+                showShortcuts={showShortcuts}
+                setShowShortcuts={setShowShortcuts}
+              />
+            </AutoLogout>
+          </Router>
+        </BaseProviders>
+      </QueryClientProvider>
     </GlobalErrorBoundary>
   );
 }

@@ -21,16 +21,23 @@ import {
   AccountDossierDrawer,
   ConfirmDeleteModal
 } from '../components/corporate/CorporateModals';
+import CorporateAiImportModal from '../components/corporate/CorporateAiImportModal';
 import {
   formatCorporateIdr,
   parseCommaNumber,
   normalizeFeeProfile,
   serializeFeeProfile
 } from '../utils/corporateFeeHelpers';
+import {
+  createEmptyPicContact,
+  normalizePicContacts,
+  picContactsToLegacyFields,
+  getAccountPicSearchText
+} from '../utils/corporatePicHelpers';
 import { 
   Building, Briefcase, Plus, Edit2, Trash2, BarChart2, 
   TrendingUp, DollarSign, Activity, Upload, Users,
-  Phone, Eye, Search, Filter, ShieldCheck, AlertCircle, ArrowUpRight, ArrowDownRight
+  Phone, Eye, Search, Filter, ShieldCheck, AlertCircle, ArrowUpRight, ArrowDownRight, Sparkles
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
@@ -44,7 +51,7 @@ const formatCurrencyIdr = (val) => formatCorporateIdr(val);
 
 const Corporate = () => {
   const { 
-    corporateAccounts, addAccount, updateAccount, deleteAccount,
+    corporateAccounts, addAccount, updateAccount, deleteAccount, bulkUpsertAccounts,
     corporateSales, addSales, updateSales, deleteSales, bulkImportSales,
     loading: corpLoading
   } = useCorporate();
@@ -85,6 +92,7 @@ const Corporate = () => {
 
   // Modals & Drawer State
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isAiImportModalOpen, setIsAiImportModalOpen] = useState(false);
   const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [viewingAccount, setViewingAccount] = useState(() => {
@@ -121,6 +129,7 @@ const Corporate = () => {
   // Initial Form Data
   const initialAccountData = {
     accountCode: '', corporateName: '', companyName: '', address: '', creditLimit: '', status: 'Active',
+    picContacts: [createEmptyPicContact()],
     picName: '', picPhone: '', picOfficeEmail: '', picPersonalEmail: '', remarks: '',
     flightFee: normalizeFeeProfile({}),
     hotelFee: normalizeFeeProfile({}),
@@ -330,9 +339,8 @@ const Corporate = () => {
       const q = accountsSearch.toLowerCase().trim();
       const name = (acc.corporateName || acc.companyName || '').toLowerCase();
       const code = (acc.accountCode || '').toLowerCase();
-      const pic = (acc.picName || '').toLowerCase();
-      const phone = (acc.picPhone || '').toLowerCase();
-      const matchSearch = !q || name.includes(q) || code.includes(q) || pic.includes(q) || phone.includes(q);
+      const picText = getAccountPicSearchText(acc);
+      const matchSearch = !q || name.includes(q) || code.includes(q) || picText.includes(q);
       const matchStatus = accountsStatusFilter === 'All' || acc.status === accountsStatusFilter;
       return matchSearch && matchStatus;
     });
@@ -370,6 +378,8 @@ const Corporate = () => {
   const handleOpenAccountModal = (acc = null) => {
     if (acc) {
       setEditingAccount(acc);
+      const normalizedPics = normalizePicContacts(acc.picContacts, acc);
+      const legacyPics = picContactsToLegacyFields(normalizedPics);
       setAccountFormData({
         accountCode: acc.accountCode || '',
         corporateName: acc.corporateName || acc.companyName || '',
@@ -377,10 +387,11 @@ const Corporate = () => {
         address: acc.address || '',
         creditLimit: acc.creditLimit || '',
         status: acc.status || 'Active',
-        picName: acc.picName || '',
-        picPhone: acc.picPhone || '',
-        picOfficeEmail: acc.picOfficeEmail || '',
-        picPersonalEmail: acc.picPersonalEmail || '',
+        picContacts: normalizedPics.length > 0 ? normalizedPics : [createEmptyPicContact()],
+        picName: legacyPics.picName,
+        picPhone: legacyPics.picPhone,
+        picOfficeEmail: legacyPics.picOfficeEmail,
+        picPersonalEmail: legacyPics.picPersonalEmail,
         remarks: acc.remarks || '',
         flightFee: normalizeFeeProfile(acc.flightFee),
         hotelFee: normalizeFeeProfile(acc.hotelFee),
@@ -389,7 +400,10 @@ const Corporate = () => {
       });
     } else {
       setEditingAccount(null);
-      setAccountFormData(initialAccountData);
+      setAccountFormData({
+        ...initialAccountData,
+        picContacts: [createEmptyPicContact()]
+      });
     }
     setIsAccountModalOpen(true);
   };
@@ -401,8 +415,13 @@ const Corporate = () => {
       return;
     }
 
+    const cleanedPics = normalizePicContacts(accountFormData.picContacts, accountFormData);
+    const syncedLegacyPics = picContactsToLegacyFields(cleanedPics);
+
     const sanitizedAccountPayload = {
       ...accountFormData,
+      picContacts: cleanedPics,
+      ...syncedLegacyPics,
       creditLimit: parseCommaNumber(accountFormData.creditLimit),
       flightFee: serializeFeeProfile(accountFormData.flightFee),
       hotelFee: serializeFeeProfile(accountFormData.hotelFee)
@@ -605,6 +624,7 @@ const Corporate = () => {
     { header: 'PIC Name', key: 'picName' },
     { header: 'PIC Phone', key: 'picPhone' },
     { header: 'Office Email', key: 'picOfficeEmail' },
+    { header: 'Personal Email', key: 'picPersonalEmail' },
     { header: 'Airlines Code', key: 'airlinesCode' },
     { header: 'Address', key: 'address' }
   ];
@@ -1341,20 +1361,45 @@ const Corporate = () => {
                   </div>
 
                   {/* Actions & Export */}
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <ExportMenu 
                       data={filteredAccounts} 
                       columns={accountExportColumns} 
                       filename="Corporate_Accounts_Travelops" 
                     />
                     {canAdd && (
-                      <button 
-                        className="btn btn-primary" 
-                        onClick={() => handleOpenAccountModal()}
-                        style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.15rem' }}
-                      >
-                        <Plus size={16} /> Add Account
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => setIsAiImportModalOpen(true)}
+                          style={{
+                            background: isLight
+                              ? 'linear-gradient(135deg, rgba(2,132,199,0.12), rgba(16,185,129,0.14))'
+                              : 'linear-gradient(135deg, rgba(0,212,255,0.16), rgba(16,185,129,0.18))',
+                            border: `1px solid ${neonBlue}55`,
+                            color: neonBlue,
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            borderRadius: '10px',
+                            padding: '0.55rem 1rem',
+                            fontSize: '0.84rem',
+                            cursor: 'pointer'
+                          }}
+                          title="Auto-Input Database Akun Corporate dari File Excel / CSV menggunakan AI"
+                        >
+                          <Sparkles size={15} /> AI Auto-Fill (Excel)
+                        </button>
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={() => handleOpenAccountModal()}
+                          style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.15rem' }}
+                        >
+                          <Plus size={16} /> Add Account
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1407,12 +1452,50 @@ const Corporate = () => {
                               )}
                             </td>
                             <td>
-                              <div style={{ fontWeight: '500' }}>{acc.picName || '-'}</div>
-                              {acc.picPhone && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                  <Phone size={11}/> {acc.picPhone}
-                                </div>
-                              )}
+                              {(() => {
+                                const pics = normalizePicContacts(acc.picContacts, acc);
+                                if (pics.length === 0) {
+                                  return <span style={{ color: 'var(--text-subtle)' }}>-</span>;
+                                }
+                                const visiblePics = pics.slice(0, 2);
+                                const remaining = pics.length - visiblePics.length;
+                                return (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {visiblePics.map((p, idx) => (
+                                      <div key={`${acc.id}-pic-${idx}`} style={{ lineHeight: 1.3 }}>
+                                        <div style={{ fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                          <span>{p.name || p.officeEmail || '-'}</span>
+                                          {idx === 0 && pics.length > 1 && (
+                                            <span
+                                              style={{
+                                                fontSize: '0.66rem',
+                                                fontWeight: '700',
+                                                padding: '1px 6px',
+                                                borderRadius: '999px',
+                                                background: 'rgba(16, 185, 129, 0.14)',
+                                                color: '#10b981',
+                                                border: '1px solid rgba(16, 185, 129, 0.28)'
+                                              }}
+                                            >
+                                              {pics.length} PIC
+                                            </span>
+                                          )}
+                                        </div>
+                                        {p.phone && (
+                                          <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                                            <Phone size={10} /> {p.phone}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {remaining > 0 && (
+                                      <span style={{ fontSize: '0.7rem', fontWeight: '600', color: neonBlue }}>
+                                        +{remaining} PIC lainnya (klik untuk detail)
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem' }}>
@@ -1720,6 +1803,15 @@ const Corporate = () => {
         setAccountFormData={setAccountFormData}
         handleSubmit={handleAccountSubmit}
         isEditing={Boolean(editingAccount)}
+        neonBlue={neonBlue}
+      />
+
+      {/* AI EXCEL AUTO-INPUT MODAL FOR CORPORATE ACCOUNTS */}
+      <CorporateAiImportModal
+        isOpen={isAiImportModalOpen}
+        onClose={() => setIsAiImportModalOpen(false)}
+        existingAccounts={corporateAccounts}
+        onConfirmImport={bulkUpsertAccounts}
         neonBlue={neonBlue}
       />
 
