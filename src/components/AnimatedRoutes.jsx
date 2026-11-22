@@ -1,9 +1,12 @@
 import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import * as Sentry from '@sentry/react';
 import { AnimatePresence } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
 import RoleRoute from './RoleRoute';
 import PageWrapper from './PageWrapper';
+
+const SentryRoutes = Sentry.withSentryReactRouterV7Routing(Routes);
 
 const Login = lazy(() => import('../pages/Login'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
@@ -97,7 +100,7 @@ const AnimatedRoutes = () => {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <AnimatePresence mode="wait">
-        <Routes key={location.pathname} location={location}>
+        <SentryRoutes key={location.pathname} location={location}>
           <Route path="/login" element={<Login />} />
           <Route path="/track" element={<PublicTracker />} />
           <Route path="/track/:code" element={<PublicTracker />} />
@@ -122,7 +125,7 @@ const AnimatedRoutes = () => {
           <Route path="/settings" element={<ProtectedRoute><RoleRoute allowedRoles={['Admin']}><PageWrapper><Settings /></PageWrapper></RoleRoute></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        </SentryRoutes>
       </AnimatePresence>
     </Suspense>
   );

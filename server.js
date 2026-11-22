@@ -1,4 +1,5 @@
 import express from 'express';
+import * as Sentry from '@sentry/node';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -58,12 +59,14 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// Block vulnerability scanner probes and PHP probe requests (.php, .env, .git, wp-*, phpmyadmin, etc.)
+// Block vulnerability scanner probes, source maps, and PHP probe requests (.php, .map, .env, .git, wp-*, phpmyadmin, etc.)
 app.use((req, res, next) => {
   const url = req.originalUrl.toLowerCase();
   if (
     url.endsWith('.php') ||
     url.includes('.php?') ||
+    url.endsWith('.map') ||
+    url.includes('.map?') ||
     url.includes('/.env') ||
     url.includes('/.git') ||
     url.includes('/wp-') ||
@@ -1258,6 +1261,19 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // Catch-all route to serve index.html for client-side routing
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// Sentry Express error handler (must come after all routes/controllers and before custom error middleware)
+Sentry.setupExpressErrorHandler(app);
+
+app.use((err, req, res, _next) => {
+  const status = Number(err?.status || err?.statusCode || 500);
+  if (res.headersSent) return;
+  res.status(status).json({
+    success: false,
+    error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err?.message || 'Internal Server Error',
+    sentryEventId: res.sentry || undefined
+  });
 });
 
 // Run schema sync before starting the server

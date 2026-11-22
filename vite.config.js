@@ -1,6 +1,7 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { sentryVitePlugin } from '@sentry/bundler-plugins/vite';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -570,45 +571,69 @@ const devApiPlugin = () => ({
 });
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss(), devApiPlugin()],
-  build: {
-    chunkSizeWarningLimit: 650,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('exceljs')) return 'vendor-excel';
-            if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
-            if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
-            if (id.includes('@supabase')) return 'vendor-supabase';
-            if (id.includes('lucide-react')) return 'vendor-icons';
-            if (id.includes('framer-motion')) return 'vendor-motion';
-            if (id.includes('react-router-dom')) return 'vendor-router';
-            if (id.includes('react') || id.includes('react-dom')) return 'vendor-react-core';
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN || env.SENTRY_AUTH_TOKEN;
+  const sentryRelease = process.env.VITE_SENTRY_RELEASE || env.VITE_SENTRY_RELEASE || 'travelops-frontend@4.0.0';
+
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+      devApiPlugin(),
+      // Sentry Vite plugin MUST come after all other plugins; uploads hidden source maps on production builds when SENTRY_AUTH_TOKEN is set
+      sentryAuthToken
+        ? sentryVitePlugin({
+            org: 'cakra-ib',
+            project: 'travelops-frontend',
+            authToken: sentryAuthToken,
+            release: { name: sentryRelease },
+            sourcemaps: {
+              filesToDeleteAfterUpload: ['./dist/**/*.map']
+            }
+          })
+        : null
+    ].filter(Boolean),
+    build: {
+      sourcemap: 'hidden',
+      chunkSizeWarningLimit: 650,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('@sentry')) return 'vendor-sentry';
+              if (id.includes('exceljs')) return 'vendor-excel';
+              if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
+              if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
+              if (id.includes('@supabase')) return 'vendor-supabase';
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('framer-motion')) return 'vendor-motion';
+              if (id.includes('react-router-dom')) return 'vendor-router';
+              if (id.includes('react') || id.includes('react-dom')) return 'vendor-react-core';
+            }
+          }
+        }
+      }
+    },
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('error', (err, req, res) => {
+              console.warn(`[Vite Proxy] Backend server on http://localhost:3000 unavailable for ${req.url}.`);
+              if (!res.headersSent) {
+                res.writeHead(503, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  success: false,
+                  error: 'Backend API server on http://localhost:3000 is offline. Start server with "node server.js" or use dev endpoints.'
+                }));
+              }
+            });
           }
         }
       }
     }
-  },
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('error', (err, req, res) => {
-            console.warn(`[Vite Proxy] Backend server on http://localhost:3000 unavailable for ${req.url}.`);
-            if (!res.headersSent) {
-              res.writeHead(503, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ 
-                success: false, 
-                error: 'Backend API server on http://localhost:3000 is offline. Start server with "node server.js" or use dev endpoints.' 
-              }));
-            }
-          });
-        }
-      }
-    }
-  }
+  };
 });
