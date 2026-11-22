@@ -13,6 +13,9 @@ import { useFormDraft } from '../hooks/useFormDraft';
 import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS } from '../utils/formatters';
 import { useTelecoms } from '../context/TelecomContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
@@ -119,7 +122,7 @@ const COUNTRIES = [
 ];
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const CHART_COLORS = ['#00a8ff', '#38bdf8', '#0284c7', '#10b981', '#6366f1', '#f59e0b', '#ec4899', '#64748b'];
+const CHART_COLORS = BI_CHART_COLORS.series;
 
 const IMPORT_TEMPLATE_HEADERS = [
   'Traveler Name',
@@ -314,54 +317,6 @@ const getTelecomStepperStage = (item) => {
   }
   if (item.tanggalPengambilan || item.lifecycleStatus === 'Handed Over') return 1;
   return 0;
-};
-
-const TelecomChartTooltip = ({ active, payload, label, isLight }) => {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div
-      style={{
-        background: isLight ? '#ffffff' : '#0b1325',
-        border: `1px solid ${isLight ? 'rgba(2, 132, 199, 0.22)' : 'rgba(56, 189, 248, 0.28)'}`,
-        borderRadius: '10px',
-        padding: '0.65rem 0.85rem',
-        boxShadow: isLight
-          ? '0 10px 25px rgba(2, 132, 199, 0.12)'
-          : '0 10px 28px rgba(0, 0, 0, 0.55)',
-        fontSize: '0.8rem'
-      }}
-    >
-      {label && (
-        <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
-          {label}
-        </div>
-      )}
-      {payload.map((entry, idx) => (
-        <div
-          key={idx}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            color: 'var(--text-main)',
-            marginTop: '0.15rem'
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: entry.color || entry.payload?.color || '#00a8ff',
-              display: 'inline-block'
-            }}
-          />
-          <span style={{ color: 'var(--text-muted)' }}>{entry.name}:</span>
-          <strong>{entry.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
 };
 
 const Telecom = () => {
@@ -1369,87 +1324,42 @@ const Telecom = () => {
         <div className="content-area">
           <div className="page-container">
             {/* Page Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: '1.5rem',
-                flexWrap: 'wrap',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.25rem 0.7rem',
-                    borderRadius: '999px',
-                    background: isLight
-                      ? 'rgba(0, 168, 255, 0.1)'
-                      : 'rgba(56, 189, 248, 0.12)',
-                    color: 'var(--primary)',
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    marginBottom: '0.45rem'
-                  }}
-                >
-                  <Wifi size={13} /> ROAMING, eSIM &amp; POCKET WIFI DESK
-                </div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem' }}>
-                  Travel SIM &amp; eSIM
-                </h1>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '0.875rem',
-                    color: 'var(--text-muted)'
-                  }}
-                >
-                  Manage eSIM dispatches, physical SIM handovers, Pocket WiFi device returns, and security deposit refunds.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.65rem',
-                  flexWrap: 'wrap'
-                }}
-              >
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowImport((prev) => !prev)}
-                  style={{
-                    background: showImport
-                      ? isLight
-                        ? 'rgba(0, 168, 255, 0.12)'
-                        : 'rgba(56, 189, 248, 0.16)'
-                      : 'var(--bg-card)',
-                    border: `1px solid ${showImport ? 'var(--primary)' : 'var(--border)'}`,
-                    color: showImport ? 'var(--primary)' : 'var(--text-main)'
-                  }}
-                >
-                  <UploadCloud size={17} /> Import Excel / CSV
-                </button>
-                <ExportMenu
-                  data={exportableTableData}
-                  columns={exportColumns}
-                  filename="TravelOps_SIM_WiFi"
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => handleOpenModal()}
-                >
-                  <Plus size={18} /> New SIM / WiFi Order
-                </button>
-              </div>
-            </div>
+            <BiPageHeader
+              eyebrow="ROAMING, eSIM & POCKET WIFI DESK"
+              title="Travel SIM & eSIM"
+              subtitle="Manage eSIM dispatches, physical SIM handovers, Pocket WiFi device returns, and security deposit refunds."
+              actions={
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowImport((prev) => !prev)}
+                    style={{
+                      background: showImport ? 'var(--primary-soft)' : undefined,
+                      borderColor: showImport ? 'var(--primary)' : undefined,
+                      color: showImport ? 'var(--primary)' : undefined,
+                      fontSize: '0.82rem',
+                      padding: '0.5rem 0.9rem'
+                    }}
+                  >
+                    <UploadCloud size={15} /> Import Excel / CSV
+                  </button>
+                  <ExportMenu
+                    data={exportableTableData}
+                    columns={exportColumns}
+                    filename="TravelOps_SIM_WiFi"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleOpenModal()}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Plus size={15} /> New SIM / WiFi Order
+                  </button>
+                </>
+              }
+            />
 
             {/* Collapsible Spreadsheet Import Panel */}
             {showImport && (
@@ -2295,20 +2205,18 @@ const Telecom = () => {
                             fontSize={12}
                             allowDecimals={false}
                           />
-                          <RechartsTooltip
-                            content={<TelecomChartTooltip isLight={isLight} />}
-                          />
-                          <Legend />
+                          <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                          <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
                           <Bar
                             dataKey="Orders"
                             name="Total Orders"
-                            fill="#00a8ff"
+                            fill={BI_CHART_COLORS.primary}
                             radius={[4, 4, 0, 0]}
                           />
                           <Bar
                             dataKey="Completed"
                             name="Completed"
-                            fill="#10b981"
+                            fill={BI_CHART_COLORS.emerald}
                             radius={[4, 4, 0, 0]}
                           />
                         </BarChart>
@@ -2340,17 +2248,15 @@ const Telecom = () => {
                               cy="50%"
                               innerRadius={58}
                               outerRadius={92}
-                              paddingAngle={4}
+                              paddingAngle={3}
                               dataKey="value"
                             >
                               {overviewMetrics.productMixData.map((entry, idx) => (
                                 <Cell key={`prod-cell-${idx}`} fill={entry.color} />
                               ))}
                             </Pie>
-                            <RechartsTooltip
-                              content={<TelecomChartTooltip isLight={isLight} />}
-                            />
-                            <Legend />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                            <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
                           </PieChart>
                         </ResponsiveContainer>
                       ) : (
@@ -2395,24 +2301,26 @@ const Telecom = () => {
                             <XAxis
                               type="number"
                               stroke="var(--text-muted)"
-                              fontSize={12}
+                              fontSize={11}
+                              tickLine={false}
+                              axisLine={false}
                               allowDecimals={false}
                             />
                             <YAxis
                               type="category"
                               dataKey="name"
                               stroke="var(--text-muted)"
-                              fontSize={12}
+                              fontSize={11}
+                              tickLine={false}
+                              axisLine={false}
                               width={110}
                             />
-                            <RechartsTooltip
-                              content={<TelecomChartTooltip isLight={isLight} />}
-                            />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
                             <Bar
                               dataKey="count"
                               name="Orders"
-                              fill="#00a8ff"
-                              radius={[0, 6, 6, 0]}
+                              fill={BI_CHART_COLORS.primary}
+                              radius={[0, 4, 4, 0]}
                             />
                           </BarChart>
                         </ResponsiveContainer>
@@ -2454,27 +2362,27 @@ const Telecom = () => {
                             margin={{ top: 5, right: 15, left: -20, bottom: 5 }}
                           >
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
+                            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
                             <YAxis
                               stroke="var(--text-muted)"
-                              fontSize={12}
+                              fontSize={11}
+                              tickLine={false}
+                              axisLine={false}
                               allowDecimals={false}
                             />
-                            <RechartsTooltip
-                              content={<TelecomChartTooltip isLight={isLight} />}
-                            />
-                            <Legend />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                            <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
                             <Bar
                               dataKey="Active"
                               name="Active / Upcoming"
                               stackId="a"
-                              fill="#00a8ff"
+                              fill={BI_CHART_COLORS.primary}
                             />
                             <Bar
                               dataKey="Completed"
                               name="Completed"
                               stackId="a"
-                              fill="#10b981"
+                              fill={BI_CHART_COLORS.emerald}
                               radius={[4, 4, 0, 0]}
                             />
                           </BarChart>

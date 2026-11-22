@@ -3,6 +3,8 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiKpiCard from '../components/bi/BiKpiCard';
 import { useUsers } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
@@ -26,7 +28,7 @@ const UserManager = () => {
   const { theme } = useTheme();
 
   const isLight = theme === 'light';
-  const neonBlue = isLight ? '#0284c7' : '#00d4ff';
+  const neonBlue = isLight ? '#0284c7' : '#38bdf8';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   
@@ -279,92 +281,87 @@ const UserManager = () => {
           <div className="page-container">
 
             {/* HEADER BAR */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={26} color={neonBlue} /> User & Access Governance
-                </h1>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Manage team access tiers, credentials, account locking, and authentication logs.
-                </p>
-              </div>
+            <BiPageHeader
+              eyebrow="ACCESS CONTROL & GOVERNANCE"
+              title="User & Access Governance"
+              subtitle="Manage team access tiers, credentials, account locking, and authentication logs."
+              actions={
+                <>
+                  <ExportMenu
+                    data={filteredUsers.map(u => ({ ...u, isLocked: u.isLocked ? 'Yes' : 'No' }))}
+                    columns={exportColumns}
+                    filename="User_Directory_Travelops"
+                  />
 
-              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <ExportMenu 
-                  data={filteredUsers.map(u => ({ ...u, isLocked: u.isLocked ? 'Yes' : 'No' }))} 
-                  columns={exportColumns} 
-                  filename="User_Directory_Travelops" 
-                />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleOpenModal()}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Plus size={15} /> Add New User
+                  </button>
+                </>
+              }
+            />
 
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => handleOpenModal()} 
-                  style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.25rem', fontWeight: '600' }}
-                >
-                  <Plus size={16} /> Add New User
-                </button>
-              </div>
-            </div>
+            {/* 4 TELEMETRY SCORECARDS (Unified Enterprise BI Kit — Zero Glow Orbs) */}
+            <div
+              className="bi-kpi-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '0.9rem',
+                marginBottom: '1.25rem'
+              }}
+            >
+              <BiKpiCard
+                label="Total Registered Users"
+                value={`${totalUsers} accounts`}
+                subValue="System-wide personnel with login credentials"
+                tone="primary"
+                icon={<Users size={16} />}
+                drilldownLabel="Tampilkan Semua"
+                onClick={() => {
+                  setRoleFilter('All');
+                  setStatusFilter('All');
+                  setCurrentPage(1);
+                }}
+              />
 
-            {/* 4 TELEMETRY SCORECARDS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
-              
-              {/* Total Users */}
-              <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: `${neonBlue}20`, width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={16} color={neonBlue} /> Total Registered Users
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                  {totalUsers} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>accounts</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  System-wide personnel with login credentials
-                </div>
-              </div>
+              <BiKpiCard
+                label="Active Operators"
+                value={`${activeCount} (${totalUsers > 0 ? Math.round((activeCount / totalUsers) * 100) : 0}%)`}
+                subValue="Authorized to access operational modules"
+                tone="success"
+                icon={<Activity size={16} />}
+                drilldownLabel="Filter Aktif"
+                onClick={() => {
+                  setStatusFilter('Active');
+                  setCurrentPage(1);
+                }}
+              />
 
-              {/* Active Accounts */}
-              <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(16, 185, 129, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Activity size={16} color="#10b981" /> Active Operators
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: '800', color: '#10b981', letterSpacing: '-0.025em' }}>
-                  {activeCount} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>({totalUsers > 0 ? Math.round((activeCount / totalUsers) * 100) : 0}%)</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  Authorized to access operational modules
-                </div>
-              </div>
+              <BiKpiCard
+                label="Privileged Roles"
+                value={`${privilegedCount} admins/mgrs`}
+                subValue="Hold approval or system administration rights"
+                tone="warning"
+                icon={<Shield size={16} />}
+                drilldownLabel="Filter Admin"
+                onClick={() => {
+                  setRoleFilter('Admin');
+                  setCurrentPage(1);
+                }}
+              />
 
-              {/* Privileged Access */}
-              <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(245, 158, 11, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Shield size={16} color="#f59e0b" /> Privileged Roles
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                  {privilegedCount} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>admins/mgrs</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  Hold approval or system administration rights
-                </div>
-              </div>
-
-              {/* Attention Required */}
-              <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: attentionCount > 0 ? 'rgba(239, 68, 68, 0.18)' : 'rgba(16, 185, 129, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {attentionCount > 0 ? <AlertTriangle size={16} color="#ef4444" /> : <CheckCircle2 size={16} color="#10b981" />} Security Status
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: '800', color: attentionCount > 0 ? '#ef4444' : '#10b981', letterSpacing: '-0.025em' }}>
-                  {attentionCount} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>flagged</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: attentionCount > 0 ? '#ef4444' : '#10b981', marginTop: '0.4rem' }}>
-                  {attentionCount > 0 ? 'Accounts locked or require password update' : 'All user credentials healthy'}
-                </div>
-              </div>
-
+              <BiKpiCard
+                label="Security Status"
+                value={`${attentionCount} flagged`}
+                subValue={attentionCount > 0 ? 'Accounts locked or require password update' : 'All user credentials healthy'}
+                tone={attentionCount > 0 ? 'danger' : 'success'}
+                icon={attentionCount > 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+              />
             </div>
 
             {/* USER DIRECTORY CARD */}

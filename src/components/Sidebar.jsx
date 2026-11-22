@@ -8,8 +8,8 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
   LayoutDashboard, Calendar, Users, Map, Settings, X, Phone,
   FileText, Ship, Building, Clock, TrendingUp, Briefcase,
-  ChevronDown, ChevronRight, Package, BarChart2, UserCheck, Compass, ExternalLink,
-  PanelLeftClose, PanelLeftOpen, WifiOff, ClipboardList
+  ChevronDown, ChevronRight, BarChart2, UserCheck, Compass, ExternalLink,
+  PanelLeftClose, PanelLeftOpen, WifiOff, ClipboardList, PieChart
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, closeMobile }) => {
@@ -107,6 +107,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
 
   const overviewItems = [
     { name: 'Beranda', path: '/', icon: <LayoutDashboard size={17} /> },
+    { name: 'Executive BI', path: '/executive-bi', icon: <PieChart size={17} /> },
     { name: 'Kalender Trip', path: '/calendar', icon: <Calendar size={17} /> }
   ];
 
@@ -183,42 +184,49 @@ const Sidebar = ({ isOpen, closeMobile }) => {
 
   return (
     <aside className={`sidebar ${isOpen ? '' : 'closed'} ${isMiniRail ? 'mini-rail' : ''}`}>
-      {/* Brand Header */}
-      <div className="sidebar-header" style={{ padding: '1rem 1.05rem', height: '64px', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', minWidth: 0 }}>
+      {/* Brand Header (60px exact alignment with TopNav) */}
+      <div className="sidebar-header" style={{ padding: '0 1.05rem', height: '60px', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
           <div
             onClick={isMiniRail ? toggleMiniRail : undefined}
             title={isMiniRail ? 'Perluas Sidebar' : 'TravelOps'}
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '11px',
-              background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'var(--primary-deep)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
-              boxShadow: '0 4px 14px var(--primary-glow)',
               flexShrink: 0,
               cursor: isMiniRail ? 'pointer' : 'default'
             }}
           >
-            <Compass size={19} strokeWidth={2.3} />
+            <Compass size={17} strokeWidth={2.2} />
           </div>
           <div className="sidebar-brand-text" style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ fontWeight: '800', fontSize: '1.02rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
+              <span
+                style={{
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontWeight: '800',
+                  fontSize: '0.98rem',
+                  letterSpacing: '-0.025em',
+                  color: 'var(--text-main)'
+                }}
+              >
                 TravelOps
               </span>
               <span
-                className="badge badge-primary"
-                style={{ fontSize: '0.6rem', padding: '0.06rem 0.38rem' }}
+                className="bi-micro-badge font-mono"
+                style={{ fontSize: '0.62rem', padding: '0.04rem 0.34rem', lineHeight: 1.3 }}
               >
                 V4
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-              Operational Suite
+            <p style={{ margin: 0, fontSize: '0.69rem', color: 'var(--text-subtle)', fontWeight: '500', lineHeight: 1.2 }}>
+              Operations Suite
             </p>
           </div>
         </div>
@@ -292,7 +300,7 @@ const Sidebar = ({ isOpen, closeMobile }) => {
       )}
 
       {/* Navigation Sections */}
-      <nav style={{ marginTop: '0.4rem', overflowY: 'auto', flex: 1, padding: '0 0.4rem 1rem' }}>
+      <nav aria-label="Navigasi Utama" style={{ marginTop: '0.4rem', overflowY: 'auto', flex: 1, padding: '0 0.4rem 1rem' }}>
         {/* OVERVIEW SECTION */}
         <div style={{ marginBottom: '0.65rem' }}>
           <div className="sidebar-category-title" style={{ padding: '0.4rem 0.75rem 0.25rem' }}>
@@ -303,79 +311,71 @@ const Sidebar = ({ isOpen, closeMobile }) => {
           ))}
         </div>
 
-        {/* OPERATIONS SECTION */}
-        <div style={{ marginBottom: '0.65rem' }}>
-          <div className="sidebar-category-title" style={{ padding: '0.4rem 0.75rem 0.25rem' }}>
-            Layanan Tamu
-          </div>
+        {/* OPERATIONS SECTION (Single Collapsible Section Header — No Double Heading) */}
+        <div style={{ marginBottom: '0.55rem' }}>
           <button
             type="button"
-            className="nav-item sidebar-group-toggle"
+            className="sidebar-category-title sidebar-group-toggle"
+            aria-expanded={openGroups.operations}
             onClick={() => toggleGroup('operations')}
             style={{
               width: '100%',
-              margin: '0.1rem 0',
-              border: 'none',
-              background: openGroups.operations ? 'var(--sage-subtle)' : 'transparent',
-              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'space-between',
-              textAlign: 'left'
+              padding: '0.42rem 0.75rem 0.3rem',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <Package size={17} color="var(--primary)" />
-              <span style={{ fontWeight: '600', fontSize: '0.855rem', color: 'var(--text-main)' }}>Booking &amp; Layanan</span>
-            </div>
+            <span>Layanan Tamu</span>
             {openGroups.operations ? (
-              <ChevronDown size={14} color="var(--text-subtle)" />
+              <ChevronDown size={13} color="var(--text-subtle)" />
             ) : (
-              <ChevronRight size={14} color="var(--text-subtle)" />
+              <ChevronRight size={13} color="var(--text-subtle)" />
             )}
           </button>
 
           {(openGroups.operations || isMiniRail) && (
-            <div className="sub-menu fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', marginTop: '0.15rem' }}>
+            <div className="sub-menu fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.08rem' }}>
               {operationsItems.map((item) => (
-                <NavItemRender key={item.path} item={item} isSubItem />
+                <NavItemRender key={item.path} item={item} />
               ))}
             </div>
           )}
         </div>
 
-        {/* ANALYTICS SECTION */}
-        <div style={{ marginBottom: '0.65rem' }}>
-          <div className="sidebar-category-title" style={{ padding: '0.4rem 0.75rem 0.25rem' }}>
-            Laporan &amp; Tim
-          </div>
+        {/* ANALYTICS SECTION (Single Collapsible Section Header) */}
+        <div style={{ marginBottom: '0.55rem' }}>
           <button
             type="button"
-            className="nav-item sidebar-group-toggle"
+            className="sidebar-category-title sidebar-group-toggle"
+            aria-expanded={openGroups.analytics}
             onClick={() => toggleGroup('analytics')}
             style={{
               width: '100%',
-              margin: '0.1rem 0',
-              border: 'none',
-              background: openGroups.analytics ? 'var(--sage-subtle)' : 'transparent',
-              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'space-between',
-              textAlign: 'left'
+              padding: '0.42rem 0.75rem 0.3rem',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <BarChart2 size={17} color="var(--primary)" />
-              <span style={{ fontWeight: '600', fontSize: '0.855rem', color: 'var(--text-main)' }}>Performa &amp; B2B</span>
-            </div>
+            <span>Laporan &amp; Tim</span>
             {openGroups.analytics ? (
-              <ChevronDown size={14} color="var(--text-subtle)" />
+              <ChevronDown size={13} color="var(--text-subtle)" />
             ) : (
-              <ChevronRight size={14} color="var(--text-subtle)" />
+              <ChevronRight size={13} color="var(--text-subtle)" />
             )}
           </button>
 
           {(openGroups.analytics || isMiniRail) && (
-            <div className="sub-menu fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', marginTop: '0.15rem' }}>
+            <div className="sub-menu fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.08rem' }}>
               {analyticsItems.map((item) => (
-                <NavItemRender key={item.path} item={item} isSubItem />
+                <NavItemRender key={item.path} item={item} />
               ))}
             </div>
           )}
@@ -441,15 +441,15 @@ const Sidebar = ({ isOpen, closeMobile }) => {
         <div
           className="sidebar-footer-expanded"
           style={{
-            padding: '0.78rem 0.9rem',
-            margin: '0.6rem',
-            borderRadius: '14px',
+            padding: '0.68rem 0.82rem',
+            margin: '0.55rem',
+            borderRadius: 'var(--radius-md)',
             background: 'var(--bg-surface)',
             border: `1px solid ${isOnline ? 'var(--border)' : 'rgba(244, 63, 94, 0.45)'}`,
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.48rem',
-            fontSize: '0.75rem'
+            gap: '0.42rem',
+            fontSize: '0.74rem'
           }}
         >
           <Link

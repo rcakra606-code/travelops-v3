@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Home, Map, Users, DollarSign, FileText, Phone, Settings, Anchor,
   Briefcase, Clock, Target, Building, Activity, ArrowRight, Compass, Calendar,
-  Sparkles, PlusCircle, Sun, Moon, ClipboardList
+  Sparkles, PlusCircle, Sun, Moon, ClipboardList, PieChart
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -17,6 +17,7 @@ import { formatCurrency } from '../utils/currency';
 
 const staticCommands = [
   { id: 'dashboard', name: 'Beranda Operasional', subtitle: 'Dashboard KPI & Action Desk', icon: <Home size={18} />, path: '/' },
+  { id: 'executive-bi', name: 'Executive BI & AI Analyst', subtitle: 'Analitik Operasional, Finansial, Bisnis & AI Insights', icon: <PieChart size={18} />, path: '/executive-bi' },
   { id: 'calendar', name: 'Kalender Perjalanan', subtitle: 'Jadwal keberangkatan & visa lintas modul', icon: <Calendar size={18} />, path: '/calendar' },
   { id: 'ai-copilot', name: 'TravelOps AI Copilot', subtitle: 'Asisten operasional & pembuat template WA', icon: <Sparkles size={18} />, isAi: true },
   { id: 'tours', name: 'Tour & Perjalanan', subtitle: 'Series, Incentive & Consortium Tours', icon: <Map size={18} />, path: '/tours' },
@@ -355,6 +356,9 @@ const CommandPalette = () => {
     >
       <div
         className="card glass fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Pencarian Cepat dan Navigasi"
         style={{
           width: '100%',
           maxWidth: '680px',

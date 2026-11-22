@@ -34,7 +34,7 @@ const Profile = () => {
   const navigate = useNavigate();
 
   const isLight = theme === 'light';
-  const neonBlue = isLight ? '#0284c7' : '#00d4ff';
+  const neonBlue = isLight ? '#0284c7' : '#38bdf8';
 
   // Domain contexts for operational telemetry
   const { tours = [] } = useTours() || {};
@@ -326,48 +326,31 @@ const Profile = () => {
         <div className="content-area">
           <div className="page-container" style={{ maxWidth: '1100px', margin: '0 auto' }}>
 
-            {/* HERO PROFILE IDENTITY CARD */}
-            <div className="card" style={{ 
-              marginBottom: '1.5rem', 
-              borderRadius: '20px', 
-              padding: '2rem', 
-              border: '1px solid var(--border)', 
-              boxShadow: 'var(--shadow-card)',
-              position: 'relative',
-              overflow: 'hidden',
+            {/* HERO PROFILE IDENTITY CARD (Restrained, Zero Blurred Glow Orb) */}
+            <div className="card" style={{
+              marginBottom: '1rem',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.35rem 1.5rem',
+              border: '1px solid var(--border)',
               background: 'var(--bg-card)'
             }}>
-              {/* Ambient Glow */}
-              <div style={{ 
-                position: 'absolute', 
-                top: '-40px', 
-                right: '-40px', 
-                background: `${roleBadgeColor}18`, 
-                width: '180px', 
-                height: '180px', 
-                borderRadius: '50%', 
-                filter: 'blur(45px)',
-                pointerEvents: 'none'
-              }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
                   
-                  {/* Dynamic Glowing Avatar */}
+                  {/* Clean Avatar */}
                   <div style={{ position: 'relative' }}>
-                    <div style={{ 
-                      width: '88px', 
-                      height: '88px', 
-                      borderRadius: '50%', 
+                    <div style={{
+                      width: '68px',
+                      height: '68px',
+                      borderRadius: '50%',
                       background: selectedGradient,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '2.25rem',
+                      fontSize: '1.65rem',
                       fontWeight: '800',
                       color: '#ffffff',
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
-                      border: '3px solid rgba(255, 255, 255, 0.2)'
+                      border: '2px solid var(--border)'
                     }}>
                       {initials}
                     </div>
@@ -443,153 +426,110 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* 4 KPI SCORECARDS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
-              
-              {/* Role Authority */}
-              <div className="card" style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.825rem', fontWeight: '500', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Shield size={16} color={roleBadgeColor} /> Assigned Authority
+            {/* CONSOLIDATED OPERATOR METADATA STRIP (Replaces 4 Redundant Static Cards) */}
+            <div
+              className="card"
+              style={{
+                padding: 0,
+                marginBottom: '1.25rem',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                overflow: 'hidden'
+              }}
+            >
+              <div style={{ padding: '0.9rem 1.1rem', borderRight: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ color: 'var(--text-subtle)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Shield size={13} color={roleBadgeColor} /> Assigned Authority
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: '800', color: roleBadgeColor }}>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.3rem' }}>
                   {user?.role || 'Staff'} Level
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  {user?.role === 'Admin' ? 'Full governance & master system controls' : user?.role === 'Manager' ? 'Operational approvals & team supervision' : 'Frontline booking & operational handling'}
+                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                  {user?.role === 'Admin' ? 'Full governance & master controls' : user?.role === 'Manager' ? 'Operational approvals & supervision' : 'Frontline booking & operations'}
                 </div>
               </div>
 
-              {/* Security Health */}
-              <div className="card" style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.825rem', fontWeight: '500', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Key size={16} color={user?.mustChangePassword ? '#f59e0b' : '#10b981'} /> Security Status
+              <div style={{ padding: '0.9rem 1.1rem', borderRight: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ color: 'var(--text-subtle)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Key size={13} color={user?.mustChangePassword ? 'var(--warning)' : 'var(--success)'} /> Security Status
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: '800', color: user?.mustChangePassword ? '#f59e0b' : '#10b981' }}>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: user?.mustChangePassword ? 'var(--warning)' : 'var(--success)', marginTop: '0.3rem' }}>
                   {user?.mustChangePassword ? 'Pending Update' : 'Compliant'}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  {user?.mustChangePassword ? 'Temporary password must be replaced' : 'Authentication credentials safe & active'}
+                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                  {user?.mustChangePassword ? 'Temporary password must be replaced' : 'Authentication credentials active'}
                 </div>
               </div>
 
-              {/* Active Sessions */}
-              <div className="card" style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.825rem', fontWeight: '500', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Smartphone size={16} color={neonBlue} /> Connected Devices
+              <div style={{ padding: '0.9rem 1.1rem', borderRight: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ color: 'var(--text-subtle)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Smartphone size={13} color="var(--primary)" /> Connected Devices
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-main)' }}>
-                  {activeSessions.length || 1} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>Active Session{activeSessions.length !== 1 ? 's' : ''}</span>
+                <div className="tabular-nums" style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.3rem' }}>
+                  {activeSessions.length || 1} Active Session{activeSessions.length !== 1 ? 's' : ''}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  Current browser verified & active
-                </div>
-              </div>
-
-              {/* Operational Footprint */}
-              <div className="card" style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.825rem', fontWeight: '500', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Activity size={16} color="#38bdf8" /> Operational Footprint
-                </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#38bdf8' }}>
-                  {totalContributions} <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>Entries</span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  Tours, sales, documents & overtime records
+                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                  Current browser verified &amp; active
                 </div>
               </div>
 
+              <div style={{ padding: '0.9rem 1.1rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ color: 'var(--text-subtle)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Activity size={13} color="var(--primary)" /> Operational Footprint
+                </div>
+                <div className="tabular-nums" style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.3rem' }}>
+                  {totalContributions} Entries
+                </div>
+                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                  Tours, sales, documents &amp; overtime
+                </div>
+              </div>
             </div>
 
-            {/* TAB SUB-NAV BAR */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
-              
-              <button 
-                type="button" 
+            {/* UNIFIED TAB SUB-NAV BAR */}
+            <div role="tablist" aria-label="Profile Sections" className="tabs-container" style={{ marginBottom: '1.25rem' }}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'identity'}
+                className={`tab-btn ${activeTab === 'identity' ? 'active' : ''}`}
                 onClick={() => setActiveTab('identity')}
-                style={{ 
-                  background: activeTab === 'identity' ? neonBlue : 'transparent',
-                  color: activeTab === 'identity' ? '#ffffff' : 'var(--text-muted)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '0.6rem 1.15rem',
-                  fontSize: '0.85rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s ease'
-                }}
               >
-                <User size={15} /> Identity & Profile
+                <User size={15} /> Identity &amp; Profile
               </button>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'security'}
+                className={`tab-btn ${activeTab === 'security' ? 'active' : ''}`}
                 onClick={() => setActiveTab('security')}
-                style={{ 
-                  background: activeTab === 'security' ? neonBlue : 'transparent',
-                  color: activeTab === 'security' ? '#ffffff' : 'var(--text-muted)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '0.6rem 1.15rem',
-                  fontSize: '0.85rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s ease'
-                }}
               >
-                <Key size={15} /> Security & Password
+                <Key size={15} /> Security &amp; Password
                 {user?.mustChangePassword && (
-                  <span style={{ background: '#f59e0b', color: '#000000', width: '8px', height: '8px', borderRadius: '50%' }} />
+                  <span style={{ background: 'var(--warning)', width: '7px', height: '7px', borderRadius: '50%' }} />
                 )}
               </button>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'sessions'}
+                className={`tab-btn ${activeTab === 'sessions' ? 'active' : ''}`}
                 onClick={() => setActiveTab('sessions')}
-                style={{ 
-                  background: activeTab === 'sessions' ? neonBlue : 'transparent',
-                  color: activeTab === 'sessions' ? '#ffffff' : 'var(--text-muted)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '0.6rem 1.15rem',
-                  fontSize: '0.85rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s ease'
-                }}
               >
                 <Smartphone size={15} /> Connected Devices ({activeSessions.length || 1})
               </button>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'activity'}
+                className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
                 onClick={() => setActiveTab('activity')}
-                style={{ 
-                  background: activeTab === 'activity' ? neonBlue : 'transparent',
-                  color: activeTab === 'activity' ? '#ffffff' : 'var(--text-muted)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '0.6rem 1.15rem',
-                  fontSize: '0.85rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  transition: 'all 0.15s ease'
-                }}
               >
-                <Activity size={15} /> Work & Telemetry ({totalContributions})
+                <Activity size={15} /> Work &amp; Telemetry ({totalContributions})
               </button>
-
             </div>
 
             {/* TAB CONTENT 1: IDENTITY & PROFILE */}

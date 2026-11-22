@@ -10,75 +10,75 @@ import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../supabaseClient';
 
-// Module context detector
+// Module context detector (Clean enterprise tags — no raw emojis)
 const getModuleInfo = (pathname) => {
   const p = (pathname || '').toLowerCase();
   if (p.includes('/tour')) {
-    return { name: 'Tour Management', icon: '🗺️', key: 'tours' };
+    return { name: 'Tour Management', code: 'TOUR', key: 'tours' };
   }
   if (p.includes('/document')) {
-    return { name: 'Dokumen & Visa Desk', icon: '🛂', key: 'documents' };
+    return { name: 'Dokumen & Visa Desk', code: 'VISA', key: 'documents' };
   }
   if (p.includes('/hotel')) {
-    return { name: 'Hotel Reservations', icon: '🏨', key: 'hotels' };
+    return { name: 'Hotel Reservations', code: 'HTL', key: 'hotels' };
   }
   if (p.includes('/cruise')) {
-    return { name: 'Cruise Bookings', icon: '🚢', key: 'cruises' };
+    return { name: 'Cruise Bookings', code: 'CRS', key: 'cruises' };
   }
   if (p.includes('/corporate')) {
-    return { name: 'Corporate & MICE', icon: '💼', key: 'corporate' };
+    return { name: 'Corporate & MICE', code: 'B2B', key: 'corporate' };
   }
   if (p.includes('/knowledge') || p.includes('/destination')) {
-    return { name: 'Knowledge Base', icon: '📚', key: 'kb' };
+    return { name: 'Knowledge Base', code: 'KB', key: 'kb' };
   }
   if (p.includes('/productivity') || p.includes('/task')) {
-    return { name: 'Productivity & Tasks', icon: '⚡', key: 'tasks' };
+    return { name: 'Productivity & Tasks', code: 'OPS', key: 'tasks' };
   }
   if (p.includes('/sales')) {
-    return { name: 'Sales & Targets', icon: '📈', key: 'sales' };
+    return { name: 'Sales & Targets', code: 'SLS', key: 'sales' };
   }
-  return { name: 'Operasional Travel', icon: '✈️', key: 'default' };
+  return { name: 'Operasional Travel', code: 'OPS', key: 'default' };
 };
 
 // Contextual Quick Prompts Map
 const CONTEXT_PROMPTS = {
   tours: [
-    { icon: '🗺️', label: 'Draft Itinerary 7D6N Jepang', prompt: 'Buatkan usulan itinerary ringkas 7 Hari 6 Malam ke Jepang (Tokyo - Mt Fuji - Kyoto - Osaka) lengkap dengan highlight per hari, estimasi durasi kunjungan objek, dan rekomendasi area hotel.' },
-    { icon: '📊', label: 'Hitung Margin & FOC Tour', prompt: 'Jelaskan cara perhitungan harga jual paket tour group dengan rasio 15+1 FOC (Free of Charge tour leader), single supplement, dan target margin 18%.' },
-    { icon: '🚌', label: 'Briefing Sheet Tour Leader', prompt: 'Buatkan template checklist briefing sheet Tour Leader di bus hari pertama: meeting point bandara, jam istirahat rest area, aturan toilet di bus, dan tips barang berharga.' },
-    { icon: '⏰', label: 'Pacing & Batas Jam Driver', prompt: 'Bagaimana standar pacing waktu tempuh perjalanan bus (coach travel) yang aman dan nyaman untuk tamu group, serta aturan batas jam kerja driver bus di Eropa?' }
+    { label: 'Draft Itinerary 7D6N Jepang', prompt: 'Buatkan usulan itinerary ringkas 7 Hari 6 Malam ke Jepang (Tokyo - Mt Fuji - Kyoto - Osaka) lengkap dengan highlight per hari, estimasi durasi kunjungan objek, dan rekomendasi area hotel.' },
+    { label: 'Hitung Margin & FOC Tour', prompt: 'Jelaskan cara perhitungan harga jual paket tour group dengan rasio 15+1 FOC (Free of Charge tour leader), single supplement, dan target margin 18%.' },
+    { label: 'Briefing Sheet Tour Leader', prompt: 'Buatkan template checklist briefing sheet Tour Leader di bus hari pertama: meeting point bandara, jam istirahat rest area, aturan toilet di bus, dan tips barang berharga.' },
+    { label: 'Pacing & Batas Jam Driver', prompt: 'Bagaimana standar pacing waktu tempuh perjalanan bus (coach travel) yang aman dan nyaman untuk tamu group, serta aturan batas jam kerja driver bus di Eropa?' }
   ],
   documents: [
-    { icon: '🛂', label: 'Syarat Visa Schengen WNI', prompt: 'Apa saja checklist dokumen persyaratan pengajuan visa turis Schengen terbaru untuk pemegang paspor Indonesia (rekening koran, asuransi 30.000 EUR, surat sponsor, tiket, booking hotel)?' },
-    { icon: '⏳', label: 'Aturan Paspor 6 Bulan', prompt: 'Jelaskan ketentuan internasional mengenai masa berlaku paspor minimal 6 bulan saat tanggal keberangkatan, aturan halaman kosong (blank pages), dan risiko jika paspor cacat/terkelupas.' },
-    { icon: '✉️', label: 'Template WA Berkas Kurang', prompt: 'Buatkan template pesan WhatsApp sopan dan mendesak kepada tamu yang belum melengkapi pasfoto dan mutasi rekening untuk proses visa H-21 keberangkatan.' },
-    { icon: '🇯🇵', label: 'Ketentuan Visa Jepang / e-Visa', prompt: 'Jelaskan perbedaan pengajuan visa waiver untuk e-Paspor Indonesia vs visa reguler (stiker) untuk paspor biasa ke Jepang beserta masa tinggal dan masa berlakunya.' }
+    { label: 'Syarat Visa Schengen WNI', prompt: 'Apa saja checklist dokumen persyaratan pengajuan visa turis Schengen terbaru untuk pemegang paspor Indonesia (rekening koran, asuransi 30.000 EUR, surat sponsor, tiket, booking hotel)?' },
+    { label: 'Aturan Paspor 6 Bulan', prompt: 'Jelaskan ketentuan internasional mengenai masa berlaku paspor minimal 6 bulan saat tanggal keberangkatan, aturan halaman kosong (blank pages), dan risiko jika paspor cacat/terkelupas.' },
+    { label: 'Template WA Berkas Kurang', prompt: 'Buatkan template pesan WhatsApp sopan dan mendesak kepada tamu yang belum melengkapi pasfoto dan mutasi rekening untuk proses visa H-21 keberangkatan.' },
+    { label: 'Ketentuan Visa Jepang / e-Visa', prompt: 'Jelaskan perbedaan pengajuan visa waiver untuk e-Paspor Indonesia vs visa reguler (stiker) untuk paspor biasa ke Jepang beserta masa tinggal dan masa berlakunya.' }
   ],
   hotels: [
-    { icon: '🏨', label: 'Draft Email Negosiasi Hotel', prompt: 'Tolong buatkan draft email resmi dalam bahasa Inggris kepada sales manager hotel untuk meminta penawaran Group Booking 15 Twin Rooms, include breakfast buffet & complimentary room voucher.' },
-    { icon: '🛏️', label: 'Format Standar Rooming List', prompt: 'Bagaimana format standar rooming list internasional yang harus diserahkan ke hotel (Pax Name, Room Type, Twin/Double, Bed Configuration, Special Request, Arrival/Departure Time)?' },
-    { icon: '📍', label: 'Kriteria Lokasi Hotel Grup', prompt: 'Apa saja kriteria pemilihan hotel ideal untuk grup tour di kota besar (kemudahan akses bus besar, jarak ke metro/stasiun, minimarket di sekitar, dan regulasi city tax)?' }
+    { label: 'Draft Email Negosiasi Hotel', prompt: 'Tolong buatkan draft email resmi dalam bahasa Inggris kepada sales manager hotel untuk meminta penawaran Group Booking 15 Twin Rooms, include breakfast buffet & complimentary room voucher.' },
+    { label: 'Format Standar Rooming List', prompt: 'Bagaimana format standar rooming list internasional yang harus diserahkan ke hotel (Pax Name, Room Type, Twin/Double, Bed Configuration, Special Request, Arrival/Departure Time)?' },
+    { label: 'Kriteria Lokasi Hotel Grup', prompt: 'Apa saja kriteria pemilihan hotel ideal untuk grup tour di kota besar (kemudahan akses bus besar, jarak ke metro/stasiun, minimarket di sekitar, dan regulasi city tax)?' }
   ],
   cruises: [
-    { icon: '🚢', label: 'Biaya Wajib & Port Taxes', prompt: 'Jelaskan komponen biaya wajib pada paket cruise selain harga kamar (Port Charges, Government Taxes, Gratuity/Tips harian, dan Fuel Surcharge).' },
-    { icon: '🎫', label: 'Kategori Kabin Cruise', prompt: 'Jelaskan perbedaan keuntungan dan tips rekomendasi kamar Interior Stateroom, Oceanview, Balcony, dan Suite untuk paket liburan kapal pesiar.' },
-    { icon: '🌊', label: 'Info Shore Excursion', prompt: 'Buatkan panduan dan tips penting bagi tamu saat mengikuti Shore Excursion (tur turun di pelabuhan) agar tidak tertinggal jadwal all-aboard kapal pesiar.' }
+    { label: 'Biaya Wajib & Port Taxes', prompt: 'Jelaskan komponen biaya wajib pada paket cruise selain harga kamar (Port Charges, Government Taxes, Gratuity/Tips harian, dan Fuel Surcharge).' },
+    { label: 'Kategori Kabin Cruise', prompt: 'Jelaskan perbedaan keuntungan dan tips rekomendasi kamar Interior Stateroom, Oceanview, Balcony, dan Suite untuk paket liburan kapal pesiar.' },
+    { label: 'Info Shore Excursion', prompt: 'Buatkan panduan dan tips penting bagi tamu saat mengikuti Shore Excursion (tur turun di pelabuhan) agar tidak tertinggal jadwal all-aboard kapal pesiar.' }
   ],
   corporate: [
-    { icon: '💼', label: 'Draft Proposal Gathering B2B', prompt: 'Buatkan kerangka proposal penawaran paket Corporate Outing / Gathering 3 Hari 2 Malam untuk 80 peserta karyawan, mencakup teambuilding, gala dinner, dan estimasi budget.' },
-    { icon: '📑', label: 'Format Quotation All-In', prompt: 'Bagaimana menyusun format quotation B2B corporate yang profesional: item include vs exclude, breakdown per pax, terms of payment, dan validitas penawaran?' },
-    { icon: '💳', label: 'Aturan Term of Payment (TOP)', prompt: 'Berikan saran klausul Term of Payment (TOP) dan kebijakan cancellation refund yang aman bagi travel agency saat menangani kontrak tour korporasi skala besar.' }
+    { label: 'Draft Proposal Gathering B2B', prompt: 'Buatkan kerangka proposal penawaran paket Corporate Outing / Gathering 3 Hari 2 Malam untuk 80 peserta karyawan, mencakup teambuilding, gala dinner, dan estimasi budget.' },
+    { label: 'Format Quotation All-In', prompt: 'Bagaimana menyusun format quotation B2B corporate yang profesional: item include vs exclude, breakdown per pax, terms of payment, dan validitas penawaran?' },
+    { label: 'Aturan Term of Payment (TOP)', prompt: 'Berikan saran klausul Term of Payment (TOP) dan kebijakan cancellation refund yang aman bagi travel agency saat menangani kontrak tour korporasi skala besar.' }
   ],
   kb: [
-    { icon: '🔌', label: 'Info Colokan & Adaptor', prompt: 'Tolong berikan ringkasan tipe colokan listrik (A, C, G, dll), voltase standar, dan apakah perlu universal adaptor untuk destinasi wisata populer (Jepang, Eropa, UK, Swiss, Korsel).' },
-    { icon: '💶', label: 'Aturan Mata Uang & Kartu', prompt: 'Bagaimana tren pembayaran untuk turis di destinasi utama (apakah cashless/kartu debit-kredit seperti di Eropa/Korsel, atau masih membutuhkan banyak uang tunai/yen di Jepang)?' },
-    { icon: '🍜', label: 'Panduan Makanan Halal', prompt: 'Berikan tips praktis bagi tour leader dan tamu muslim untuk mencari makanan halal atau no-pork/no-lard saat berwisata di Jepang, Korea, dan Eropa.' }
+    { label: 'Info Colokan & Adaptor', prompt: 'Tolong berikan ringkasan tipe colokan listrik (A, C, G, dll), voltase standar, dan apakah perlu universal adaptor untuk destinasi wisata populer (Jepang, Eropa, UK, Swiss, Korsel).' },
+    { label: 'Aturan Mata Uang & Kartu', prompt: 'Bagaimana tren pembayaran untuk turis di destinasi utama (apakah cashless/kartu debit-kredit seperti di Eropa/Korsel, atau masih membutuhkan banyak uang tunai/yen di Jepang)?' },
+    { label: 'Panduan Makanan Halal', prompt: 'Berikan tips praktis bagi tour leader dan tamu muslim untuk mencari makanan halal atau no-pork/no-lard saat berwisata di Jepang, Korea, dan Eropa.' }
   ],
   default: [
-    { icon: '💬', label: 'Draft WA Reminder Pelunasan', prompt: 'Tolong buatkan template pesan WhatsApp yang ramah, jelas, dan profesional kepada tamu untuk reminder pelunasan tour group yang jatuh tempo H-7 keberangkatan.' },
-    { icon: '🛂', label: 'Cek Syarat Visa & Paspor', prompt: 'Apa saja syarat umum pengajuan visa turis (misal Schengen / Jepang / Korea) untuk pemegang paspor Indonesia dan ketentuan masa berlaku paspor?' },
-    { icon: '🗺️', label: 'Ide Rute Tour 5H4M', prompt: 'Buatkan usulan itinerary ringkas 5 Hari 4 Malam untuk paket tour keluarga ke Jepang (Tokyo - Fuji - Yokohama) lengkap dengan highlight per hari.' },
-    { icon: '🎒', label: 'Tips Packing Musim Dingin', prompt: 'Buatkan daftar perlengkapan dan pakaian penting (thermal layer, heattech, sarung tangan waterproof, lip balm) yang wajib dibawa turis untuk tour musim dingin / salju.' }
+    { label: 'Draft WA Reminder Pelunasan', prompt: 'Tolong buatkan template pesan WhatsApp yang ramah, jelas, dan profesional kepada tamu untuk reminder pelunasan tour group yang jatuh tempo H-7 keberangkatan.' },
+    { label: 'Cek Syarat Visa & Paspor', prompt: 'Apa saja syarat umum pengajuan visa turis (misal Schengen / Jepang / Korea) untuk pemegang paspor Indonesia dan ketentuan masa berlaku paspor?' },
+    { label: 'Ide Rute Tour 5H4M', prompt: 'Buatkan usulan itinerary ringkas 5 Hari 4 Malam untuk paket tour keluarga ke Jepang (Tokyo - Fuji - Yokohama) lengkap dengan highlight per hari.' },
+    { label: 'Tips Packing Musim Dingin', prompt: 'Buatkan daftar perlengkapan dan pakaian penting (thermal layer, heattech, sarung tangan waterproof, lip balm) yang wajib dibawa turis untuk tour musim dingin / salju.' }
   ]
 };
 
@@ -388,9 +388,10 @@ const AiCopilot = () => {
 
   return (
     <>
-      {/* FLOATING TRIGGER BUTTON */}
+      {/* FLOATING TRIGGER BUTTON (Restrained Enterprise Pill) */}
       {!isOpen && (
         <button
+          type="button"
           className="no-print"
           onClick={() => setIsOpen(true)}
           style={{
@@ -400,37 +401,35 @@ const AiCopilot = () => {
             zIndex: 9990,
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 0.95rem',
+            gap: '0.45rem',
+            padding: '0.48rem 0.9rem',
             borderRadius: '9999px',
-            background: 'linear-gradient(135deg, #38bdf8 0%, #0077ff 100%)',
+            background: 'var(--primary-deep)',
             color: '#ffffff',
-            border: '1px solid rgba(186, 230, 253, 0.45)',
-            boxShadow: '0 6px 22px rgba(0, 168, 255, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.14)',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
             cursor: 'pointer',
             fontWeight: '600',
-            fontSize: '0.785rem',
-            transition: 'transform 0.15s, box-shadow 0.15s'
+            fontSize: '0.78rem',
+            transition: 'filter 0.15s ease'
           }}
-          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           title="Buka TravelOps AI Copilot"
         >
           <Sparkles size={14} />
           <span>AI Copilot</span>
-          <span style={{
-            fontSize: '0.65rem',
-            padding: '1px 5px',
-            borderRadius: '10px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            fontWeight: '700'
-          }}>
-            {activeModule.icon}
+          <span
+            className="font-mono"
+            style={{
+              fontSize: '0.62rem',
+              padding: '1px 5px',
+              borderRadius: '4px',
+              background: 'rgba(255, 255, 255, 0.16)',
+              fontWeight: '700',
+              letterSpacing: '0.03em'
+            }}
+          >
+            {activeModule.code}
           </span>
-          <span style={{
-            width: '6px', height: '6px', borderRadius: '50%',
-            background: '#4ade80'
-          }} />
         </button>
       )}
 
@@ -439,59 +438,60 @@ const AiCopilot = () => {
         <div
           className="no-print"
           style={{
-          position: 'fixed',
-          bottom: isExpanded ? '20px' : '24px',
-          right: isExpanded ? '20px' : '24px',
-          width: isExpanded ? 'calc(100vw - 40px)' : '440px',
-          maxWidth: isExpanded ? '920px' : '92vw',
-          height: isExpanded ? 'calc(100vh - 40px)' : '600px',
-          maxHeight: '90vh',
-          zIndex: 9995,
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: '16px',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.55)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          
-          {/* Header */}
-          <div style={{
-            padding: '0.75rem 1rem',
-            background: isLight
-              ? 'linear-gradient(135deg, #f0f8ff 0%, #e0f2fe 100%)'
-              : 'linear-gradient(135deg, rgba(0, 168, 255, 0.16) 0%, rgba(10, 16, 32, 0.9) 100%)',
-            borderBottom: '1px solid var(--border)',
+            position: 'fixed',
+            bottom: isExpanded ? '20px' : '24px',
+            right: isExpanded ? '20px' : '24px',
+            width: isExpanded ? 'calc(100vw - 40px)' : '440px',
+            maxWidth: isExpanded ? '920px' : '92vw',
+            height: isExpanded ? 'calc(100vh - 40px)' : '600px',
+            maxHeight: '90vh',
+            zIndex: 9995,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.38)',
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <div style={{
-                width: '32px', height: '32px', borderRadius: '10px',
-                background: 'linear-gradient(135deg, #38bdf8 0%, #0077ff 100%)',
-                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 14px rgba(0, 168, 255, 0.45)'
-              }}>
-                <Sparkles size={17} />
+            flexDirection: 'column',
+            overflow: 'hidden',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: '0.75rem 1rem',
+              background: 'var(--bg-surface)',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '8px',
+                  background: 'var(--primary-deep)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Sparkles size={15} />
               </div>
               <div>
-                <div style={{ fontWeight: '800', fontSize: '0.875rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.86rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <span>TravelOps AI Copilot</span>
-                  <span style={{
-                    fontSize: '0.625rem', padding: '1px 6px', borderRadius: '4px',
-                    background: 'rgba(0, 168, 255, 0.16)', color: 'var(--primary)', fontWeight: '700'
-                  }}>
-                    Gemini Live
-                  </span>
+                  <span className="bi-micro-badge">Gemini Live</span>
                 </div>
-                <div style={{ fontSize: '0.685rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span>{activeModule.icon}</span>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span className="font-mono" style={{ fontSize: '0.64rem', color: 'var(--primary)', fontWeight: 700 }}>{activeModule.code}</span>
                   <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>{activeModule.name}</span>
                   <span style={{ opacity: 0.5 }}>•</span>
-                  <span style={{ color: '#4ade80' }}>RAG Grounded</span>
+                  <span style={{ color: 'var(--success)' }}>RAG Grounded</span>
                 </div>
               </div>
             </div>
@@ -583,13 +583,12 @@ const AiCopilot = () => {
                     <div style={{
                       padding: '0.75rem 0.95rem',
                       borderRadius: isAssistant ? '4px 14px 14px 14px' : '14px 4px 14px 14px',
-                      background: isAssistant ? (isLight ? '#f4f9ff' : 'rgba(255, 255, 255, 0.05)') : 'linear-gradient(135deg, #00a8ff 0%, #0077ff 100%)',
+                      background: isAssistant ? 'var(--bg-surface)' : 'var(--primary-deep)',
                       border: isAssistant ? '1px solid var(--border)' : 'none',
                       color: isAssistant ? 'var(--text-main)' : '#ffffff',
-                      fontSize: '0.825rem',
+                      fontSize: '0.82rem',
                       lineHeight: '1.5',
                       wordBreak: 'break-word',
-                      boxShadow: isLight ? '0 2px 10px rgba(0, 149, 255, 0.08)' : '0 2px 8px rgba(0, 0, 0, 0.15)',
                       position: 'relative'
                     }}>
                       {/* Formatted Content */}
@@ -696,13 +695,14 @@ const AiCopilot = () => {
             {quickPrompts.map((qp, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => handleSendMessage(qp.prompt)}
                 disabled={loading}
                 style={{
                   whiteSpace: 'nowrap',
-                  padding: '0.3rem 0.65rem',
-                  borderRadius: '16px',
-                  background: isLight ? '#ffffff' : 'rgba(255, 255, 255, 0.04)',
+                  padding: '0.28rem 0.65rem',
+                  borderRadius: '6px',
+                  background: 'var(--bg-card)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-muted)',
                   fontSize: '0.72rem',
@@ -711,18 +711,17 @@ const AiCopilot = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.3rem',
-                  transition: 'all 0.15s'
+                  transition: 'border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease'
                 }}
                 onMouseOver={e => {
-                  e.currentTarget.style.background = 'rgba(0, 168, 255, 0.14)';
+                  e.currentTarget.style.borderColor = 'var(--primary)';
                   e.currentTarget.style.color = 'var(--primary)';
                 }}
                 onMouseOut={e => {
-                  e.currentTarget.style.background = isLight ? '#ffffff' : 'rgba(255, 255, 255, 0.04)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
                   e.currentTarget.style.color = 'var(--text-muted)';
                 }}
               >
-                <span>{qp.icon}</span>
                 <span>{qp.label}</span>
               </button>
             ))}

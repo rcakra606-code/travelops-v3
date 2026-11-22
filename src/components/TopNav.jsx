@@ -138,6 +138,7 @@ const TopNav = ({ toggleSidebar }) => {
     if (p === '/documents') return [{ section: 'Layanan Tamu', page: 'Visa & Dokumen' }];
     if (p === '/telecom') return [{ section: 'Layanan Tamu', page: 'SIM, eSIM & WiFi' }];
     if (p === '/sales') return [{ section: 'Laporan & Tim', page: 'Penjualan & Target' }];
+    if (p === '/executive-bi') return [{ section: 'Workspace', page: 'Executive BI Analytics' }];
     if (p === '/productivity') return [{ section: 'Laporan & Tim', page: 'Produktivitas & P&L' }];
     if (p === '/corporate') return [{ section: 'Laporan & Tim', page: 'Klien Korporasi' }];
     if (p === '/overtime') return [{ section: 'Tim', page: 'Log Lembur Tim' }];
@@ -394,6 +395,9 @@ const TopNav = ({ toggleSidebar }) => {
         <button
           type="button"
           onClick={() => setShowClocks(!showClocks)}
+          aria-expanded={showClocks}
+          aria-haspopup="true"
+          aria-label="Jam Zona Waktu Perjalanan"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -446,22 +450,25 @@ const TopNav = ({ toggleSidebar }) => {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.45rem' }}>
               {[
-                { label: '🇮🇩 Jakarta (WIB)', time: clocks.jkt },
-                { label: '🇯🇵 Tokyo (JST)', time: clocks.tyo },
-                { label: '🇬🇧 London (GMT)', time: clocks.lon }
+                { code: 'WIB', city: 'Jakarta', time: clocks.jkt },
+                { code: 'JST', city: 'Tokyo', time: clocks.tyo },
+                { code: 'GMT', city: 'London', time: clocks.lon }
               ].map((tz) => (
                 <div
-                  key={tz.label}
+                  key={tz.code}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '0.42rem 0.55rem',
-                    borderRadius: '8px',
+                    borderRadius: '6px',
                     background: pillSurface
                   }}
                 >
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{tz.label}</span>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <span className="font-mono" style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-subtle)' }}>{tz.code}</span>
+                    {tz.city}
+                  </span>
                   <strong className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-main)' }}>
                     {tz.time}
                   </strong>
@@ -474,36 +481,38 @@ const TopNav = ({ toggleSidebar }) => {
 
       {/* Right: Quick Create + Keyboard + Notifications + Theme Toggle + User Menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-        {/* Global "+ Baru" Button (Alt+N) */}
+        {/* Global "+ Baru" Button (Alt+N) — Restrained secondary chrome so page CTAs lead */}
         <div style={{ position: 'relative' }} ref={quickCreateRef}>
           <button
             type="button"
             onClick={() => setShowQuickCreate(!showQuickCreate)}
-            className="btn btn-primary"
+            aria-expanded={showQuickCreate}
+            aria-haspopup="menu"
+            className="btn btn-secondary"
             style={{
-              padding: '0.42rem 0.85rem',
-              borderRadius: '10px',
-              fontSize: '0.8rem',
-              gap: '0.35rem'
+              padding: '0.4rem 0.78rem',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.79rem',
+              gap: '0.32rem'
             }}
             title="Buat transaksi baru (Alt+N)"
           >
-            <Plus size={15} />
+            <Plus size={14} color="var(--primary)" />
             <span className="desktop-only">Baru</span>
-            <ChevronDown size={12} />
+            <ChevronDown size={12} color="var(--text-subtle)" />
           </button>
 
           {showQuickCreate && (
             <div
-              className="card glass fade-in"
+              className="card fade-in"
               style={{
                 position: 'absolute',
                 top: '100%',
                 right: 0,
-                marginTop: '0.5rem',
+                marginTop: '0.45rem',
                 width: '240px',
-                padding: '0.45rem',
-                borderRadius: '12px',
+                padding: '0.4rem',
+                borderRadius: 'var(--radius-lg)',
                 zIndex: 60
               }}
             >
@@ -526,13 +535,13 @@ const TopNav = ({ toggleSidebar }) => {
                 <kbd className="kbd-badge" style={{ fontSize: '0.62rem' }}>Alt N</kbd>
               </div>
               {[
-                { label: 'Booking Tour Baru', icon: <Plane size={15} color="#0095ff" />, path: '/tours' },
-                { label: 'Form Pendaftaran Tour (PDF)', icon: <ClipboardList size={15} color="#0ea5e9" />, path: '/tour-registration-form' },
-                { label: 'Visa & Dokumen', icon: <FileText size={15} color="#8b5cf6" />, path: '/documents' },
-                { label: 'Reservasi Hotel', icon: <Building size={15} color="#f59e0b" />, path: '/hotel' },
-                { label: 'Pelayaran Cruise', icon: <Anchor size={15} color="#06b6d4" />, path: '/cruise' },
-                { label: 'Order SIM / eSIM / WiFi', icon: <Phone size={15} color="#ec4899" />, path: '/telecom' },
-                { label: 'Ajukan Lembur Tim', icon: <Clock size={15} color="#10b981" />, path: '/overtime' }
+                { label: 'Booking Tour Baru', icon: <Plane size={14} />, path: '/tours' },
+                { label: 'Form Pendaftaran Tour (PDF)', icon: <ClipboardList size={14} />, path: '/tour-registration-form' },
+                { label: 'Visa & Dokumen', icon: <FileText size={14} />, path: '/documents' },
+                { label: 'Reservasi Hotel', icon: <Building size={14} />, path: '/hotel' },
+                { label: 'Pelayaran Cruise', icon: <Anchor size={14} />, path: '/cruise' },
+                { label: 'Order SIM / eSIM / WiFi', icon: <Phone size={14} />, path: '/telecom' },
+                { label: 'Ajukan Lembur Tim', icon: <Clock size={14} />, path: '/overtime' }
               ].map((action) => (
                 <button
                   key={action.label}
@@ -545,13 +554,13 @@ const TopNav = ({ toggleSidebar }) => {
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.65rem',
-                    padding: '0.55rem 0.72rem',
-                    borderRadius: '8px',
+                    gap: '0.6rem',
+                    padding: '0.5rem 0.68rem',
+                    borderRadius: '6px',
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    fontSize: '0.82rem',
+                    fontSize: '0.81rem',
                     fontWeight: '500',
                     color: 'var(--text-main)',
                     textAlign: 'left',
@@ -564,7 +573,7 @@ const TopNav = ({ toggleSidebar }) => {
                     e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  {action.icon}
+                  <span style={{ color: 'var(--text-muted)', display: 'inline-flex' }}>{action.icon}</span>
                   <span>{action.label}</span>
                 </button>
               ))}
@@ -608,6 +617,8 @@ const TopNav = ({ toggleSidebar }) => {
           <button
             type="button"
             onClick={() => setShowNotifications(!showNotifications)}
+            aria-expanded={showNotifications}
+            aria-haspopup="true"
             style={{
               background: showNotifications ? hoverBg : 'transparent',
               border: '1px solid transparent',
@@ -913,6 +924,7 @@ const TopNav = ({ toggleSidebar }) => {
                         type="button"
                         onClick={(e) => dismissNotification(notif.id, e)}
                         title="Tandai dibaca"
+                        aria-label="Tandai notifikasi dibaca"
                         style={{
                           background: 'transparent',
                           border: 'none',
@@ -961,6 +973,9 @@ const TopNav = ({ toggleSidebar }) => {
           <button
             type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
+            aria-expanded={showUserMenu}
+            aria-haspopup="menu"
+            aria-label="Menu akun pengguna"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1051,13 +1066,19 @@ const TopNav = ({ toggleSidebar }) => {
                 </div>
               </div>
 
-              <div style={{ padding: '0.35rem 0' }}>
-                <div
+              <div style={{ padding: '0.35rem 0' }} role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={() => {
                     setShowUserMenu(false);
                     navigate('/profile');
                   }}
                   style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'transparent',
+                    textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.65rem',
@@ -1077,10 +1098,11 @@ const TopNav = ({ toggleSidebar }) => {
                 >
                   <User size={15} color="var(--primary)" />
                   <span>Profil Saya</span>
-                </div>
+                </button>
 
                 <Link
                   to="/track"
+                  role="menuitem"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setShowUserMenu(false)}
@@ -1108,12 +1130,18 @@ const TopNav = ({ toggleSidebar }) => {
                   </div>
                 </Link>
 
-                <div
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={() => {
                     setShowUserMenu(false);
                     openCommandPalette();
                   }}
                   style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'transparent',
+                    textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -1138,13 +1166,19 @@ const TopNav = ({ toggleSidebar }) => {
                   <kbd className="kbd-badge" style={{ fontSize: '0.625rem', padding: '0.06rem 0.32rem' }}>
                     Ctrl K
                   </kbd>
-                </div>
+                </button>
               </div>
 
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
-                <div
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={handleLogout}
                   style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'transparent',
+                    textAlign: 'left',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.65rem',
@@ -1165,7 +1199,7 @@ const TopNav = ({ toggleSidebar }) => {
                 >
                   <LogOut size={15} />
                   <span>Keluar</span>
-                </div>
+                </button>
               </div>
             </div>
           )}

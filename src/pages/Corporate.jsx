@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import { Fragment, useState, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
@@ -6,6 +6,11 @@ import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
 import SkeletonLoader from '../components/SkeletonLoader';
 import EmptyState from '../components/EmptyState';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiKpiCard from '../components/bi/BiKpiCard';
+import BiChartCard from '../components/bi/BiChartCard';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS, formatAxisCompact, formatCompactIdr } from '../utils/formatters';
 import { useCorporate } from '../context/CorporateContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -631,76 +636,114 @@ const Corporate = () => {
           <div className="page-container">
 
             {/* HEADER BAR */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Building size={26} color={neonBlue} /> Corporate Telemetry & Accounts
-                </h1>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Multi-horizon contract performance, credit limit telemetry, and transaction ledger.
-                </p>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                {/* Account Filter Pill */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)', padding: '0.4rem 0.85rem', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                  <Filter size={15} color={neonBlue} />
-                  <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Account Filter:</span>
-                  <select 
-                    value={selectedAccountFilter} 
-                    onChange={e => setSelectedAccountFilter(e.target.value)}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}
+            <BiPageHeader
+              eyebrow="B2B CORPORATE ACCOUNTS & CREDIT TELEMETRY"
+              title="Corporate Telemetry & Accounts"
+              subtitle="Multi-horizon contract performance, credit limit telemetry, and transaction ledger."
+              actions={
+                <>
+                  {/* Account Filter Pill */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      background: 'var(--bg-card)',
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border)'
+                    }}
                   >
-                    <option value="All" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>All Corporate Accounts</option>
-                    {corporateAccounts.map(a => (
-                      <option key={a.id} value={a.accountCode} style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>
-                        {a.accountCode} - {a.corporateName || a.companyName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <Filter size={14} color="var(--primary)" aria-hidden="true" />
+                    <label
+                      htmlFor="corp-account-filter"
+                      style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}
+                    >
+                      Account:
+                    </label>
+                    <select
+                      id="corp-account-filter"
+                      value={selectedAccountFilter}
+                      onChange={e => setSelectedAccountFilter(e.target.value)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-main)',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '0.82rem'
+                      }}
+                    >
+                      <option value="All" style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>All Corporate Accounts</option>
+                      {corporateAccounts.map(a => (
+                        <option key={a.id} value={a.accountCode} style={{ background: 'var(--bg-surface)', color: 'var(--text-main)' }}>
+                          {a.accountCode} - {a.corporateName || a.companyName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {canAdd && (
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={() => handleOpenAccountModal()}
-                    style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.15rem' }}
-                  >
-                    <Plus size={16} /> New Account
-                  </button>
-                )}
-              </div>
-            </div>
+                  {canAdd && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => handleOpenAccountModal()}
+                      style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                    >
+                      <Plus size={15} /> New Account
+                    </button>
+                  )}
+                </>
+              }
+            />
 
             {/* TAB SELECTOR */}
-            <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-              <button 
-                className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} 
+            <div
+              role="tablist"
+              aria-label="Corporate Telemetry Views"
+              className="tabs-container"
+              style={{ marginBottom: '1.25rem', display: 'flex', gap: '0.4rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'dashboard'}
+                className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
                 onClick={() => setActiveTab('dashboard')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
               >
-                <Activity size={17} color={activeTab === 'dashboard' ? neonBlue : 'currentColor'} /> Executive Dashboard
+                <Activity size={16} aria-hidden="true" /> Executive Dashboard
               </button>
-              <button 
-                className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`} 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'comparison'}
+                className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`}
                 onClick={() => setActiveTab('comparison')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
               >
-                <BarChart2 size={17} color={activeTab === 'comparison' ? neonBlue : 'currentColor'} /> Period Comparison
+                <BarChart2 size={16} aria-hidden="true" /> Period Comparison
               </button>
-              <button 
-                className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`} 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'accounts'}
+                className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`}
                 onClick={() => setActiveTab('accounts')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
               >
-                <Building size={17} color={activeTab === 'accounts' ? neonBlue : 'currentColor'} /> Corporate Accounts ({corporateAccounts.length})
+                <Building size={16} aria-hidden="true" /> Corporate Accounts ({corporateAccounts.length})
               </button>
-              <button 
-                className={`tab-btn ${activeTab === 'sales' ? 'active' : ''}`} 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'sales'}
+                className={`tab-btn ${activeTab === 'sales' ? 'active' : ''}`}
                 onClick={() => setActiveTab('sales')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
               >
-                <TrendingUp size={17} color={activeTab === 'sales' ? neonBlue : 'currentColor'} /> Sales Database ({corporateSales.length})
+                <TrendingUp size={16} aria-hidden="true" /> Sales Database ({corporateSales.length})
               </button>
             </div>
 
@@ -709,179 +752,198 @@ const Corporate = () => {
             {/* ========================================================= */}
             {activeTab === 'dashboard' && (
               <div className="fade-in">
-                {/* 4 KPI SCORECARDS */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
-                  
-                  {/* Total Sales */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: `${neonBlue}20`, width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Briefcase size={16} color={neonBlue} /> Total Corporate Sales
-                    </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                      {formatCurrencyIdr(totalSales)}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                      Filtered: {filteredSales.length} transaction records
-                    </div>
-                  </div>
+                {/* 4 KPI SCORECARDS (Unified Enterprise BI Kit) */}
+                <div
+                  className="bi-kpi-grid"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(225px, 1fr))',
+                    gap: '0.9rem',
+                    marginBottom: '1.35rem'
+                  }}
+                >
+                  <BiKpiCard
+                    label="Total Corporate Sales"
+                    value={formatCompactIdr(totalSales)}
+                    subValue={`${formatCurrencyIdr(totalSales)} · ${filteredSales.length} transaksi`}
+                    tone="primary"
+                    icon={<Briefcase size={16} />}
+                    drilldownLabel="Lihat Ledger"
+                    onClick={() => setActiveTab('sales')}
+                  />
 
-                  {/* Total Profit */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(16, 185, 129, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <DollarSign size={16} color="#10b981" /> Total Gross Profit
-                    </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: '700', color: '#10b981', letterSpacing: '-0.025em' }}>
-                      {formatCurrencyIdr(totalProfit)}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                      Net margin realized from corporate bookings
-                    </div>
-                  </div>
+                  <BiKpiCard
+                    label="Total Gross Profit"
+                    value={formatCompactIdr(totalProfit)}
+                    subValue={`${formatCurrencyIdr(totalProfit)} net margin realized`}
+                    tone="success"
+                    icon={<DollarSign size={16} />}
+                    drilldownLabel="Bandingkan"
+                    onClick={() => setActiveTab('comparison')}
+                  />
 
-                  {/* Overall Margin */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(139, 92, 246, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Activity size={16} color="#8b5cf6" /> Blended Profit Margin
-                    </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                      {overallMargin}%
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                      Average yield across Flight, Hotel & Other
-                    </div>
-                  </div>
+                  <BiKpiCard
+                    label="Blended Profit Margin"
+                    value={`${overallMargin}%`}
+                    subValue="Average yield across Flight, Hotel & Other"
+                    tone="neutral"
+                    icon={<Activity size={16} />}
+                  />
 
-                  {/* Active Accounts & Telemetry */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(245, 158, 11, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Users size={16} color="#f59e0b" /> Active Contracts
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '1.85rem', fontWeight: '700', color: 'var(--text-main)' }}>{activeAccountsCount}</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>/ {corporateAccounts.length} Total</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', marginTop: '0.4rem', color: overLimitCount > 0 ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {overLimitCount > 0 ? <AlertCircle size={13}/> : <ShieldCheck size={13}/>}
-                      {overLimitCount > 0 ? `${overLimitCount} account(s) at or above limit` : 'All credit limits healthy'}
-                    </div>
-                  </div>
-
+                  <BiKpiCard
+                    label="Active Contracts"
+                    value={`${activeAccountsCount} / ${corporateAccounts.length}`}
+                    subValue={
+                      <span
+                        style={{
+                          color: overLimitCount > 0 ? 'var(--danger)' : 'var(--success)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 600
+                        }}
+                      >
+                        {overLimitCount > 0 ? <AlertCircle size={13} /> : <ShieldCheck size={13} />}
+                        {overLimitCount > 0 ? `${overLimitCount} account(s) at or above limit` : 'All credit limits healthy'}
+                      </span>
+                    }
+                    tone={overLimitCount > 0 ? 'danger' : 'success'}
+                    icon={<Users size={16} />}
+                    drilldownLabel="Lihat Akun"
+                    onClick={() => setActiveTab('accounts')}
+                  />
                 </div>
 
                 {/* CHARTS ROW 1: Trend & Category Mix */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.1rem', marginBottom: '1.1rem' }}>
                   
                   {/* Sales & Profit Trend */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                      <div>
-                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Sales & Profit Trend</h3>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Monthly revenue and margin trajectory</p>
-                      </div>
-                    </div>
-                    <div style={{ height: '300px' }}>
-                      <ResponsiveContainer>
-                        <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
+                  <BiChartCard
+                    title="Sales & Profit Trend"
+                    subtitle="Monthly revenue and margin trajectory"
+                    isEmpty={trendData.length === 0}
+                    emptyTitle="Belum ada tren transaksi corporate"
+                    emptyDescription="Tambahkan transaksi corporate pada tab Sales Database untuk melihat tren bulanan."
+                  >
+                    <div style={{ height: '285px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trendData} margin={{ top: 8, right: 10, left: 4, bottom: 0 }}>
                           <defs>
                             <linearGradient id="corpSalesGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={neonBlue} stopOpacity={0.35}/>
-                              <stop offset="95%" stopColor={neonBlue} stopOpacity={0.0}/>
+                              <stop offset="5%" stopColor={BI_CHART_COLORS.primary} stopOpacity={0.28} />
+                              <stop offset="95%" stopColor={BI_CHART_COLORS.primary} stopOpacity={0.0} />
                             </linearGradient>
                             <linearGradient id="corpProfitGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                              <stop offset="5%" stopColor={BI_CHART_COLORS.emerald} stopOpacity={0.26} />
+                              <stop offset="95%" stopColor={BI_CHART_COLORS.emerald} stopOpacity={0.0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                           <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                          <Legend verticalAlign="top" height={36} iconType="circle" />
-                          <Area type="monotone" dataKey="Sales" stroke={neonBlue} strokeWidth={2.5} fillOpacity={1} fill="url(#corpSalesGrad)" />
-                          <Area type="monotone" dataKey="Profit" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#corpProfitGrad)" />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatAxisCompact} />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
+                          <Legend verticalAlign="top" height={32} iconType="circle" wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Area type="monotone" dataKey="Sales" stroke={BI_CHART_COLORS.primary} strokeWidth={2.2} fillOpacity={1} fill="url(#corpSalesGrad)" />
+                          <Area type="monotone" dataKey="Profit" stroke={BI_CHART_COLORS.emerald} strokeWidth={2.2} fillOpacity={1} fill="url(#corpProfitGrad)" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
                   {/* Category Donut Mix */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Sales by Category</h3>
-                    <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Revenue distribution across segments</p>
-                    <div style={{ height: '280px' }}>
-                      <ResponsiveContainer>
+                  <BiChartCard
+                    title="Sales by Category"
+                    subtitle="Revenue distribution across segments"
+                    isEmpty={catBarData.filter(d => d.Sales > 0).length === 0}
+                    emptyTitle="Belum ada distribusi kategori"
+                    emptyDescription="Belum ada penjualan corporate yang tercatat untuk filter ini."
+                  >
+                    <div style={{ height: '285px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
                             data={catBarData.filter(d => d.Sales > 0)}
                             cx="50%"
                             cy="50%"
-                            innerRadius={65}
-                            outerRadius={95}
-                            paddingAngle={5}
+                            innerRadius={60}
+                            outerRadius={92}
+                            paddingAngle={4}
                             dataKey="Sales"
                           >
                             {catBarData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={[neonBlue, '#10b981', '#f59e0b', '#8b5cf6'][index % 4]} />
+                              <Cell key={`cell-${index}`} fill={BI_CHART_COLORS.series[index % BI_CHART_COLORS.series.length]} />
                             ))}
                           </Pie>
-                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
+                          <Legend verticalAlign="bottom" height={34} iconType="circle" wrapperStyle={{ fontSize: '0.78rem' }} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
                 </div>
 
                 {/* CHARTS ROW 2: Top Accounts & Product Mix */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem', marginBottom: '1.1rem' }}>
                   
                   {/* Top 5 Accounts */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Top 5 Accounts by Revenue</h3>
-                    <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Highest billing corporate clients</p>
-                    <div style={{ height: '300px' }}>
-                      <ResponsiveContainer>
-                        <BarChart data={topAccountsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                  <BiChartCard
+                    title="Top 5 Accounts by Revenue"
+                    subtitle="Highest billing corporate clients"
+                    isEmpty={topAccountsData.length === 0}
+                    emptyTitle="Belum ada data akun top"
+                    emptyDescription="Tambahkan transaksi corporate untuk memeringkat akun."
+                  >
+                    <div style={{ height: '285px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topAccountsData} margin={{ top: 8, right: 10, left: 4, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                           <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} cursor={{ fill: 'var(--border)', opacity: 0.3 }} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                          <Legend verticalAlign="top" height={36} iconType="circle" />
-                          <Bar dataKey="Sales" fill={neonBlue} radius={[6, 6, 0, 0]} barSize={34} />
-                          <Bar dataKey="Profit" fill="#10b981" radius={[6, 6, 0, 0]} barSize={34} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatAxisCompact} />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} cursor={{ fill: 'var(--border)', opacity: 0.3 }} />
+                          <Legend verticalAlign="top" height={32} iconType="circle" wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Bar dataKey="Sales" fill={BI_CHART_COLORS.primary} radius={[4, 4, 0, 0]} barSize={30} />
+                          <Bar dataKey="Profit" fill={BI_CHART_COLORS.emerald} radius={[4, 4, 0, 0]} barSize={30} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
                   {/* Product Mix Stacked Bar */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                      <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>Monthly Product Mix</h3>
-                      <span style={{ fontSize: '0.75rem', color: neonBlue, fontWeight: '600', background: `${neonBlue}18`, padding: '2px 8px', borderRadius: '6px' }}>Year {selectedYear}</span>
-                    </div>
-                    <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Segmented contribution by calendar month</p>
-                    <div style={{ height: '300px' }}>
-                      <ResponsiveContainer>
-                        <BarChart data={productMixData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                  <BiChartCard
+                    title="Monthly Product Mix"
+                    subtitle="Segmented contribution by calendar month"
+                    badge={
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          color: 'var(--primary)',
+                          fontWeight: 700,
+                          background: 'var(--primary-soft)',
+                          padding: '0.14rem 0.48rem',
+                          borderRadius: '5px'
+                        }}
+                      >
+                        Year {selectedYear}
+                      </span>
+                    }
+                  >
+                    <div style={{ height: '285px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={productMixData} margin={{ top: 8, right: 10, left: 4, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                           <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000000}M`} />
-                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} cursor={{ fill: 'var(--border)', opacity: 0.3 }} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                          <Legend verticalAlign="top" height={36} iconType="circle" />
-                          <Bar dataKey="Flight" stackId="mix" fill={neonBlue} barSize={26} />
-                          <Bar dataKey="Hotel" stackId="mix" fill="#10b981" />
-                          <Bar dataKey="Other" stackId="mix" fill="#f59e0b" />
-                          <Bar dataKey="All Sales" stackId="mix" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatAxisCompact} />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} cursor={{ fill: 'var(--border)', opacity: 0.3 }} />
+                          <Legend verticalAlign="top" height={32} iconType="circle" wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Bar dataKey="Flight" stackId="mix" fill={BI_CHART_COLORS.primary} barSize={24} />
+                          <Bar dataKey="Hotel" stackId="mix" fill={BI_CHART_COLORS.emerald} />
+                          <Bar dataKey="Other" stackId="mix" fill={BI_CHART_COLORS.amber} />
+                          <Bar dataKey="All Sales" stackId="mix" fill={BI_CHART_COLORS.slate} radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
                 </div>
 
@@ -957,10 +1019,10 @@ const Corporate = () => {
                       </tr>
                       <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
                         {Array.from({ length: 13 }).map((_, i) => (
-                          <React.Fragment key={i}>
+                          <Fragment key={i}>
                             <th style={{ padding: '0.45rem', textAlign: 'right', color: 'var(--text-muted)', borderLeft: '1px solid var(--border)', width: '60px', fontSize: '0.7rem' }}>Sales</th>
                             <th style={{ padding: '0.45rem', textAlign: 'right', color: 'var(--text-muted)', width: '60px', fontSize: '0.7rem' }}>Profit</th>
-                          </React.Fragment>
+                          </Fragment>
                         ))}
                       </tr>
                     </thead>
@@ -976,14 +1038,14 @@ const Corporate = () => {
                             {Array.from({ length: 12 }).map((_, i) => {
                               const m = (i + 1).toString().padStart(2, '0');
                               return (
-                                <React.Fragment key={m}>
+                                <Fragment key={m}>
                                   <td style={{ padding: '0.65rem', textAlign: 'right', borderLeft: '1px solid var(--border)' }}>
                                     {row.months[m].sales === 0 ? '-' : formatCurrencyIdr(row.months[m].sales)}
                                   </td>
                                   <td style={{ padding: '0.65rem', textAlign: 'right', color: row.months[m].profit > 0 ? '#10b981' : 'var(--text-muted)' }}>
                                     {row.months[m].profit === 0 ? '-' : formatCurrencyIdr(row.months[m].profit)}
                                   </td>
-                                </React.Fragment>
+                                </Fragment>
                               );
                             })}
                             <td style={{ padding: '0.65rem', textAlign: 'right', borderLeft: '1px solid var(--border)', fontWeight: '700', color: neonBlue }}>
@@ -1174,35 +1236,37 @@ const Corporate = () => {
                 </div>
 
                 {/* Side-by-side Chart & Breakdown */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.1rem' }}>
                   
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1rem', fontWeight: '600' }}>Sales: {compPeriodA} vs {compPeriodB}</h3>
-                    <div style={{ height: '300px' }}>
-                      <ResponsiveContainer>
-                        <BarChart data={[{ name: 'Sales Horizon', PeriodA: compData.dataA.sales, PeriodB: compData.dataB.sales }]} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                  <BiChartCard
+                    title={`Sales: ${compPeriodA} vs ${compPeriodB}`}
+                    subtitle="Perbandingan total penjualan antar dua horizon periode"
+                  >
+                    <div style={{ height: '285px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[{ name: 'Sales Horizon', PeriodA: compData.dataA.sales, PeriodB: compData.dataB.sales }]} margin={{ top: 16, right: 10, left: 4, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                          <XAxis dataKey="name" stroke="var(--text-muted)" tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" tickFormatter={(val) => `Rp${val/1000000}M`} tickLine={false} axisLine={false} width={80} />
-                          <RechartsTooltip formatter={(value) => formatCurrencyIdr(value)} contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                          <Legend verticalAlign="top" height={36} />
-                          <Bar dataKey="PeriodA" name={`Period A (${compPeriodA})`} fill={neonBlue} radius={[6, 6, 0, 0]} barSize={55} />
-                          <Bar dataKey="PeriodB" name={`Period B (${compPeriodB})`} fill="#10b981" radius={[6, 6, 0, 0]} barSize={55} />
+                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={formatAxisCompact} tickLine={false} axisLine={false} width={60} />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
+                          <Legend verticalAlign="top" height={32} wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Bar dataKey="PeriodA" name={`Period A (${compPeriodA})`} fill={BI_CHART_COLORS.primary} radius={[4, 4, 0, 0]} barSize={52} />
+                          <Bar dataKey="PeriodB" name={`Period B (${compPeriodB})`} fill={BI_CHART_COLORS.emerald} radius={[4, 4, 0, 0]} barSize={52} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
                   {/* Account Breakdown Table */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', overflowX: 'auto', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1rem', fontWeight: '600' }}>Account Revenue Breakdown</h3>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <div className="card" style={{ borderRadius: '10px', padding: '1.1rem 1.2rem', overflowX: 'auto' }}>
+                    <h3 style={{ margin: '0 0 0.85rem 0', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '700' }}>Account Revenue Breakdown</h3>
+                    <table className="bi-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                          <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-muted)' }}>Account Code</th>
-                          <th style={{ textAlign: 'right', padding: '0.75rem', color: neonBlue }}>Period A</th>
-                          <th style={{ textAlign: 'right', padding: '0.75rem', color: '#10b981' }}>Period B</th>
-                          <th style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--text-muted)' }}>Variance</th>
+                          <th style={{ textAlign: 'left', padding: '0.65rem 0.7rem', color: 'var(--text-muted)' }}>Account Code</th>
+                          <th style={{ textAlign: 'right', padding: '0.65rem 0.7rem', color: 'var(--primary)' }}>Period A</th>
+                          <th style={{ textAlign: 'right', padding: '0.65rem 0.7rem', color: 'var(--success)' }}>Period B</th>
+                          <th style={{ textAlign: 'right', padding: '0.65rem 0.7rem', color: 'var(--text-muted)' }}>Variance</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1212,10 +1276,10 @@ const Corporate = () => {
                           const varPct = valB > 0 ? ((valA - valB) / valB * 100) : (valA > 0 ? 100 : 0);
                           return (
                             <tr key={accCode} style={{ borderBottom: '1px solid var(--border)' }}>
-                              <td style={{ padding: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{accCode}</td>
-                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrencyIdr(valA)}</td>
-                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrencyIdr(valB)}</td>
-                              <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'bold', color: varPct > 0 ? '#10b981' : (varPct < 0 ? '#ef4444' : 'var(--text-muted)') }}>
+                              <td style={{ padding: '0.65rem 0.7rem', color: 'var(--text-main)', fontWeight: '600' }}>{accCode}</td>
+                              <td className="tabular-nums" style={{ padding: '0.65rem 0.7rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrencyIdr(valA)}</td>
+                              <td className="tabular-nums" style={{ padding: '0.65rem 0.7rem', textAlign: 'right', color: 'var(--text-main)' }}>{formatCurrencyIdr(valB)}</td>
+                              <td className="tabular-nums" style={{ padding: '0.65rem 0.7rem', textAlign: 'right', fontWeight: 'bold', color: varPct > 0 ? 'var(--success)' : (varPct < 0 ? 'var(--danger)' : 'var(--text-muted)') }}>
                                 {varPct > 0 ? '+' : ''}{varPct.toFixed(1)}%
                               </td>
                             </tr>

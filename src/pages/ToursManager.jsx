@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
+import BiPageHeader from '../components/bi/BiPageHeader';
 import TourWizard from '../components/tours/TourWizard';
 import TourAiImportModal from '../components/tours/TourAiImportModal';
 import DatabaseTable from '../components/tours/DatabaseTable';
@@ -429,62 +430,45 @@ const ToursManager = () => {
 
         <div className="content-area">
           <div className="page-container">
-            <div
-              className="section-title"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.75rem'
-              }}
-            >
-              <div>
-                <span>Tours &amp; Group Trips</span>
-                <p
-                  style={{
-                    margin: '0.2rem 0 0 0',
-                    fontSize: '0.84rem',
-                    fontWeight: '400',
-                    color: 'var(--text-muted)'
-                  }}
-                >
-                  Manage group itineraries, traveler manifests, DP receipts, and settlement invoices in one place.
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAiImportModal(true)}
-                  className="btn btn-secondary"
-                  style={{
-                    fontSize: '0.84rem',
-                    padding: '0.55rem 1rem',
-                    borderColor: 'var(--border-glow)',
-                    background: 'var(--primary-soft)',
-                    color: 'var(--primary)'
-                  }}
-                >
-                  <Sparkles size={15} /> AI Auto-Fill (PDF / Foto)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowImport(!showImport)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.84rem', padding: '0.55rem 1rem' }}
-                >
-                  <UploadCloud size={16} color="var(--primary)" /> Import Excel / CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStartNewBooking}
-                  className="btn btn-primary"
-                  style={{ fontSize: '0.84rem', padding: '0.55rem 1.05rem' }}
-                >
-                  <Plus size={16} /> New Tour Booking
-                </button>
-              </div>
-            </div>
+            <BiPageHeader
+              eyebrow="OPERATIONS & MANIFEST"
+              title="Tours & Group Trips"
+              subtitle="Manage group itineraries, traveler manifests, DP receipts, and settlement invoices in one place."
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowAiImportModal(true)}
+                    className="btn btn-secondary"
+                    style={{
+                      fontSize: '0.82rem',
+                      padding: '0.5rem 0.9rem',
+                      borderColor: 'var(--border-glow)',
+                      background: 'var(--primary-soft)',
+                      color: 'var(--primary)'
+                    }}
+                  >
+                    <Sparkles size={15} /> AI Auto-Fill (PDF / Foto)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowImport(!showImport)}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem' }}
+                  >
+                    <UploadCloud size={15} /> Import Excel / CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartNewBooking}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Plus size={15} /> New Tour Booking
+                  </button>
+                </>
+              }
+            />
 
             {showImport && (
               <CsvImportUtility
@@ -493,149 +477,117 @@ const ToursManager = () => {
               />
             )}
 
-            <div className="tabs-container">
+            <div role="tablist" aria-label="Tours Module Views" className="tabs-container">
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'summary' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'summary'}
+                className={`tab-btn ${activeTab === 'summary' ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab('summary');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
               >
-                <PieChart size={15} /> Overview
+                <PieChart size={15} aria-hidden="true" /> Overview
               </button>
 
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'series' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'series'}
+                className={`tab-btn ${activeTab === 'series' ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab('series');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
               >
-                <Compass size={15} className={activeTab === 'series' ? 'text-primary' : 'text-sky-500'} /> Series
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                    activeTab === 'series'
-                      ? 'bg-sky-500/20 text-sky-600 dark:text-sky-400'
-                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
-                  }`}
-                >
-                  {tabStats.seriesCount}
-                </span>
+                <Compass size={15} aria-hidden="true" /> Series
+                <span className="bi-micro-badge tabular-nums">{tabStats.seriesCount}</span>
               </button>
 
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'incentive' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'incentive'}
+                className={`tab-btn ${activeTab === 'incentive' ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab('incentive');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
               >
-                <Briefcase size={15} className={activeTab === 'incentive' ? 'text-primary' : 'text-purple-500'} /> Incentive
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                    activeTab === 'incentive'
-                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
-                  }`}
-                >
-                  {tabStats.incentiveCount}
-                </span>
+                <Briefcase size={15} aria-hidden="true" /> Incentive
+                <span className="bi-micro-badge tabular-nums">{tabStats.incentiveCount}</span>
               </button>
 
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'consortium' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'consortium'}
+                className={`tab-btn ${activeTab === 'consortium' ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab('consortium');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
               >
-                <Network size={15} className={activeTab === 'consortium' ? 'text-primary' : 'text-emerald-500'} /> Consortium
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                    activeTab === 'consortium'
-                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
-                  }`}
-                >
-                  {tabStats.consortiumCount}
-                </span>
+                <Network size={15} aria-hidden="true" /> Consortium
+                <span className="bi-micro-badge tabular-nums">{tabStats.consortiumCount}</span>
               </button>
 
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'database' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'database'}
+                className={`tab-btn ${activeTab === 'database' ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab('database');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
               >
-                <List size={15} /> All Bookings
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                    activeTab === 'database'
-                      ? 'bg-primary/20 text-primary'
-                      : 'bg-slate-100 dark:bg-white/10 text-text-muted'
-                  }`}
-                >
-                  {tabStats.total}
-                </span>
+                <List size={15} aria-hidden="true" /> All Bookings
+                <span className="bi-micro-badge tabular-nums">{tabStats.total}</span>
               </button>
 
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'reporting' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'reporting'}
+                className={`tab-btn ${activeTab === 'reporting' ? 'active' : ''}`}
                 onClick={() => {
                   setActiveTab('reporting');
                   setEditingTour(null);
                   setDuplicateSeed(null);
                 }}
               >
-                <BarChart3 size={15} /> Reports &amp; Insights
+                <BarChart3 size={15} aria-hidden="true" /> Reports &amp; Insights
               </button>
 
               <button
                 type="button"
-                className={`tab-btn inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
-                  activeTab === 'wizard' ? 'active text-primary' : 'text-text-muted hover:text-text-main'
-                }`}
+                role="tab"
+                aria-selected={activeTab === 'wizard'}
+                className={`tab-btn ${activeTab === 'wizard' ? 'active' : ''}`}
                 onClick={() => setActiveTab('wizard')}
               >
                 {editingTour ? (
                   <>
-                    <Edit3 size={15} /> Edit Booking
+                    <Edit3 size={15} aria-hidden="true" /> Edit Booking
                   </>
                 ) : aiDraftSeed ? (
                   <>
-                    <Sparkles size={15} /> AI Draft
+                    <Sparkles size={15} aria-hidden="true" /> AI Draft
                   </>
                 ) : duplicateSeed ? (
                   <>
-                    <Plus size={15} /> Duplicate Draft
+                    <Plus size={15} aria-hidden="true" /> Duplicate Draft
                   </>
                 ) : (
                   <>
-                    <Plus size={15} /> Add Booking
+                    <Plus size={15} aria-hidden="true" /> Add Booking
                   </>
                 )}
               </button>

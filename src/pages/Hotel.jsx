@@ -12,6 +12,9 @@ import { useFormDraft } from '../hooks/useFormDraft';
 import CsvImportUtility from '../components/CsvImportUtility';
 import Pagination from '../components/Pagination';
 import ExportMenu from '../components/ExportMenu';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS } from '../utils/formatters';
 import { useHotels } from '../context/HotelContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
@@ -106,7 +109,7 @@ const NIGHT_PRESETS = [1, 2, 3, 5, 7];
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const CHART_COLORS = ['#00a8ff', '#38bdf8', '#0284c7', '#10b981', '#6366f1', '#f59e0b', '#ec4899', '#64748b'];
+const CHART_COLORS = BI_CHART_COLORS.series;
 
 const IMPORT_TEMPLATE_HEADERS = [
   'Hotel Name',
@@ -218,54 +221,6 @@ const getStatusMeta = (status, isLight) => {
     },
     dotColor: '#64748b'
   };
-};
-
-const HotelChartTooltip = ({ active, payload, label, isLight }) => {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div
-      style={{
-        background: isLight ? '#ffffff' : '#0b1325',
-        border: `1px solid ${isLight ? 'rgba(2, 132, 199, 0.22)' : 'rgba(56, 189, 248, 0.28)'}`,
-        borderRadius: '10px',
-        padding: '0.65rem 0.85rem',
-        boxShadow: isLight
-          ? '0 10px 25px rgba(2, 132, 199, 0.12)'
-          : '0 10px 28px rgba(0, 0, 0, 0.55)',
-        fontSize: '0.8rem'
-      }}
-    >
-      {label && (
-        <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
-          {label}
-        </div>
-      )}
-      {payload.map((entry, idx) => (
-        <div
-          key={idx}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            color: 'var(--text-main)',
-            marginTop: '0.15rem'
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: entry.color || entry.payload?.color || '#00a8ff',
-              display: 'inline-block'
-            }}
-          />
-          <span style={{ color: 'var(--text-muted)' }}>{entry.name}:</span>
-          <strong>{entry.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
 };
 
 const Hotel = () => {
@@ -991,55 +946,38 @@ const Hotel = () => {
         <div className="content-area">
           <div className="page-container">
             {/* Page Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: '1.5rem',
-                flexWrap: 'wrap',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem' }}>
-                  Hotel Bookings
-                </h1>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                  Track property stays, room configurations, bedbank suppliers, confirmation numbers, and live guest portals.
-                </p>
-              </div>
+            <BiPageHeader
+              eyebrow="PROPERTY & ROOMING OPERATIONS"
+              title="Hotel Bookings"
+              subtitle="Track property stays, room configurations, bedbank suppliers, confirmation numbers, and live guest portals."
+              actions={
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowImport((prev) => !prev)}
+                    style={{
+                      background: showImport ? 'var(--primary-soft)' : undefined,
+                      borderColor: showImport ? 'var(--primary)' : undefined,
+                      color: showImport ? 'var(--primary)' : undefined,
+                      fontSize: '0.82rem',
+                      padding: '0.5rem 0.9rem'
+                    }}
+                  >
+                    <UploadCloud size={15} /> Import Excel / CSV
+                  </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowImport((prev) => !prev)}
-                  style={{
-                    background: showImport
-                      ? 'rgba(0, 168, 255, 0.14)'
-                      : isLight
-                      ? '#ffffff'
-                      : 'var(--bg-surface)',
-                    border: `1px solid ${showImport ? 'var(--primary)' : 'var(--border)'}`,
-                    color: showImport ? 'var(--primary)' : 'var(--text-main)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem'
-                  }}
-                >
-                  <UploadCloud size={17} /> Import Excel / CSV
-                </button>
-
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => handleOpenModal()}
-                >
-                  <Plus size={18} /> Add Hotel Booking
-                </button>
-              </div>
-            </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleOpenModal()}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Plus size={15} /> Add Hotel Booking
+                  </button>
+                </>
+              }
+            />
 
             {/* Collapsible Spreadsheet Import Utility */}
             {showImport && (
@@ -1702,10 +1640,10 @@ const Hotel = () => {
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                             <XAxis dataKey="month" stroke="var(--text-muted)" fontSize={12} />
                             <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip content={<HotelChartTooltip isLight={isLight} />} />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                            <Bar dataKey="Stays" fill="#00a8ff" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="Room-Nights" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                            <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                            <Bar dataKey="Stays" fill={BI_CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Room-Nights" fill={BI_CHART_COLORS.primarySoft} radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -1725,11 +1663,11 @@ const Hotel = () => {
                         alignItems: 'center',
                         gap: '0.5rem',
                         fontSize: '0.95rem',
-                        fontWeight: 800,
+                        fontWeight: 700,
                         color: 'var(--text-main)'
                       }}
                     >
-                      <UsersIcon size={18} color="var(--primary)" />
+                      <UsersIcon size={17} color="var(--primary)" />
                       Bookings by Consultant (PIC)
                     </h3>
                     <div style={{ height: '270px', width: '100%' }}>
@@ -1737,12 +1675,12 @@ const Hotel = () => {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={overviewMetrics.staffData} margin={{ top: 5, right: 12, left: -20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
-                            <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip content={<HotelChartTooltip isLight={isLight} />} />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                            <Bar dataKey="Stays" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="Room-Nights" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                            <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                            <Bar dataKey="Stays" fill={BI_CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Room-Nights" fill={BI_CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -1762,11 +1700,11 @@ const Hotel = () => {
                         alignItems: 'center',
                         gap: '0.5rem',
                         fontSize: '0.95rem',
-                        fontWeight: 800,
+                        fontWeight: 700,
                         color: 'var(--text-main)'
                       }}
                     >
-                      <MapPin size={18} color="var(--primary)" />
+                      <MapPin size={17} color="var(--primary)" />
                       Top Hotel Destinations
                     </h3>
                     {overviewMetrics.regionData.length > 0 ? (
@@ -1780,14 +1718,14 @@ const Hotel = () => {
                                 cy="50%"
                                 innerRadius={42}
                                 outerRadius={72}
-                                paddingAngle={4}
+                                paddingAngle={3}
                                 dataKey="value"
                               >
                                 {overviewMetrics.regionData.slice(0, 7).map((entry, idx) => (
                                   <Cell key={`region-cell-${idx}`} fill={entry.color} />
                                 ))}
                               </Pie>
-                              <RechartsTooltip content={<HotelChartTooltip isLight={isLight} />} />
+                              <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>

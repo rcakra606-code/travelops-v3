@@ -18,6 +18,7 @@ import TopNav from '../components/TopNav';
 import Sidebar from '../components/Sidebar';
 import ExportMenu from '../components/ExportMenu';
 import Pagination from '../components/Pagination';
+import BiPageHeader from '../components/bi/BiPageHeader';
 import {
   baseInputStyle,
   FormField,
@@ -55,7 +56,7 @@ const Settings = () => {
   const { corporateAccounts = [] } = useCorporate() || {};
 
   const isLight = theme === 'light';
-  const neonBlue = isLight ? '#0284c7' : '#00d4ff';
+  const neonBlue = isLight ? '#0284c7' : '#38bdf8';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   const [activeTab, setActiveTab] = useState('database');
@@ -488,7 +489,7 @@ const Settings = () => {
           handlingStaff: staff,
           destination: t.country || '-',
           targetDate: t.departureDate,
-          milestone: diffDep === 10 ? '🚨 H-10 URGENT: Uninvoiced' : diffDep === 15 ? '⚡ H-15 WARNING: Uninvoiced' : `⚠️ H-${diffDep}: Uninvoiced`,
+          milestone: diffDep === 10 ? '[URGENT] H-10: Uninvoiced' : diffDep === 15 ? '[WARNING] H-15: Uninvoiced' : `H-${diffDep}: Uninvoiced`,
           daysRemaining: diffDep,
           pax
         });
@@ -908,41 +909,24 @@ const Settings = () => {
         <div className="content-area">
           <div className="page-container">
             {/* Page Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.25rem', letterSpacing: '-0.02em' }}>
-                  System Settings & Preferences
-                </h1>
-                <p style={{ color: 'var(--text-subtle)', fontSize: '0.85rem', margin: 0 }}>
-                  Cloud database health, automated dispatches, security policies, and workspace branding
-                </p>
-              </div>
-
-              {/* Quick Save Header Button for settings tabs */}
-              {['security', 'smtp', 'preferences', 'database'].includes(activeTab) && (
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    background: neonBlue,
-                    color: isLight ? '#ffffff' : '#001018',
-                    border: 'none',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    boxShadow: `0 4px 14px color-mix(in srgb, ${neonBlue} 30%, transparent)`
-                  }}
-                >
-                  <Save size={16} /> {isSaving ? 'Saving…' : 'Save Changes'}
-                </button>
-              )}
-            </div>
+            <BiPageHeader
+              eyebrow="SYSTEM ADMINISTRATION"
+              title="System Settings & Preferences"
+              subtitle="Cloud database health, automated dispatches, security policies, and workspace branding."
+              actions={
+                ['security', 'smtp', 'preferences', 'database'].includes(activeTab) ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Save size={15} /> {isSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                ) : null
+              }
+            />
 
             {/* Navigation Tabs */}
             <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>

@@ -12,6 +12,11 @@ import {
   validateDocumentFilePayload,
   buildDocumentRequestPrompt
 } from './src/utils/documentAiPrompt.js';
+import {
+  validateBiSnapshotPayload,
+  buildBiAnalystPrompt,
+  normalizeBiAiResponse
+} from './src/utils/biAiPrompt.js';
 
 dotenv.config();
 
@@ -501,6 +506,58 @@ const devApiPlugin = () => ({
             return res.end(JSON.stringify({
               success: false,
               error: err.message || 'Gagal memproses Formulir Request Dokumen dengan AI.'
+            }));
+          }
+        });
+        return;
+      }
+
+      // 8. Enterprise Business Intelligence AI Analyst (Dev Middleware Parity)
+      if (req.url === '/api/bi/generate-insights' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const { snapshot } = JSON.parse(body || '{}');
+            const validation = validateBiSnapshotPayload(snapshot);
+            if (!validation.valid) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: validation.error }));
+            }
+
+            const client = getDevAiClient();
+            if (!client) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY belum terkonfigurasi.' }));
+            }
+
+            const prompt = buildBiAnalystPrompt(snapshot);
+            const response = await runGeminiFallback(client, async (model) => {
+              return await client.models.generateContent({
+                model,
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                config: {
+                  responseMimeType: 'application/json',
+                  temperature: 0.2,
+                  maxOutputTokens: 3072
+                }
+              });
+            });
+
+            const parsedData = cleanJsonOutput(response.text);
+            const normalized = normalizeBiAiResponse(parsedData);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ success: true, data: normalized }));
+          } catch (err) {
+            console.error('[DEV BI INSIGHTS ERROR]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err.message || 'Gagal menghasilkan analisis AI Business Intelligence.'
             }));
           }
         });

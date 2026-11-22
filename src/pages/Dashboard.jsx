@@ -6,13 +6,15 @@ import SlideOverDrawer from '../components/SlideOverDrawer';
 import {
   DollarSign, Map, FileText, Phone, Plane, Building, Ship, Compass,
   AlertCircle, Clock, CheckCircle2, Settings2, Eye, EyeOff,
-  ArrowUp, ArrowDown, RotateCcw, Plus, ChevronRight, Sparkles,
+  ArrowUp, ArrowDown, RotateCcw, Plus, ChevronRight,
   Search, X, Share2, Calendar, User, ExternalLink, TrendingUp,
-  Briefcase, Network
+  Briefcase, Network, PieChart
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import SkeletonLoader from '../components/SkeletonLoader';
 import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS, formatAxisCompact } from '../utils/formatters';
 import { useTours } from '../context/TourContext';
 import { useCruises } from '../context/CruiseContext';
 import { useDocuments } from '../context/DocumentContext';
@@ -1031,60 +1033,44 @@ const Dashboard = () => {
     if (widget.id === 'welcome') {
       return (
         <div key="welcome" className="bento-col-12 reveal surface dashboard-welcome-hero">
-          {/* Luminous Neon Orb Accents */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '-60px',
-              right: '-40px',
-              width: '280px',
-              height: '280px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, transparent 70%)',
-              pointerEvents: 'none'
-            }}
-          />
-
           <div style={{ position: 'relative', zIndex: 2, maxWidth: '680px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <Sparkles size={13} color="#e0f2fe" />
-              <p
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.3rem' }}>
+              <span
                 style={{
-                  margin: 0,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  fontSize: '0.72rem',
+                  letterSpacing: '0.09em',
+                  fontSize: '0.7rem',
                   fontWeight: '700',
-                  color: 'rgba(224, 242, 254, 0.92)'
+                  color: 'var(--primary)'
                 }}
               >
                 {getGreeting()}, {firstName}
-              </p>
+              </span>
             </div>
             <h1
               style={{
                 margin: 0,
-                fontSize: '1.55rem',
+                fontSize: '1.42rem',
                 fontWeight: '800',
-                color: '#ffffff',
-                lineHeight: '1.22',
+                color: 'var(--text-main)',
+                lineHeight: '1.25',
                 letterSpacing: '-0.025em'
               }}
             >
-              Every journey, thoughtfully organized.
+              Ringkasan Operasional Hari Ini
             </h1>
             <p
               style={{
-                margin: '0.45rem 0 0 0',
-                fontSize: '0.86rem',
-                color: 'rgba(241, 245, 249, 0.9)',
+                margin: '0.35rem 0 0 0',
+                fontSize: '0.84rem',
+                color: 'var(--text-muted)',
                 lineHeight: '1.5',
                 maxWidth: '600px'
               }}
             >
-              <strong style={{ color: '#ffffff' }}>{totalActiveTrips} trip aktif</strong> ·{' '}
-              <strong style={{ color: '#ffffff' }}>{activeDocs} dokumen diproses</strong> ·{' '}
-              <strong style={{ color: '#ffffff' }}>{confirmedTravelers} tamu terkonfirmasi</strong> pada jadwal.
+              <strong style={{ color: 'var(--text-main)' }}>{totalActiveTrips} trip aktif</strong> ·{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{activeDocs} dokumen diproses</strong> ·{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{confirmedTravelers} tamu terkonfirmasi</strong> pada jadwal.
             </p>
           </div>
 
@@ -1093,7 +1079,7 @@ const Dashboard = () => {
               position: 'relative',
               zIndex: 2,
               display: 'flex',
-              gap: '0.6rem',
+              gap: '0.5rem',
               alignItems: 'center',
               flexWrap: 'wrap',
               flexShrink: 0
@@ -1102,36 +1088,26 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => navigate('/tours', { state: { openNew: true, _ts: Date.now() } })}
-              className="btn"
-              style={{
-                fontSize: '0.82rem',
-                padding: '0.58rem 1.05rem',
-                borderRadius: '10px',
-                background: '#ffffff',
-                color: 'var(--primary-deep)',
-                fontWeight: '700',
-                border: 'none',
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.16)'
-              }}
+              className="btn btn-primary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem 0.95rem' }}
             >
               <Plus size={15} /> Booking Tour Baru
             </button>
 
             <button
               type="button"
+              onClick={() => navigate('/executive-bi')}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem 0.9rem' }}
+            >
+              <PieChart size={14} aria-hidden="true" /> Executive BI
+            </button>
+
+            <button
+              type="button"
               onClick={() => navigate('/calendar')}
-              className="btn"
-              style={{
-                fontSize: '0.82rem',
-                padding: '0.58rem 1rem',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.14)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                fontWeight: '600'
-              }}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem 0.9rem' }}
             >
               <Calendar size={14} /> Kalender
             </button>
@@ -1139,21 +1115,11 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => setIsCustomizing(true)}
-              className="btn"
-              style={{
-                fontSize: '0.82rem',
-                padding: '0.58rem 0.9rem',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                fontWeight: '600'
-              }}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.5rem 0.85rem' }}
               title="Customize dashboard sections"
             >
-              <Settings2 size={15} /> Customize
+              <Settings2 size={14} /> Customize
             </button>
           </div>
         </div>
@@ -1339,21 +1305,21 @@ const Dashboard = () => {
       return (
         <div
           key="tour_insights"
-          className={`card bento-card-glass bento-col-${widget.size} flex flex-col gap-5 p-5`}
-          style={{ padding: '1.75rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.35rem' }}
+          className={`card bento-col-${widget.size}`}
+          style={{ padding: '1.2rem 1.35rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
         >
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="m-0 font-extrabold text-base sm:text-lg text-text-main flex items-center gap-2">
-                  <Sparkles size={18} className="text-primary" /> Tour Ecosystem Insights
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 style={{ margin: 0, fontWeight: 700, fontSize: '0.98rem', color: 'var(--text-main)', letterSpacing: '-0.015em' }}>
+                  Tour Ecosystem Insights
                 </h3>
-                <span className="badge badge-primary text-[11px] font-bold">
+                <span className="bi-micro-badge">
                   3 Modul Skema Aktif
                 </span>
               </div>
-              <p className="m-0 text-xs text-text-muted mt-1">
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                 Performa finansial &amp; operasional tersegregasi antara Series, Corporate Incentive, dan Consortium.
               </p>
             </div>
@@ -1361,200 +1327,209 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => navigate('/tours', { state: { openTab: 'reporting' } })}
-              className="btn btn-secondary text-xs px-3 py-1.5 inline-flex items-center gap-1.5"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.76rem', padding: '0.38rem 0.78rem' }}
             >
               Comprehensive Reports <ChevronRight size={13} />
             </button>
           </div>
 
-          {/* 3 Main Segmented Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Series */}
+          {/* 3 Clean Hairline-Divided Columns (Eliminates Box-in-Box Nesting) */}
+          <div
+            className="grid grid-cols-1 md:grid-cols-3"
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              overflow: 'hidden',
+              background: 'var(--bg-surface)'
+            }}
+          >
+            {/* Column 1: Series */}
             <div
-              className="card-interactive flex flex-col justify-between rounded-xl"
+              className="card-interactive flex flex-col justify-between"
               onClick={() => navigate('/tours', { state: { openTab: 'series', _ts: Date.now() } })}
               style={{
-                padding: '1.35rem 1.5rem',
-                background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.55)',
-                border: '1px solid var(--border)',
-                borderTop: '3px solid #0ea5e9'
+                padding: '1.05rem 1.15rem',
+                background: 'var(--bg-card)',
+                borderTop: `2px solid ${BI_CHART_COLORS.primary}`,
+                borderRight: '1px solid var(--border)'
               }}
             >
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-1.5 font-bold text-sky-500 text-xs uppercase tracking-wider">
-                    <Compass size={15} /> Series Tours
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <Compass size={14} color={BI_CHART_COLORS.primary} /> Series Tours
                   </div>
-                  <span className="badge badge-primary text-[11px] font-bold">
+                  <span className="bi-micro-badge tabular-nums">
                     {ins.series.share}% Share
                   </span>
                 </div>
 
                 <div
-                  className="font-mono font-extrabold text-text-main"
-                  style={{ fontSize: '1.42rem', marginTop: '0.85rem', marginBottom: '0.45rem', letterSpacing: '-0.02em' }}
+                  className="tabular-nums"
+                  style={{ fontSize: '1.36rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '0.65rem', marginBottom: '0.35rem', letterSpacing: '-0.025em' }}
                 >
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.series.omset)}
                 </div>
 
                 <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs text-text-muted">
-                  <span>{ins.series.count} bookings · {ins.series.pax} pax</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span className="tabular-nums">{ins.series.count} bookings · {ins.series.pax} pax</span>
+                  <span className="tabular-nums" style={{ color: 'var(--success)', fontWeight: 700 }}>
                     {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.series.profit)}`} ({ins.series.margin}%)
                   </span>
                 </div>
 
-                {/* Series MDR Tracker */}
-                <div className="mt-3.5 pt-3 border-t border-dashed border-border text-xs flex items-center justify-between">
+                <div className="mt-3 pt-2.5 border-t border-border text-xs flex items-center justify-between">
                   <span className="text-text-muted">Claim Form MDR</span>
-                  <span className={`badge ${ins.series.mdrPending === 0 ? 'badge-success' : 'badge-warning'} text-[11px]`}>
+                  <span className={`badge ${ins.series.mdrPending === 0 ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.7rem', padding: '0.14rem 0.5rem' }}>
                     {ins.series.mdrClaimed}/{ins.series.count} Claimed
                   </span>
                 </div>
               </div>
 
-              <div className="mt-4">
-                <span className="text-sky-500 font-bold text-xs inline-flex items-center gap-1">
+              <div className="mt-3">
+                <span style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                   Buka Modul Series <ChevronRight size={13} />
                 </span>
               </div>
             </div>
 
-            {/* Card 2: Incentive */}
+            {/* Column 2: Incentive */}
             <div
-              className="card-interactive flex flex-col justify-between rounded-xl"
+              className="card-interactive flex flex-col justify-between"
               onClick={() => navigate('/tours', { state: { openTab: 'incentive', _ts: Date.now() } })}
               style={{
-                padding: '1.35rem 1.5rem',
-                background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.55)',
-                border: '1px solid var(--border)',
-                borderTop: '3px solid #8b5cf6'
+                padding: '1.05rem 1.15rem',
+                background: 'var(--bg-card)',
+                borderTop: `2px solid ${BI_CHART_COLORS.indigo}`,
+                borderRight: '1px solid var(--border)'
               }}
             >
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-1.5 font-bold text-purple-500 text-xs uppercase tracking-wider">
-                    <Briefcase size={15} /> Incentive Tours
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <Briefcase size={14} color={BI_CHART_COLORS.indigo} /> Incentive Tours
                   </div>
-                  <span className="badge badge-purple text-[11px] font-bold">
+                  <span className="bi-micro-badge tabular-nums">
                     {ins.incentive.share}% Share
                   </span>
                 </div>
 
                 <div
-                  className="font-mono font-extrabold text-text-main"
-                  style={{ fontSize: '1.42rem', marginTop: '0.85rem', marginBottom: '0.45rem', letterSpacing: '-0.02em' }}
+                  className="tabular-nums"
+                  style={{ fontSize: '1.36rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '0.65rem', marginBottom: '0.35rem', letterSpacing: '-0.025em' }}
                 >
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.incentive.omset)}
                 </div>
 
                 <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs text-text-muted">
-                  <span>{ins.incentive.count} bookings · {ins.incentive.pax} pax</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span className="tabular-nums">{ins.incentive.count} bookings · {ins.incentive.pax} pax</span>
+                  <span className="tabular-nums" style={{ color: 'var(--success)', fontWeight: 700 }}>
                     {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.incentive.profit)}`} ({ins.incentive.margin}%)
                   </span>
                 </div>
 
-                {/* Top Partner Supplier */}
-                <div className="mt-3.5 pt-3 border-t border-dashed border-border text-xs flex items-center justify-between">
+                <div className="mt-3 pt-2.5 border-t border-border text-xs flex items-center justify-between">
                   <span className="text-text-muted">Top Wholesaler</span>
-                  <strong className="text-purple-600 dark:text-purple-400 truncate max-w-[150px]">{ins.incentive.topSupplier}</strong>
+                  <strong style={{ color: 'var(--text-main)' }} className="truncate max-w-[150px]">{ins.incentive.topSupplier}</strong>
                 </div>
               </div>
 
-              <div className="mt-4">
-                <span className="text-purple-500 font-bold text-xs inline-flex items-center gap-1">
+              <div className="mt-3">
+                <span style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                   Buka Modul Incentive <ChevronRight size={13} />
                 </span>
               </div>
             </div>
 
-            {/* Card 3: Consortium */}
+            {/* Column 3: Consortium */}
             <div
-              className="card-interactive flex flex-col justify-between rounded-xl"
+              className="card-interactive flex flex-col justify-between"
               onClick={() => navigate('/tours', { state: { openTab: 'consortium', _ts: Date.now() } })}
               style={{
-                padding: '1.35rem 1.5rem',
-                background: isLight ? '#f8fafc' : 'rgba(15, 23, 42, 0.55)',
-                border: '1px solid var(--border)',
-                borderTop: '3px solid #10b981'
+                padding: '1.05rem 1.15rem',
+                background: 'var(--bg-card)',
+                borderTop: `2px solid ${BI_CHART_COLORS.emerald}`
               }}
             >
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-1.5 font-bold text-emerald-500 text-xs uppercase tracking-wider">
-                    <Network size={15} /> Consortium Tours
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <Network size={14} color={BI_CHART_COLORS.emerald} /> Consortium Tours
                   </div>
-                  <span className="badge badge-success text-[11px] font-bold">
+                  <span className="bi-micro-badge tabular-nums">
                     {ins.consortium.share}% Share
                   </span>
                 </div>
 
                 <div
-                  className="font-mono font-extrabold text-text-main"
-                  style={{ fontSize: '1.42rem', marginTop: '0.85rem', marginBottom: '0.45rem', letterSpacing: '-0.02em' }}
+                  className="tabular-nums"
+                  style={{ fontSize: '1.36rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '0.65rem', marginBottom: '0.35rem', letterSpacing: '-0.025em' }}
                 >
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.consortium.omset)}
                 </div>
 
                 <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs text-text-muted">
-                  <span>{ins.consortium.count} bookings · {ins.consortium.pax} pax</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span className="tabular-nums">{ins.consortium.count} bookings · {ins.consortium.pax} pax</span>
+                  <span className="tabular-nums" style={{ color: 'var(--success)', fontWeight: 700 }}>
                     {hideRevenue ? 'Profit •••••' : `Profit: Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.profit)}`} ({ins.consortium.margin}%)
                   </span>
                 </div>
 
-                {/* Consortium Taxes & Fees Breakdown Strip */}
                 <div
-                  className="mt-3.5 pt-3 border-t border-dashed border-border text-xs"
-                  style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+                  className="mt-3 pt-2.5 border-t border-border text-xs"
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}
                 >
                   <div className="flex items-center justify-between text-text-muted">
                     <span>Airport Tax &amp; Fuel</span>
-                    <strong className="font-mono text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.airportTax)}`}</strong>
+                    <strong className="tabular-nums text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.airportTax)}`}</strong>
                   </div>
                   <div className="flex items-center justify-between text-text-muted">
                     <span>Tipping Guide &amp; Driver</span>
-                    <strong className="font-mono text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.tipping)}`}</strong>
+                    <strong className="tabular-nums text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.tipping)}`}</strong>
                   </div>
                   <div className="flex items-center justify-between text-text-muted">
                     <span>PPN 1.1% &amp; Misc</span>
-                    <strong className="font-mono text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.ppn + ins.consortium.misc)}`}</strong>
+                    <strong className="tabular-nums text-text-main">{hideRevenue ? '•••••' : `Rp ${new Intl.NumberFormat('id-ID').format(ins.consortium.ppn + ins.consortium.misc)}`}</strong>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4">
-                <span className="text-emerald-500 font-bold text-xs inline-flex items-center gap-1">
+              <div className="mt-3">
+                <span style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                   Buka Modul Consortium <ChevronRight size={13} />
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Quick Summary Strip */}
+          {/* Inline Footer Summary Strip (Hairline top border, no extra card box) */}
           <div
-            className="rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs"
             style={{
-              padding: '0.9rem 1.25rem',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)'
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              paddingTop: '0.7rem',
+              borderTop: '1px solid var(--border-subtle)',
+              fontSize: '0.78rem'
             }}
           >
             <div className="flex flex-wrap items-center gap-3 sm:gap-5">
               <div>
-                <span className="text-text-muted">Total Tour Net Profit: </span>
-                <strong className="text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                <span style={{ color: 'var(--text-muted)' }}>Total Tour Net Profit: </span>
+                <strong className="tabular-nums" style={{ color: 'var(--success)', fontWeight: 700 }}>
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.total.profit)}
                 </strong>
-                <span className="text-text-muted" style={{ marginLeft: '0.45rem' }}>
-                  (Overall Margin: <strong className="text-text-main">{ins.total.margin}%</strong>)
+                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
+                  (Overall Margin: <strong className="tabular-nums" style={{ color: 'var(--text-main)' }}>{ins.total.margin}%</strong>)
                 </span>
               </div>
-              <div className="hidden sm:block h-4 w-px bg-border/60"></div>
+              <div className="hidden sm:block h-4 w-px" style={{ background: 'var(--border)' }} />
               <div>
-                <span className="text-text-muted">Consortium Taxes &amp; Surcharges: </span>
-                <strong className="text-primary font-bold">
+                <span style={{ color: 'var(--text-muted)' }}>Consortium Taxes &amp; Surcharges: </span>
+                <strong className="tabular-nums" style={{ color: 'var(--text-main)', fontWeight: 700 }}>
                   {hideRevenue ? 'Rp •••••••••' : formatCurrency(ins.consortium.totalFees)}
                 </strong>
               </div>
@@ -1563,7 +1538,18 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => navigate('/tours', { state: { openTab: 'database' } })}
-              className="text-primary hover:text-primary-dark font-bold text-xs inline-flex items-center gap-1 transition-transform hover:translate-x-0.5 cursor-pointer p-0 bg-transparent border-none"
+              style={{
+                color: 'var(--primary)',
+                fontWeight: 600,
+                fontSize: '0.76rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.2rem',
+                cursor: 'pointer',
+                padding: 0,
+                background: 'transparent',
+                border: 'none'
+              }}
             >
               View All Database <ChevronRight size={13} />
             </button>
@@ -1666,10 +1652,10 @@ const Dashboard = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
-                  background: isLight ? '#eff8ff' : 'rgba(56, 189, 248, 0.06)',
-                  padding: '0.25rem',
-                  borderRadius: '10px',
+                  gap: '0.2rem',
+                  background: 'var(--bg-surface)',
+                  padding: '0.2rem',
+                  borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)'
                 }}
               >
@@ -1683,18 +1669,18 @@ const Dashboard = () => {
                     <button
                       key={h.value}
                       type="button"
+                      aria-pressed={active}
                       onClick={() => setChartHorizon(h.value)}
                       style={{
-                        padding: '0.32rem 0.75rem',
-                        borderRadius: '7px',
-                        fontSize: '0.775rem',
-                        fontWeight: '600',
+                        padding: '0.3rem 0.7rem',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: active ? '700' : '600',
                         cursor: 'pointer',
-                        border: 'none',
-                        background: active ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)' : 'transparent',
-                        color: active ? '#ffffff' : 'var(--text-muted)',
-                        boxShadow: active ? '0 2px 10px rgba(0, 168, 255, 0.3)' : 'none',
-                        transition: 'all 0.15s ease'
+                        border: active ? '1px solid var(--border)' : '1px solid transparent',
+                        background: active ? 'var(--bg-card)' : 'transparent',
+                        color: active ? 'var(--primary)' : 'var(--text-muted)',
+                        transition: 'background-color 0.15s ease, color 0.15s ease'
                       }}
                     >
                       {h.label}
@@ -1794,26 +1780,22 @@ const Dashboard = () => {
                     tickLine={false}
                     axisLine={false}
                     tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
+                    tickFormatter={formatAxisCompact}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: isLight ? '#ffffff' : 'rgba(8, 14, 28, 0.95)',
-                      borderColor: isLight ? '#bae6fd' : 'rgba(56, 189, 248, 0.35)',
-                      borderRadius: '12px',
-                      boxShadow: isLight ? '0 12px 28px rgba(0, 149, 255, 0.14)' : '0 15px 30px rgba(0, 0, 0, 0.7)',
-                      color: isLight ? '#0b1528' : '#f0f7ff',
-                      fontSize: '0.825rem'
-                    }}
-                    itemStyle={{ color: chartColor, fontWeight: '700' }}
-                    labelFormatter={(label) => (chartHorizon === 90 ? `Week of ${label}` : label)}
-                    formatter={(value) => [`Rp ${new Intl.NumberFormat('id-ID').format(value)}`, 'Expected Revenue']}
+                    content={
+                      <BiTooltip
+                        valueFormat="currency"
+                        labelFormatter={(label) => (chartHorizon === 90 ? `Week of ${label}` : label)}
+                      />
+                    }
                   />
                   <Area
                     type="monotone"
                     dataKey="sales"
+                    name="Expected Revenue"
                     stroke={chartColor}
-                    strokeWidth={2.6}
+                    strokeWidth={2.2}
                     fillOpacity={1}
                     fill="url(#colorSalesNeonBlue)"
                   />

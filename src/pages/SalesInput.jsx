@@ -6,6 +6,11 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import EmptyState from '../components/EmptyState';
 import CsvImportUtility from '../components/CsvImportUtility';
 import ExportMenu from '../components/ExportMenu';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiKpiCard from '../components/bi/BiKpiCard';
+import BiChartCard from '../components/bi/BiChartCard';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS, formatAxisCompact } from '../utils/formatters';
 import { useSales } from '../context/SalesContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
@@ -39,7 +44,6 @@ import {
   Printer,
   Award,
   Lock,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -70,16 +74,7 @@ const MONTH_NAMES_SHORT = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
-const CHART_COLORS = [
-  '#00a8ff',
-  '#10b981',
-  '#38bdf8',
-  '#6366f1',
-  '#f59e0b',
-  '#0284c7',
-  '#ec4899',
-  '#64748b'
-];
+const CHART_COLORS = BI_CHART_COLORS.series;
 
 const IMPORT_TEMPLATE_HEADERS = [
   'Period',
@@ -195,56 +190,6 @@ const toDatetimeLocalInput = (isoStr) => {
   const hh = String(dt.getHours()).padStart(2, '0');
   const mm = String(dt.getMinutes()).padStart(2, '0');
   return `${y}-${m}-${d}T${hh}:${mm}`;
-};
-
-const SalesChartTooltip = ({ active, payload, label, isLight, isPercent = false }) => {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div
-      style={{
-        background: isLight ? '#ffffff' : '#0b1325',
-        border: `1px solid ${isLight ? 'rgba(2, 132, 199, 0.22)' : 'rgba(56, 189, 248, 0.28)'}`,
-        borderRadius: '10px',
-        padding: '0.65rem 0.85rem',
-        boxShadow: isLight
-          ? '0 10px 25px rgba(2, 132, 199, 0.12)'
-          : '0 10px 28px rgba(0, 0, 0, 0.55)',
-        fontSize: '0.8rem'
-      }}
-    >
-      {label && (
-        <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
-          {label}
-        </div>
-      )}
-      {payload.map((entry, idx) => (
-        <div
-          key={idx}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            color: 'var(--text-main)',
-            marginTop: '0.18rem'
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: entry.color || entry.payload?.color || '#00a8ff',
-              display: 'inline-block'
-            }}
-          />
-          <span style={{ color: 'var(--text-muted)' }}>{entry.name}:</span>
-          <strong>
-            {isPercent ? formatPercent(Number(entry.value) || 0, 1) : formatIdr(entry.value)}
-          </strong>
-        </div>
-      ))}
-    </div>
-  );
 };
 
 const SalesInput = () => {
@@ -1061,117 +1006,59 @@ const SalesInput = () => {
         <div className="content-area">
           <div className="page-container">
             {/* Page Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: '1.25rem',
-                flexWrap: 'wrap',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.25rem 0.7rem',
-                    borderRadius: '999px',
-                    background: isLight
-                      ? 'rgba(0, 168, 255, 0.1)'
-                      : 'rgba(56, 189, 248, 0.12)',
-                    color: 'var(--primary)',
-                    fontSize: '0.73rem',
-                    fontWeight: 700,
-                    marginBottom: '0.45rem'
-                  }}
-                >
-                  <Target size={13} /> QUOTA, REVENUE &amp; MARGIN INTELLIGENCE
-                </div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem' }}>
-                  Sales &amp; Goals
-                </h1>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '0.875rem',
-                    color: 'var(--text-muted)'
-                  }}
-                >
-                  Pantau target penjualan &amp; pencapaian profit konsultan berdasarkan data rekap resmi yang diperbarui oleh Admin.
-                </p>
-              </div>
+            <BiPageHeader
+              eyebrow="QUOTA, REVENUE & MARGIN INTELLIGENCE"
+              title="Sales & Goals"
+              subtitle="Pantau target penjualan & pencapaian profit konsultan berdasarkan data rekap resmi yang diperbarui oleh Admin."
+              actions={
+                <>
+                  {canAdd && horizonMode === 'month' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleClonePreviousMonth}
+                      title={`Copy consultant quotas from ${formatPeriodLabel(
+                        shiftMonthString(selectedPeriod, -1)
+                      )}`}
+                      style={{ fontSize: '0.8rem' }}
+                    >
+                      <Copy size={15} /> Copy Prev Month
+                    </button>
+                  )}
 
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.55rem',
-                  flexWrap: 'wrap'
-                }}
-              >
-                {canAdd && horizonMode === 'month' && (
+                  {canAdd && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowImport((prev) => !prev)}
+                      style={{
+                        background: showImport ? 'var(--primary-soft)' : undefined,
+                        borderColor: showImport ? 'var(--primary)' : undefined,
+                        color: showImport ? 'var(--primary)' : undefined,
+                        fontSize: '0.8rem'
+                      }}
+                    >
+                      <UploadCloud size={15} /> Import Excel / CSV
+                    </button>
+                  )}
+
+                  <ExportMenu
+                    data={exportRows}
+                    columns={exportColumns}
+                    filename={`TravelOps_Sales_Goals_${horizonLabel.replace(/\s+/g, '_')}`}
+                  />
+
                   <button
                     type="button"
-                    className="btn"
-                    onClick={handleClonePreviousMonth}
-                    title={`Copy consultant quotas from ${formatPeriodLabel(
-                      shiftMonthString(selectedPeriod, -1)
-                    )}`}
-                    style={{
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-main)',
-                      fontSize: '0.8rem'
-                    }}
+                    className="btn btn-secondary"
+                    onClick={() => window.print()}
+                    style={{ fontSize: '0.8rem' }}
                   >
-                    <Copy size={15} /> Copy Prev Month
+                    <Printer size={15} /> Print
                   </button>
-                )}
-
-                {canAdd && (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setShowImport((prev) => !prev)}
-                    style={{
-                      background: showImport
-                        ? isLight
-                          ? 'rgba(0, 168, 255, 0.12)'
-                          : 'rgba(56, 189, 248, 0.16)'
-                        : 'var(--bg-card)',
-                      border: `1px solid ${showImport ? 'var(--primary)' : 'var(--border)'}`,
-                      color: showImport ? 'var(--primary)' : 'var(--text-main)',
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    <UploadCloud size={15} /> Import Excel / CSV
-                  </button>
-                )}
-
-                <ExportMenu
-                  data={exportRows}
-                  columns={exportColumns}
-                  filename={`TravelOps_Sales_Goals_${horizonLabel.replace(/\s+/g, '_')}`}
-                />
-
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => window.print()}
-                  style={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  <Printer size={15} /> Print
-                </button>
-              </div>
-            </div>
+                </>
+              }
+            />
 
             {/* Last Update Data Info Module (Visible to all users; editable by Admin/Manager) */}
             <div
@@ -1719,9 +1606,11 @@ const SalesInput = () => {
                 flexWrap: 'wrap'
               }}
             >
-              <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+              <div role="tablist" aria-label="Sales & Goals Views" style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'dashboard'}
                   className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
                   onClick={() => setActiveTab('dashboard')}
                 >
@@ -1729,6 +1618,8 @@ const SalesInput = () => {
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'database'}
                   className={`tab-btn ${activeTab === 'database' ? 'active' : ''}`}
                   onClick={() => setActiveTab('database')}
                 >
@@ -1762,279 +1653,79 @@ const SalesInput = () => {
             {/* TAB 1: QUOTA ANALYTICS & LEADERBOARD */}
             {activeTab === 'dashboard' && (
               <div className="fade-in">
-                {/* 5 Clickable KPI Cards */}
+                {/* 5 Clickable KPI Cards (Unified Enterprise BI Kit) */}
                 <div
+                  className="bi-kpi-grid"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                    gap: '1.1rem',
-                    marginBottom: '1.5rem'
+                    gap: '0.9rem',
+                    marginBottom: '1.35rem'
                   }}
                 >
-                  <div
-                    className="card"
+                  <BiKpiCard
+                    label="Team Sales Quota"
+                    value={formatCompactIdr(totals.targetSales)}
+                    subValue={`${horizonRows.length} consultant(s) in ${horizonLabel}`}
+                    tone="primary"
+                    icon={<Target size={16} />}
+                    drilldownLabel="Lihat Tabel"
                     onClick={() => {
                       setTableScope('all');
                       setActiveTab('database');
                     }}
-                    style={{
-                      cursor: 'pointer',
-                      borderLeft: '3px solid #00a8ff',
-                      padding: '1.15rem 1.25rem'
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '0.73rem',
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        Team Sales Quota
-                      </span>
-                      <Target size={18} color="#00a8ff" />
-                    </div>
-                    <div
-                      className="font-mono"
-                      style={{
-                        fontSize: '1.45rem',
-                        fontWeight: 800,
-                        color: 'var(--text-main)',
-                        marginTop: '0.5rem'
-                      }}
-                    >
-                      {formatCompactIdr(totals.targetSales)}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-muted)',
-                        marginTop: '0.25rem'
-                      }}
-                    >
-                      {horizonRows.length} consultant(s) in {horizonLabel}
-                    </div>
-                  </div>
+                  />
 
-                  <div
-                    className="card"
+                  <BiKpiCard
+                    label="Actual Sales"
+                    value={formatCompactIdr(totals.achievementSales)}
+                    subValue={getStatusBadgeForPercent(totals.salesPct)}
+                    tone={totals.salesPct >= 100 ? 'success' : totals.salesPct >= 70 ? 'primary' : 'warning'}
+                    icon={<TrendingUp size={16} />}
+                    drilldownLabel="Target Tercapai"
                     onClick={() => {
                       setTableScope('achieved');
                       setActiveTab('database');
                     }}
-                    style={{
-                      cursor: 'pointer',
-                      borderLeft: '3px solid #10b981',
-                      padding: '1.15rem 1.25rem'
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '0.73rem',
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        Actual Sales
-                      </span>
-                      <TrendingUp size={18} color="#10b981" />
-                    </div>
-                    <div
-                      className="font-mono"
-                      style={{
-                        fontSize: '1.45rem',
-                        fontWeight: 800,
-                        color: '#10b981',
-                        marginTop: '0.5rem'
-                      }}
-                    >
-                      {formatCompactIdr(totals.achievementSales)}
-                    </div>
-                    <div style={{ marginTop: '0.35rem' }}>
-                      {getStatusBadgeForPercent(totals.salesPct)}
-                    </div>
-                  </div>
+                  />
 
-                  <div
-                    className="card"
+                  <BiKpiCard
+                    label={totals.salesVariance >= 0 ? 'Quota Surplus' : 'Remaining to Goal'}
+                    value={
+                      totals.salesVariance >= 0
+                        ? `+${formatCompactIdr(totals.salesVariance)}`
+                        : formatCompactIdr(Math.abs(totals.salesVariance))
+                    }
+                    subValue={`${scopeCounts.achieved} hit ≥100% · ${scopeCounts.coaching} below 70%`}
+                    tone={totals.salesVariance >= 0 ? 'success' : 'warning'}
+                    icon={totals.salesVariance >= 0 ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                    drilldownLabel={totals.salesVariance >= 0 ? 'Achieved' : 'Perlu Coaching'}
                     onClick={() => {
-                      setTableScope(
-                        totals.salesVariance >= 0 ? 'achieved' : 'coaching'
-                      );
+                      setTableScope(totals.salesVariance >= 0 ? 'achieved' : 'coaching');
                       setActiveTab('database');
                     }}
-                    style={{
-                      cursor: 'pointer',
-                      borderLeft: `3px solid ${
-                        totals.salesVariance >= 0 ? '#10b981' : '#f59e0b'
-                      }`,
-                      padding: '1.15rem 1.25rem'
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '0.73rem',
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        {totals.salesVariance >= 0 ? 'Quota Surplus' : 'Remaining to Goal'}
-                      </span>
-                      {totals.salesVariance >= 0 ? (
-                        <CheckCircle2 size={18} color="#10b981" />
-                      ) : (
-                        <AlertTriangle size={18} color="#f59e0b" />
-                      )}
-                    </div>
-                    <div
-                      className="font-mono"
-                      style={{
-                        fontSize: '1.45rem',
-                        fontWeight: 800,
-                        color: totals.salesVariance >= 0 ? '#10b981' : '#f59e0b',
-                        marginTop: '0.5rem'
-                      }}
-                    >
-                      {totals.salesVariance >= 0
-                        ? `+${formatCompactIdr(totals.salesVariance)}`
-                        : formatCompactIdr(Math.abs(totals.salesVariance))}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-muted)',
-                        marginTop: '0.25rem'
-                      }}
-                    >
-                      {scopeCounts.achieved} hit ≥100% · {scopeCounts.coaching} below 70%
-                    </div>
-                  </div>
+                  />
 
-                  <div
-                    className="card"
+                  <BiKpiCard
+                    label="Actual Profit"
+                    value={formatCompactIdr(totals.achievementProfit)}
+                    subValue={`Target: ${formatCompactIdr(totals.targetProfit)} (${formatPercent(totals.profitPct, 1)})`}
+                    tone="primary"
+                    icon={<DollarSign size={16} />}
+                    drilldownLabel="Detail Profit"
                     onClick={() => {
                       setTableScope('all');
                       setActiveTab('database');
                     }}
-                    style={{
-                      cursor: 'pointer',
-                      borderLeft: '3px solid #6366f1',
-                      padding: '1.15rem 1.25rem'
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '0.73rem',
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        Actual Profit
-                      </span>
-                      <DollarSign size={18} color="#6366f1" />
-                    </div>
-                    <div
-                      className="font-mono"
-                      style={{
-                        fontSize: '1.45rem',
-                        fontWeight: 800,
-                        color: 'var(--text-main)',
-                        marginTop: '0.5rem'
-                      }}
-                    >
-                      {formatCompactIdr(totals.achievementProfit)}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-muted)',
-                        marginTop: '0.25rem'
-                      }}
-                    >
-                      Target: {formatCompactIdr(totals.targetProfit)} (
-                      {formatPercent(totals.profitPct, 1)})
-                    </div>
-                  </div>
+                  />
 
-                  <div
-                    className="card"
-                    style={{
-                      borderLeft: '3px solid #38bdf8',
-                      padding: '1.15rem 1.25rem'
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: '0.73rem',
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        Realized Margin
-                      </span>
-                      <PieChart size={18} color="#38bdf8" />
-                    </div>
-                    <div
-                      className="font-mono"
-                      style={{
-                        fontSize: '1.45rem',
-                        fontWeight: 800,
-                        color: 'var(--primary)',
-                        marginTop: '0.5rem'
-                      }}
-                    >
-                      {formatPercent(totals.realizedMarginPct, 2)}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-muted)',
-                        marginTop: '0.25rem'
-                      }}
-                    >
-                      Target margin: {formatPercent(totals.targetMarginPct, 2)}
-                    </div>
-                  </div>
+                  <BiKpiCard
+                    label="Realized Margin"
+                    value={formatPercent(totals.realizedMarginPct, 2)}
+                    subValue={`Target margin: ${formatPercent(totals.targetMarginPct, 2)}`}
+                    tone={totals.realizedMarginPct >= totals.targetMarginPct ? 'success' : 'neutral'}
+                    icon={<PieChart size={16} />}
+                  />
                 </div>
 
                 {/* Ranked Consultant Leaderboard Podium */}
@@ -2215,254 +1906,177 @@ const SalesInput = () => {
                   }}
                 >
                   {/* Chart 1: Consultant Target vs Actual Sales */}
-                  <div className="card">
-                    <h3
-                      style={{
-                        margin: '0 0 1rem 0',
-                        fontSize: '0.95rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: 'var(--text-main)'
-                      }}
-                    >
-                      <BarChart2 size={17} color="var(--primary)" /> Target vs Actual Sales by Consultant
-                    </h3>
-                    <div style={{ height: '280px', width: '100%' }}>
-                      {dashboardAnalytics.consultantBarData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={dashboardAnalytics.consultantBarData}
-                            margin={{ top: 10, right: 15, left: 5, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                            <XAxis
-                              dataKey="name"
-                              stroke="var(--text-muted)"
-                              fontSize={12}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              stroke="var(--text-muted)"
-                              fontSize={11}
-                              tickLine={false}
-                              tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`}
-                            />
-                            <RechartsTooltip
-                              content={<SalesChartTooltip isLight={isLight} />}
-                            />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                            <Bar
-                              dataKey="Target"
-                              name="Target Sales"
-                              fill="#00a8ff"
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Bar
-                              dataKey="Actual"
-                              name="Actual Sales"
-                              fill="#10b981"
-                              radius={[4, 4, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div
-                          style={{
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--text-muted)'
-                          }}
-                        >
-                          No consultant quota data for {horizonLabel}.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Chart 2: Full-Year Monthly Trajectory */}
-                  <div className="card">
-                    <h3
-                      style={{
-                        margin: '0 0 1rem 0',
-                        fontSize: '0.95rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: 'var(--text-main)'
-                      }}
-                    >
-                      <TrendingUp size={17} color="var(--primary)" /> {dashboardAnalytics.activeYr} Monthly Sales &amp; Profit Trajectory
-                    </h3>
-                    <div style={{ height: '280px', width: '100%' }}>
+                  <BiChartCard
+                    title="Target vs Actual Sales by Consultant"
+                    subtitle={`Perbandingan kuota & realisasi penjualan (${horizonLabel})`}
+                    isEmpty={dashboardAnalytics.consultantBarData.length === 0}
+                    emptyTitle={`Belum ada data kuota untuk ${horizonLabel}`}
+                    emptyDescription="Tambahkan target atau pencapaian konsultan pada tab Quota Table & Input."
+                  >
+                    <div style={{ height: '270px', width: '100%' }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={dashboardAnalytics.monthlyTrend}
-                          margin={{ top: 10, right: 15, left: 5, bottom: 5 }}
+                          data={dashboardAnalytics.consultantBarData}
+                          margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                           <XAxis
                             dataKey="name"
                             stroke="var(--text-muted)"
-                            fontSize={12}
+                            fontSize={11}
                             tickLine={false}
+                            axisLine={false}
                           />
                           <YAxis
                             stroke="var(--text-muted)"
                             fontSize={11}
                             tickLine={false}
-                            tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`}
+                            axisLine={false}
+                            tickFormatter={formatAxisCompact}
                           />
-                          <RechartsTooltip
-                            content={<SalesChartTooltip isLight={isLight} />}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
+                          <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
                           <Bar
-                            dataKey="Target Sales"
-                            fill="#38bdf8"
+                            dataKey="Target"
+                            name="Target Sales"
+                            fill={BI_CHART_COLORS.primary}
                             radius={[4, 4, 0, 0]}
                           />
                           <Bar
-                            dataKey="Actual Sales"
-                            fill="#0284c7"
-                            radius={[4, 4, 0, 0]}
-                          />
-                          <Bar
-                            dataKey="Actual Profit"
-                            fill="#10b981"
+                            dataKey="Actual"
+                            name="Actual Sales"
+                            fill={BI_CHART_COLORS.emerald}
                             radius={[4, 4, 0, 0]}
                           />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
+
+                  {/* Chart 2: Full-Year Monthly Trajectory */}
+                  <BiChartCard
+                    title={`${dashboardAnalytics.activeYr} Monthly Sales & Profit Trajectory`}
+                    subtitle="Tren target penjualan, realisasi sales, dan profit bulanan sepanjang tahun"
+                  >
+                    <div style={{ height: '270px', width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={dashboardAnalytics.monthlyTrend}
+                          margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                          <XAxis
+                            dataKey="name"
+                            stroke="var(--text-muted)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            stroke="var(--text-muted)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={formatAxisCompact}
+                          />
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
+                          <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Bar
+                            dataKey="Target Sales"
+                            fill={BI_CHART_COLORS.primarySoft}
+                            radius={[4, 4, 0, 0]}
+                          />
+                          <Bar
+                            dataKey="Actual Sales"
+                            fill={BI_CHART_COLORS.primary}
+                            radius={[4, 4, 0, 0]}
+                          />
+                          <Bar
+                            dataKey="Actual Profit"
+                            fill={BI_CHART_COLORS.emerald}
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </BiChartCard>
 
                   {/* Chart 3: Profit Contribution Share */}
-                  <div className="card">
-                    <h3
-                      style={{
-                        margin: '0 0 1rem 0',
-                        fontSize: '0.95rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: 'var(--text-main)'
-                      }}
-                    >
-                      <PieChart size={17} color="var(--primary)" /> Profit Contribution Share
-                    </h3>
-                    <div style={{ height: '280px', width: '100%' }}>
-                      {dashboardAnalytics.profitPieData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RePieChart>
-                            <Pie
-                              data={dashboardAnalytics.profitPieData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={60}
-                              outerRadius={96}
-                              paddingAngle={4}
-                              dataKey="value"
-                            >
-                              {dashboardAnalytics.profitPieData.map((entry, index) => (
-                                <Cell key={`profit-cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip
-                              content={<SalesChartTooltip isLight={isLight} />}
-                            />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                          </RePieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div
-                          style={{
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--text-muted)'
-                          }}
-                        >
-                          No profit achievements recorded for {horizonLabel}.
-                        </div>
-                      )}
+                  <BiChartCard
+                    title="Profit Contribution Share"
+                    subtitle={`Distribusi kontribusi profit konsultan (${horizonLabel})`}
+                    isEmpty={dashboardAnalytics.profitPieData.length === 0}
+                    emptyTitle={`Belum ada pencapaian profit pada ${horizonLabel}`}
+                    emptyDescription="Rekam realisasi profit konsultan untuk melihat komposisi kontribusi."
+                  >
+                    <div style={{ height: '270px', width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RePieChart>
+                          <Pie
+                            data={dashboardAnalytics.profitPieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={58}
+                            outerRadius={92}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {dashboardAnalytics.profitPieData.map((entry, index) => (
+                              <Cell key={`profit-cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
+                          <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                        </RePieChart>
+                      </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
                   {/* Chart 4: Target vs Realized Margin % */}
-                  <div className="card">
-                    <h3
-                      style={{
-                        margin: '0 0 1rem 0',
-                        fontSize: '0.95rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: 'var(--text-main)'
-                      }}
-                    >
-                      <Sparkles size={17} color="var(--primary)" /> Target vs Realized Profit Margin (%)
-                    </h3>
-                    <div style={{ height: '280px', width: '100%' }}>
-                      {dashboardAnalytics.marginCompareData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={dashboardAnalytics.marginCompareData}
-                            margin={{ top: 10, right: 15, left: -10, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                            <XAxis
-                              dataKey="name"
-                              stroke="var(--text-muted)"
-                              fontSize={12}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              stroke="var(--text-muted)"
-                              fontSize={11}
-                              tickLine={false}
-                              tickFormatter={(val) => `${val}%`}
-                            />
-                            <RechartsTooltip
-                              content={
-                                <SalesChartTooltip isLight={isLight} isPercent />
-                              }
-                            />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                            <Bar
-                              dataKey="Target Margin %"
-                              fill="#6366f1"
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Bar
-                              dataKey="Realized Margin %"
-                              fill="#00a8ff"
-                              radius={[4, 4, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div
-                          style={{
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--text-muted)'
-                          }}
+                  <BiChartCard
+                    title="Target vs Realized Profit Margin (%)"
+                    subtitle={`Komparasi efisiensi margin per konsultan (${horizonLabel})`}
+                    isEmpty={dashboardAnalytics.marginCompareData.length === 0}
+                    emptyTitle={`Belum ada data margin pada ${horizonLabel}`}
+                    emptyDescription="Komparasi margin akan muncul setelah data sales dan profit tersedia."
+                  >
+                    <div style={{ height: '270px', width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={dashboardAnalytics.marginCompareData}
+                          margin={{ top: 8, right: 12, left: -10, bottom: 4 }}
                         >
-                          No margin comparison data for {horizonLabel}.
-                        </div>
-                      )}
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                          <XAxis
+                            dataKey="name"
+                            stroke="var(--text-muted)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            stroke="var(--text-muted)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(val) => `${val}%`}
+                          />
+                          <RechartsTooltip content={<BiTooltip valueFormat="percent" />} />
+                          <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Bar
+                            dataKey="Target Margin %"
+                            fill={BI_CHART_COLORS.slate}
+                            radius={[4, 4, 0, 0]}
+                          />
+                          <Bar
+                            dataKey="Realized Margin %"
+                            fill={BI_CHART_COLORS.primary}
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
                 </div>
               </div>
             )}
@@ -3782,21 +3396,20 @@ const SalesInput = () => {
                           stroke="var(--text-muted)"
                           fontSize={10}
                           tickLine={false}
-                          tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`}
+                          axisLine={false}
+                          tickFormatter={formatAxisCompact}
                         />
-                        <RechartsTooltip
-                          content={<SalesChartTooltip isLight={isLight} />}
-                        />
+                        <RechartsTooltip content={<BiTooltip valueFormat="currency" />} />
                         <Bar
                           dataKey="targetSales"
                           name="Target"
-                          fill="#00a8ff"
+                          fill={BI_CHART_COLORS.primary}
                           radius={[3, 3, 0, 0]}
                         />
                         <Bar
                           dataKey="achievementSales"
                           name="Actual"
-                          fill="#10b981"
+                          fill={BI_CHART_COLORS.emerald}
                           radius={[3, 3, 0, 0]}
                         />
                       </BarChart>

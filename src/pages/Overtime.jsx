@@ -7,6 +7,11 @@ import ExportMenu from '../components/ExportMenu';
 import FloatingBulkBar from '../components/FloatingBulkBar';
 import SkeletonLoader from '../components/SkeletonLoader';
 import EmptyState from '../components/EmptyState';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiKpiCard from '../components/bi/BiKpiCard';
+import BiChartCard from '../components/bi/BiChartCard';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS } from '../utils/formatters';
 import { useOvertimes } from '../context/OvertimeContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
@@ -47,7 +52,7 @@ const Overtime = () => {
 
   const location = useLocation();
   const isLight = theme === 'light';
-  const neonBlue = isLight ? '#0284c7' : '#00d4ff';
+  const neonBlue = isLight ? '#0284c7' : '#38bdf8';
 
   const activeStaff = useMemo(() => {
     return (users || []).filter(
@@ -444,67 +449,74 @@ const Overtime = () => {
           <div className="page-container">
 
             {/* HEADER BAR */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Clock size={26} color={neonBlue} /> Overtime Reporting & Telemetry
-                </h1>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Operational extra-hours claims, multi-level approvals, and workforce resource tracking.
-                </p>
-              </div>
+            <BiPageHeader
+              eyebrow="WORKFORCE & APPROVAL LEDGER"
+              title="Overtime Reporting & Telemetry"
+              subtitle="Operational extra-hours claims, multi-level approvals, and workforce resource tracking."
+              actions={
+                <>
+                  <ExportMenu
+                    data={filteredOvertimes}
+                    columns={exportColumns}
+                    filename="Overtime_Records_Travelops"
+                  />
 
-              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <ExportMenu 
-                  data={filteredOvertimes} 
-                  columns={exportColumns} 
-                  filename="Overtime_Records_Travelops" 
-                />
+                  {canManage && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem' }}
+                      >
+                        <Upload size={15} /> Import CSV
+                      </button>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        style={{ display: 'none' }}
+                        ref={fileInputRef}
+                        onChange={handleImportCsv}
+                      />
+                    </>
+                  )}
 
-                {canManage && (
-                  <>
-                    <button 
-                      className="btn" 
-                      onClick={() => fileInputRef.current?.click()}
-                      style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '10px', padding: '0.55rem 1rem' }}
-                    >
-                      <Upload size={15} /> Import CSV
-                    </button>
-                    <input 
-                      type="file" 
-                      accept=".csv" 
-                      style={{ display: 'none' }} 
-                      ref={fileInputRef} 
-                      onChange={handleImportCsv} 
-                    />
-                  </>
-                )}
-
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => handleOpenModal()}
-                  style={{ background: neonBlue, borderColor: neonBlue, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', padding: '0.55rem 1.25rem', fontWeight: '600' }}
-                >
-                  <Plus size={16} /> Log Overtime
-                </button>
-              </div>
-            </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleOpenModal()}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Plus size={15} /> Log Overtime
+                  </button>
+                </>
+              }
+            />
 
             {/* TABS SELECTOR */}
-            <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-              <button 
+            <div
+              role="tablist"
+              aria-label="Overtime Views"
+              className="tabs-container"
+              style={{ marginBottom: '1.25rem' }}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'dashboard'}
                 className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
                 onClick={() => setActiveTab('dashboard')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
-                <BarChart2 size={17} color={activeTab === 'dashboard' ? neonBlue : 'currentColor'} /> Executive Dashboard
+                <BarChart2 size={15} aria-hidden="true" /> Executive Dashboard
               </button>
-              <button 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'database'}
                 className={`tab-btn ${activeTab === 'database' ? 'active' : ''}`}
                 onClick={() => setActiveTab('database')}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
-                <Clock size={17} color={activeTab === 'database' ? neonBlue : 'currentColor'} /> Overtime Registry ({overtimes.length})
+                <Clock size={15} aria-hidden="true" /> Overtime Registry ({overtimes.length})
               </button>
             </div>
 
@@ -513,188 +525,157 @@ const Overtime = () => {
             {/* ========================================================= */}
             {activeTab === 'dashboard' && (
               <div className="fade-in">
-                
-                {/* 4 KPI SCORECARDS */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
-                  
-                  {/* Total Hours Logged */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: `${neonBlue}20`, width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Clock size={16} color={neonBlue} /> Total Hours Claimed
-                    </div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                      {totalHours} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>hrs</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                      Cumulative operational overtime across all events
-                    </div>
-                  </div>
+                {/* 4 KPI SCORECARDS (Unified Enterprise BI Kit — Zero Glow Orbs) */}
+                <div
+                  className="bi-kpi-grid"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '0.9rem',
+                    marginBottom: '1.25rem'
+                  }}
+                >
+                  <BiKpiCard
+                    label="Total Hours Claimed"
+                    value={`${totalHours} hrs`}
+                    subValue="Cumulative operational overtime across all events"
+                    tone="primary"
+                    icon={<Clock size={16} />}
+                    drilldownLabel="Lihat Semua"
+                    onClick={() => {
+                      setStatusFilter('All');
+                      setActiveTab('database');
+                    }}
+                  />
 
-                  {/* Approved Hours */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(16, 185, 129, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CheckCircle2 size={16} color="#10b981" /> Approved Hours
-                    </div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: '#10b981', letterSpacing: '-0.025em' }}>
-                      {approvedHours} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>hrs</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                      Verified and authorized for payroll compensation
-                    </div>
-                  </div>
+                  <BiKpiCard
+                    label="Approved Hours"
+                    value={`${approvedHours} hrs`}
+                    subValue="Verified and authorized for payroll compensation"
+                    tone="success"
+                    icon={<CheckCircle2 size={16} />}
+                    drilldownLabel="Approved"
+                    onClick={() => {
+                      setStatusFilter('Approved');
+                      setActiveTab('database');
+                    }}
+                  />
 
-                  {/* Pending Approvals */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(245, 158, 11, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <AlertCircle size={16} color="#f59e0b" /> Pending Review
-                    </div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: pendingCount > 0 ? '#f59e0b' : 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                      {pendingCount} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>claims</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: pendingCount > 0 ? '#f59e0b' : '#10b981', marginTop: '0.4rem' }}>
-                      {pendingCount > 0 ? 'Requires manager authorization' : 'All claims reviewed'}
-                    </div>
-                  </div>
+                  <BiKpiCard
+                    label="Pending Review"
+                    value={`${pendingCount} claims`}
+                    subValue={pendingCount > 0 ? 'Requires manager authorization' : 'All claims reviewed'}
+                    tone={pendingCount > 0 ? 'warning' : 'success'}
+                    icon={<AlertCircle size={16} />}
+                    drilldownLabel="Review Pending"
+                    onClick={() => {
+                      setStatusFilter('Pending');
+                      setActiveTab('database');
+                    }}
+                  />
 
-                  {/* Active Overtime Staff */}
-                  <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-card)', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: '-24px', right: '-24px', background: 'rgba(139, 92, 246, 0.18)', width: '110px', height: '110px', borderRadius: '50%', filter: 'blur(25px)' }} />
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Users size={16} color="#8b5cf6" /> Active Claimants
-                    </div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.025em' }}>
-                      {uniqueClaimants} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>staff</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                      Team members logging overtime assistance
-                    </div>
-                  </div>
-
+                  <BiKpiCard
+                    label="Active Claimants"
+                    value={`${uniqueClaimants} staff`}
+                    subValue="Team members logging overtime assistance"
+                    tone="neutral"
+                    icon={<Users size={16} />}
+                  />
                 </div>
 
                 {/* CHARTS ROW: Monthly Trend & Status Distribution */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                  
-                  {/* Monthly Trend Area Chart */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <div>
-                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>
-                          Overtime Hours Trend
-                        </h3>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Monthly overtime hours claimed vs authorized
-                        </p>
-                      </div>
-                    </div>
-                    <div style={{ height: '300px' }}>
-                      {monthlyTrendData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={monthlyTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="otTotalGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={neonBlue} stopOpacity={0.35}/>
-                                <stop offset="95%" stopColor={neonBlue} stopOpacity={0.0}/>
-                              </linearGradient>
-                              <linearGradient id="otApprovedGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                            <XAxis dataKey="period" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                            <RechartsTooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                            <Legend verticalAlign="top" height={36} iconType="circle" />
-                            <Area type="monotone" dataKey="TotalHours" name="Total Claimed (Hrs)" stroke={neonBlue} strokeWidth={2.5} fillOpacity={1} fill="url(#otTotalGrad)" />
-                            <Area type="monotone" dataKey="ApprovedHours" name="Approved (Hrs)" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#otApprovedGrad)" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                          No trend data available yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Status Donut Chart */}
-                  <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>
-                      Status Breakdown
-                    </h3>
-                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Approval proportions across claims
-                    </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.1rem', marginBottom: '1.1rem' }}>
+                  <BiChartCard
+                    title="Overtime Hours Trend"
+                    subtitle="Monthly overtime hours claimed vs authorized"
+                    isEmpty={monthlyTrendData.length === 0}
+                    emptyTitle="Belum ada data tren lembur"
+                    emptyDescription="Rekam klaim lembur untuk memantau tren bulanan."
+                  >
                     <div style={{ height: '280px' }}>
-                      {statusChartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={statusChartData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={65}
-                              outerRadius={95}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {statusChartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} />
-                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                          No overtime records logged.
-                        </div>
-                      )}
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={monthlyTrendData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="otTotalGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={BI_CHART_COLORS.primary} stopOpacity={0.28} />
+                              <stop offset="95%" stopColor={BI_CHART_COLORS.primary} stopOpacity={0.0} />
+                            </linearGradient>
+                            <linearGradient id="otApprovedGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={BI_CHART_COLORS.emerald} stopOpacity={0.26} />
+                              <stop offset="95%" stopColor={BI_CHART_COLORS.emerald} stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                          <XAxis dataKey="period" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                          <RechartsTooltip content={<BiTooltip valueFormat={(v) => `${v} jam`} />} />
+                          <Legend verticalAlign="top" height={32} iconType="circle" wrapperStyle={{ fontSize: '0.78rem' }} />
+                          <Area type="monotone" dataKey="TotalHours" name="Total Claimed (Hrs)" stroke={BI_CHART_COLORS.primary} strokeWidth={2.2} fillOpacity={1} fill="url(#otTotalGrad)" />
+                          <Area type="monotone" dataKey="ApprovedHours" name="Approved (Hrs)" stroke={BI_CHART_COLORS.emerald} strokeWidth={2.2} fillOpacity={1} fill="url(#otApprovedGrad)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
-                  </div>
+                  </BiChartCard>
 
+                  <BiChartCard
+                    title="Status Breakdown"
+                    subtitle="Approval proportions across claims"
+                    isEmpty={statusChartData.length === 0}
+                    emptyTitle="Belum ada klaim lembur"
+                    emptyDescription="Belum ada data status lembur yang tercatat."
+                  >
+                    <div style={{ height: '280px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={statusChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={58}
+                            outerRadius={90}
+                            paddingAngle={4}
+                            dataKey="value"
+                          >
+                            {statusChartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip content={<BiTooltip valueFormat={(v) => `${v} klaim`} />} />
+                          <Legend verticalAlign="bottom" height={34} iconType="circle" wrapperStyle={{ fontSize: '0.78rem' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </BiChartCard>
                 </div>
 
                 {/* CHARTS ROW 2: Hours by Staff */}
-                <div className="card" style={{ borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-card)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div>
-                      <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: '600' }}>
-                        Overtime Hours by Staff Member
-                      </h3>
-                      <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Top claimants (Pending + Approved hours)
-                      </p>
-                    </div>
+                <BiChartCard
+                  title="Overtime Hours by Staff Member"
+                  subtitle="Top claimants (Pending + Approved hours)"
+                  isEmpty={staffChartData.length === 0}
+                  emptyTitle="Belum ada klaim per staf"
+                  emptyDescription="Grafik distribusi jam lembur per staf akan tampil setelah klaim tercatat."
+                >
+                  <div style={{ height: '280px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={staffChartData} margin={{ top: 8, right: 10, left: -12, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                        <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                        <RechartsTooltip
+                          content={
+                            <BiTooltip
+                              valueFormat={(val) => `${val} hours`}
+                              labelFormatter={(label, payload) => payload?.[0]?.payload?.FullName || label}
+                            />
+                          }
+                          cursor={{ fill: 'var(--border)', opacity: 0.3 }}
+                        />
+                        <Bar dataKey="Hours" name="Jam Lembur" fill={BI_CHART_COLORS.primary} radius={[4, 4, 0, 0]} barSize={34} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                  <div style={{ height: '300px' }}>
-                    {staffChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={staffChartData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                          <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                          <RechartsTooltip 
-                            formatter={(val, name, item) => [`${val} hours`, item?.payload?.FullName || 'Staff']}
-                            cursor={{ fill: 'var(--border)', opacity: 0.3 }} 
-                            contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)' }} 
-                          />
-                          <Bar dataKey="Hours" fill={neonBlue} radius={[6, 6, 0, 0]} barSize={38} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                        No staff overtime logged yet.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
+                </BiChartCard>
               </div>
             )}
 

@@ -21,6 +21,7 @@ const Overtime = lazy(() => import('../pages/Overtime'));
 const Productivity = lazy(() => import('../pages/Productivity'));
 const Corporate = lazy(() => import('../pages/Corporate'));
 const StaffPerformance = lazy(() => import('../pages/StaffPerformance'));
+const ExecutiveBI = lazy(() => import('../pages/ExecutiveBI'));
 const KnowledgeBase = lazy(() => import('../pages/KnowledgeBase'));
 const OperationsCalendar = lazy(() => import('../pages/OperationsCalendar'));
 const PublicTracker = lazy(() => import('../pages/PublicTracker'));
@@ -116,6 +117,7 @@ const AnimatedRoutes = () => {
           <Route path="/productivity" element={<ProtectedRoute><PageWrapper><Productivity /></PageWrapper></ProtectedRoute>} />
           <Route path="/corporate" element={<ProtectedRoute><PageWrapper><Corporate /></PageWrapper></ProtectedRoute>} />
           <Route path="/staff-performance" element={<ProtectedRoute><PageWrapper><StaffPerformance /></PageWrapper></ProtectedRoute>} />
+          <Route path="/executive-bi" element={<ProtectedRoute><PageWrapper><ExecutiveBI /></PageWrapper></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><PageWrapper><Profile /></PageWrapper></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><RoleRoute allowedRoles={['Admin']}><PageWrapper><Settings /></PageWrapper></RoleRoute></ProtectedRoute>} />
 

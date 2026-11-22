@@ -8,6 +8,9 @@ import ExportMenu from '../components/ExportMenu';
 import FloatingBulkBar from '../components/FloatingBulkBar';
 import SkeletonLoader from '../components/SkeletonLoader';
 import WhatsAppQuickMenu from '../components/WhatsAppQuickMenu';
+import BiPageHeader from '../components/bi/BiPageHeader';
+import BiTooltip from '../components/bi/BiTooltip';
+import { BI_CHART_COLORS } from '../utils/formatters';
 import {
   DocumentFormModal,
   DocumentShippingModal,
@@ -73,54 +76,6 @@ import {
   Pie,
   Cell
 } from 'recharts';
-
-const DocChartTooltip = ({ active, payload, label, isLight }) => {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div
-      style={{
-        background: isLight ? '#ffffff' : '#0b1325',
-        border: `1px solid ${isLight ? 'rgba(2, 132, 199, 0.22)' : 'rgba(56, 189, 248, 0.28)'}`,
-        borderRadius: '10px',
-        padding: '0.65rem 0.85rem',
-        boxShadow: isLight
-          ? '0 10px 25px rgba(2, 132, 199, 0.12)'
-          : '0 10px 28px rgba(0, 0, 0, 0.55)',
-        fontSize: '0.8rem'
-      }}
-    >
-      {label && (
-        <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
-          {label}
-        </div>
-      )}
-      {payload.map((entry, idx) => (
-        <div
-          key={idx}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            color: 'var(--text-main)',
-            marginTop: '0.15rem'
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: entry.color || entry.payload?.color || '#00a8ff',
-              display: 'inline-block'
-            }}
-          />
-          <span style={{ color: 'var(--text-muted)' }}>{entry.name}:</span>
-          <strong>{entry.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 const Documents = () => {
   const {
@@ -962,90 +917,64 @@ const Documents = () => {
         <div className="content-area">
           <div className="page-container">
             {/* Page Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: '1.5rem',
-                flexWrap: 'wrap',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <h1 className="section-title" style={{ marginBottom: '0.25rem' }}>
-                  Visa & Documents
-                </h1>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                  Track passport & visa applications, biometric appointments, SLA deadlines, courier airwaybills, and client tracking portals.
-                </p>
-              </div>
+            <BiPageHeader
+              eyebrow="VISA & PASSPORT FULFILLMENT"
+              title="Visa & Documents"
+              subtitle="Track passport & visa applications, biometric appointments, SLA deadlines, courier airwaybills, and client tracking portals."
+              actions={
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowImport((prev) => !prev)}
+                    style={{
+                      background: showImport ? 'var(--primary-soft)' : undefined,
+                      borderColor: showImport ? 'var(--primary)' : undefined,
+                      color: showImport ? 'var(--primary)' : undefined,
+                      fontSize: '0.82rem',
+                      padding: '0.5rem 0.9rem'
+                    }}
+                  >
+                    <UploadCloud size={15} /> Import Excel / CSV
+                  </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowImport((prev) => !prev)}
-                  style={{
-                    background: showImport
-                      ? 'rgba(0, 168, 255, 0.14)'
-                      : isLight
-                      ? '#ffffff'
-                      : 'var(--bg-surface)',
-                    border: `1px solid ${showImport ? 'var(--primary)' : 'var(--border)'}`,
-                    color: showImport ? 'var(--primary)' : 'var(--text-main)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem'
-                  }}
-                >
-                  <UploadCloud size={17} /> Import Excel / CSV
-                </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowAiImportModal(true)}
+                    style={{
+                      background: 'var(--primary-soft)',
+                      borderColor: 'var(--border-glow)',
+                      color: 'var(--primary)',
+                      fontSize: '0.82rem',
+                      padding: '0.5rem 0.9rem'
+                    }}
+                    title="Upload PDF Request VISA/DOCUMENT (Lark) atau foto formulir untuk auto-fill draft"
+                  >
+                    <Sparkles size={15} /> AI Auto-Fill (PDF / Foto)
+                  </button>
 
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowAiImportModal(true)}
-                  style={{
-                    background: 'var(--primary-soft)',
-                    border: '1px solid var(--border-glow)',
-                    color: 'var(--primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    fontWeight: 700
-                  }}
-                  title="Upload PDF Request VISA/DOCUMENT (Lark) atau foto formulir untuk auto-fill draft"
-                >
-                  <Sparkles size={16} /> AI Auto-Fill (PDF / Foto)
-                </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-ai-copilot'))}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem' }}
+                    title="Ask TravelOps AI Copilot for visa embassy requirements, checklist, or client templates"
+                  >
+                    <Sparkles size={14} color="var(--primary)" /> AI Visa Assistant
+                  </button>
 
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => window.dispatchEvent(new CustomEvent('open-ai-copilot'))}
-                  style={{
-                    background: isLight ? '#ffffff' : 'var(--bg-surface)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem'
-                  }}
-                  title="Ask TravelOps AI Copilot for visa embassy requirements, checklist, or client templates"
-                >
-                  <Sparkles size={15} color="var(--primary)" /> AI Visa Assistant
-                </button>
-
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => handleOpenModal()}
-                >
-                  <Plus size={18} /> Add Visa / Document
-                </button>
-              </div>
-            </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleOpenModal()}
+                    style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
+                  >
+                    <Plus size={15} /> Add Visa / Document
+                  </button>
+                </>
+              }
+            />
 
             {/* Collapsible Spreadsheet Import */}
             {showImport && (
@@ -1755,10 +1684,10 @@ const Documents = () => {
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                             <XAxis dataKey="month" stroke="var(--text-muted)" fontSize={12} />
                             <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip content={<DocChartTooltip isLight={isLight} />} />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                            <Bar dataKey="Intake" fill="#00a8ff" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="Delivered" fill="#10b981" radius={[4, 4, 0, 0]} />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                            <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                            <Bar dataKey="Intake" fill={BI_CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="Delivered" fill={BI_CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -1778,11 +1707,11 @@ const Documents = () => {
                         alignItems: 'center',
                         gap: '0.5rem',
                         fontSize: '0.95rem',
-                        fontWeight: 800,
+                        fontWeight: 700,
                         color: 'var(--text-main)'
                       }}
                     >
-                      <User size={18} color="var(--primary)" />
+                      <User size={17} color="var(--primary)" />
                       Workload by Consultant (PIC)
                     </h3>
                     <div style={{ height: '260px', width: '100%' }}>
@@ -1790,12 +1719,12 @@ const Documents = () => {
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={overviewMetrics.workloadData} margin={{ top: 5, right: 12, left: -20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
-                            <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                            <RechartsTooltip content={<DocChartTooltip isLight={isLight} />} />
-                            <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                            <Bar dataKey="Active" stackId="a" fill="#00a8ff" radius={[0, 0, 0, 0]} />
-                            <Bar dataKey="Delivered" stackId="a" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                            <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                            <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
+                            <Legend wrapperStyle={{ fontSize: '0.78rem' }} />
+                            <Bar dataKey="Active" stackId="a" fill={BI_CHART_COLORS.primary} radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="Delivered" stackId="a" fill={BI_CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -1815,11 +1744,11 @@ const Documents = () => {
                         alignItems: 'center',
                         gap: '0.5rem',
                         fontSize: '0.95rem',
-                        fontWeight: 800,
+                        fontWeight: 700,
                         color: 'var(--text-main)'
                       }}
                     >
-                      <Globe size={18} color="var(--primary)" />
+                      <Globe size={17} color="var(--primary)" />
                       Top Visa & Passport Destinations
                     </h3>
                     {overviewMetrics.countryData.length > 0 ? (
@@ -1833,14 +1762,14 @@ const Documents = () => {
                                 cy="50%"
                                 innerRadius={42}
                                 outerRadius={72}
-                                paddingAngle={4}
+                                paddingAngle={3}
                                 dataKey="value"
                               >
                                 {overviewMetrics.countryData.slice(0, 7).map((entry, idx) => (
                                   <Cell key={`country-cell-${idx}`} fill={entry.color} />
                                 ))}
                               </Pie>
-                              <RechartsTooltip content={<DocChartTooltip isLight={isLight} />} />
+                              <RechartsTooltip content={<BiTooltip valueFormat="count" />} />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>

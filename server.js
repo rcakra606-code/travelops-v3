@@ -18,6 +18,11 @@ import {
   validateDocumentFilePayload,
   buildDocumentRequestPrompt
 } from './src/utils/documentAiPrompt.js';
+import {
+  validateBiSnapshotPayload,
+  buildBiAnalystPrompt,
+  normalizeBiAiResponse
+} from './src/utils/biAiPrompt.js';
 
 // Force Node.js to use IPv4 first. Railway does not support outbound IPv6,
 // which causes ENETUNREACH errors when connecting to smtp.gmail.com
@@ -1117,6 +1122,52 @@ Provide a structured, accurate, and actionable response based on the above opera
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to generate response from AI Copilot.'
+    });
+  }
+});
+
+// 3b. Enterprise Business Intelligence AI Analyst (PII-Free Aggregated KPIs -> Structured 7-Element JSON)
+app.post('/api/bi/generate-insights', requireAuth, async (req, res) => {
+  try {
+    const { snapshot } = req.body || {};
+    const validation = validateBiSnapshotPayload(snapshot);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({
+        success: false,
+        error: 'GEMINI_API_KEY belum terkonfigurasi di server. Harap cek environment variables.'
+      });
+    }
+
+    const prompt = buildBiAnalystPrompt(snapshot);
+    const response = await runWithModelFallback(async (model) => {
+      return await client.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+          maxOutputTokens: 3072
+        }
+      });
+    });
+
+    const parsedData = cleanJsonOutput(response.text);
+    const normalized = normalizeBiAiResponse(parsedData);
+
+    res.status(200).json({
+      success: true,
+      data: normalized
+    });
+  } catch (error) {
+    console.error('Error generating BI insights with Gemini:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Gagal menghasilkan analisis AI Business Intelligence.'
     });
   }
 });
