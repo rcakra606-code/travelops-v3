@@ -31,6 +31,13 @@ import {
   getLogisticsStatusMeta,
   getProcessBadgeClass
 } from '../components/documents/documentConstants';
+import {
+  createEmptyApplicant,
+  normalizeDocumentApplicants,
+  applicantsToGuestName,
+  getApplicantDisplaySummary,
+  getDocumentApplicantSearchText
+} from '../utils/documentApplicantHelpers';
 import { useDocuments } from '../context/DocumentContext';
 import { useUsers } from '../context/UserContext';
 import { useAuth } from '../context/AuthContext';
@@ -166,6 +173,7 @@ const Documents = () => {
     return {
       docType: 'Tourist Visa',
       guestName: '',
+      applicants: [createEmptyApplicant()],
       country: '',
       processType: 'Normal',
       receiveDate: todayStr,
@@ -218,9 +226,12 @@ const Documents = () => {
     const clean = { ...draft };
     delete clean._applicantIndex;
     delete clean._applicantMeta;
+    const normalizedApps = normalizeDocumentApplicants(clean.applicants, clean.guestName);
     return {
       ...buildEmptyForm(''),
       ...clean,
+      applicants: normalizedApps.length > 0 ? normalizedApps : [createEmptyApplicant()],
+      guestName: applicantsToGuestName(normalizedApps) || clean.guestName || '',
       staff: clean.staff || defaultStaffName
     };
   };
@@ -232,9 +243,11 @@ const Documents = () => {
     setAiQueueTotal(0);
     if (doc) {
       setEditingDoc(doc);
+      const normalizedApps = normalizeDocumentApplicants(doc.applicants, doc.guestName);
       setFormData({
         docType: doc.docType || 'Tourist Visa',
-        guestName: doc.guestName || '',
+        guestName: applicantsToGuestName(normalizedApps) || doc.guestName || '',
+        applicants: normalizedApps.length > 0 ? normalizedApps : [createEmptyApplicant()],
         country: doc.country || '',
         processType: doc.processType || 'Normal',
         receiveDate: doc.receiveDate || '',
@@ -259,18 +272,21 @@ const Documents = () => {
     setIsModalOpen(true);
   };
 
-  const handleApplyAiDrafts = ({ drafts = [], meta = null }) => {
-    if (!Array.isArray(drafts) || drafts.length === 0) return;
+  const handleApplyAiDrafts = ({ draft = null, drafts = [], meta = null }) => {
+    const targetDraft = draft || drafts[0];
+    if (!targetDraft) return;
     setEditingDoc(null);
     setIsDuplicateMode(false);
     setAiDraftMeta(meta);
-    setAiQueueTotal(drafts.length);
-    setAiDraftQueue(drafts.slice(1));
-    setFormData(stripDraftHelperKeys(drafts[0]));
+    setAiQueueTotal(0);
+    setAiDraftQueue([]);
+    const prepared = stripDraftHelperKeys(targetDraft);
+    const appCount = normalizeDocumentApplicants(prepared.applicants, prepared.guestName).length;
+    setFormData(prepared);
     setIsModalOpen(true);
     toast.info(
-      drafts.length > 1
-        ? `Draft AI dibuka untuk pemohon 1 dari ${drafts.length}. Periksa & simpan satu per satu.`
+      appCount > 1
+        ? `Draft AI berhasil dimuat untuk ${appCount} aplikan dalam 1 form! Cukup 1× simpan.`
         : 'Draft AI berhasil dimuat! Mohon periksa & lengkapi sebelum menyimpan.'
     );
   };
@@ -285,6 +301,7 @@ const Documents = () => {
     setFormData({
       docType: doc.docType || 'Tourist Visa',
       guestName: '',
+      applicants: [createEmptyApplicant()],
       country: doc.country || '',
       processType: doc.processType || 'Normal',
       receiveDate: doc.receiveDate || toDateInputStr(new Date()),
@@ -316,8 +333,11 @@ const Documents = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.guestName.trim()) {
-      toast.warning('Please enter the Guest / Applicant Name.');
+    const cleanedApplicants = normalizeDocumentApplicants(formData.applicants, formData.guestName);
+    const syncedGuestName = applicantsToGuestName(cleanedApplicants) || formData.guestName.trim();
+
+    if (!syncedGuestName || cleanedApplicants.length === 0) {
+      toast.warning('Mohon isi minimal 1 Nama Aplikan / Pemohon.');
       return;
     }
     if (!formData.receiveDate) {
@@ -338,30 +358,26 @@ const Documents = () => {
       const payload = {
         ...formData,
         docType: (formData.docType || 'Tourist Visa').trim(),
-        guestName: formData.guestName.trim(),
+        applicants: cleanedApplicants,
+        guestName: syncedGuestName,
         country: formData.country.trim(),
         price: Number(formData.price) || 0,
         staff: formData.staff || defaultStaffName
       };
 
+      const labelDisplay =
+        cleanedApplicants.length > 1
+          ? `${cleanedApplicants[0].fullName} (+${cleanedApplicants.length - 1} aplikan lainnya)`
+          : payload.guestName;
+
       if (editingDoc) {
         await updateDocument(editingDoc.id, payload);
-        toast.success(`Updated document for ${payload.guestName}.`);
+        toast.success(`Updated document for ${labelDisplay}.`);
         handleCloseModal();
       } else {
         await addDocument(payload);
-        if (aiDraftQueue.length > 0) {
-          const [nextDraft, ...restQueue] = aiDraftQueue;
-          const nextNum = aiQueueTotal - aiDraftQueue.length + 1;
-          setAiDraftQueue(restQueue);
-          setFormData(stripDraftHelperKeys(nextDraft));
-          toast.success(
-            `Tersimpan untuk ${payload.guestName}! Membuka draft pemohon ${nextNum}/${aiQueueTotal}...`
-          );
-        } else {
-          toast.success(`Added ${payload.docType} record for ${payload.guestName}.`);
-          handleCloseModal();
-        }
+        toast.success(`Added ${payload.docType} record for ${labelDisplay}.`);
+        handleCloseModal();
       }
     } catch (err) {
       toast.error(err?.message || 'Failed to save document record.');
@@ -578,9 +594,15 @@ const Documents = () => {
         turnaroundDays = Math.round((sDate - rDate) / 86400000);
       }
 
+      const applicantSummary = getApplicantDisplaySummary(d);
+      const applicantSearchText = getDocumentApplicantSearchText(d);
+
       return {
         ...d,
         docType: normalizedDocType,
+        applicantSummary,
+        applicantCount: applicantSummary.count,
+        applicantSearchText,
         diffEst,
         diffAppt,
         isInProcess,
@@ -671,6 +693,7 @@ const Documents = () => {
       list = list.filter((item) =>
         [
           item.guestName,
+          item.applicantSearchText,
           item.docType,
           item.country,
           item.processType,
@@ -846,6 +869,7 @@ const Documents = () => {
   const exportColumns = [
     { header: 'Receive Date', key: 'receiveDate', format: null },
     { header: 'Guest Name', key: 'guestName', format: null },
+    { header: 'Total Applicants', key: 'applicantCount', format: null },
     { header: 'Document Type', key: 'docType', format: null },
     { header: 'Country', key: 'country', format: null },
     { header: 'Process Type', key: 'processType', format: null },
@@ -2299,18 +2323,59 @@ const Documents = () => {
                               </td>
 
                               <td className="sticky-col-left">
-                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                                  {doc.guestName || '-'}
-                                </div>
-                                {refParts.length > 0 ? (
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                                    {refParts.join(' · ')}
-                                  </div>
-                                ) : (
-                                  <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                                    ID: {doc.id}
-                                  </div>
-                                )}
+                                {(() => {
+                                  const appSum = doc.applicantSummary || getApplicantDisplaySummary(doc);
+                                  const secondApp = appSum.applicants[1];
+                                  return (
+                                    <>
+                                      <div style={{ fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                        <span>{appSum.primaryName}</span>
+                                        {appSum.count > 1 && (
+                                          <span
+                                            style={{
+                                              fontSize: '0.66rem',
+                                              fontWeight: 700,
+                                              padding: '0.08rem 0.45rem',
+                                              borderRadius: '999px',
+                                              background: 'rgba(16, 185, 129, 0.14)',
+                                              color: '#10b981',
+                                              border: '1px solid rgba(16, 185, 129, 0.3)'
+                                            }}
+                                            title={appSum.allNamesText}
+                                          >
+                                            {appSum.count} Aplikan
+                                          </span>
+                                        )}
+                                      </div>
+                                      {appSum.count > 1 && secondApp && (
+                                        <div
+                                          style={{
+                                            fontSize: '0.73rem',
+                                            color: 'var(--text-muted)',
+                                            marginTop: '0.1rem',
+                                            maxWidth: '240px',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                          }}
+                                          title={appSum.allNamesText}
+                                        >
+                                          {secondApp.fullName}
+                                          {appSum.count > 2 ? ` +${appSum.count - 2} lainnya` : ''}
+                                        </div>
+                                      )}
+                                      {refParts.length > 0 ? (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                          {refParts.join(' · ')}
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                          ID: {doc.id}
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </td>
 
                               <td>
@@ -2640,9 +2705,37 @@ const Documents = () => {
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                               <div>
-                                <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)' }}>
-                                  {doc.guestName || '-'}
-                                </div>
+                                {(() => {
+                                  const appSum = doc.applicantSummary || getApplicantDisplaySummary(doc);
+                                  return (
+                                    <>
+                                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                        <span>{appSum.primaryName}</span>
+                                        {appSum.count > 1 && (
+                                          <span
+                                            style={{
+                                              fontSize: '0.66rem',
+                                              fontWeight: 700,
+                                              padding: '0.06rem 0.42rem',
+                                              borderRadius: '999px',
+                                              background: 'rgba(16, 185, 129, 0.14)',
+                                              color: '#10b981',
+                                              border: '1px solid rgba(16, 185, 129, 0.3)'
+                                            }}
+                                          >
+                                            {appSum.count} Aplikan
+                                          </span>
+                                        )}
+                                      </div>
+                                      {appSum.count > 1 && (
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.08rem' }}>
+                                          {appSum.applicants.slice(1, 3).map((a) => a.fullName).join(', ')}
+                                          {appSum.count > 3 ? ` +${appSum.count - 3} lainnya` : ''}
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                                 <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600 }}>
                                   {doc.docType || 'Visa'} · {doc.country || '-'}
                                 </div>

@@ -35,6 +35,8 @@ import {
   validateFlightReservationPayload,
   buildFlightReservationPrompt
 } from './src/utils/flightReservationPrompt.js';
+import { validateCruiseAuditPayload } from './src/utils/cruiseAiFreshnessAgent.js';
+import { runCruiseAiAudit } from './server/cruiseFreshnessRunner.js';
 
 dotenv.config();
 
@@ -662,6 +664,54 @@ const devApiPlugin = () => ({
             return res.end(JSON.stringify({
               success: false,
               error: err.message || 'Gagal memproses data reservasi tiket pesawat dengan AI.'
+            }));
+          }
+        });
+        return;
+      }
+
+      // 11. Cruise Sales Guide AI Freshness Agent (Grounded Live Web Search Audit)
+      if (req.url === '/api/cruise-guide/ai-audit' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body || '{}');
+            const validation = validateCruiseAuditPayload(payload);
+            if (!validation.valid) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: validation.error }));
+            }
+
+            const client = getDevAiClient();
+            if (!client) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY belum terkonfigurasi.' }));
+            }
+
+            const auditData = await runCruiseAiAudit({
+              aiClient: client,
+              runWithModelFallback: (fn) => runGeminiFallback(client, fn),
+              mode: validation.mode,
+              guide: validation.guide,
+              ship: validation.ship
+            });
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              data: auditData
+            }));
+          } catch (err) {
+            console.error('[DEV CRUISE FRESHNESS AI ERROR]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err.message || 'Gagal menjalankan Cruise AI Freshness Agent.'
             }));
           }
         });

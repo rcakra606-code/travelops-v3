@@ -66,11 +66,21 @@ const PublicTracker = () => {
 
       if (docs && docs.length > 0) {
         const d = docs[0];
+        const safeApplicants = Array.isArray(d.applicants)
+          ? d.applicants
+              .map((a) => ({
+                fullName: String(a?.fullName || '').trim(),
+                category: String(a?.category || 'Adult').trim()
+              }))
+              .filter((a) => a.fullName)
+          : [];
         setRecord({
           type: 'document',
           id: d.id,
           docType: d.doc_type || 'Visa / Passport',
           guestName: d.guest_name,
+          applicants: safeApplicants,
+          applicantCount: safeApplicants.length || 1,
           country: d.country,
           processType: d.process_type || 'Standard',
           receiveDate: d.receive_date,

@@ -10,7 +10,8 @@ import {
   MessageCircle,
   MapPin,
   Share2,
-  ExternalLink
+  ExternalLink,
+  Users
 } from 'lucide-react';
 import {
   formatDisplayDate,
@@ -22,6 +23,7 @@ import {
   getGuestPortalPath,
   getDocumentStyles
 } from './documentConstants';
+import { getApplicantDisplaySummary } from '../../utils/documentApplicantHelpers';
 
 const DocumentDossierDrawer = ({
   isOpen,
@@ -40,12 +42,18 @@ const DocumentDossierDrawer = ({
   isLight
 }) => {
   const { subtleSurface, chipBorder } = getDocumentStyles(isLight);
+  const applicantSummary = previewDoc ? getApplicantDisplaySummary(previewDoc) : null;
+  const drawerTitle = applicantSummary
+    ? applicantSummary.count > 1
+      ? `${applicantSummary.primaryName} (+${applicantSummary.extraCount} Aplikan)`
+      : applicantSummary.primaryName
+    : 'Document Details';
 
   return (
     <SlideOverDrawer
       isOpen={isOpen}
       onClose={onClose}
-      title={previewDoc?.guestName || 'Document Details'}
+      title={drawerTitle}
       subtitle={
         previewDoc
           ? `${previewDoc.docType || 'Visa / Passport'} · ${previewDoc.country || 'International'} · Handled by ${previewDoc.staff || 'Unassigned'}`
@@ -247,6 +255,105 @@ const DocumentDossierDrawer = ({
                 })}
               </div>
             </div>
+
+            {/* Applicants List Table (Supports Multi-Applicant Records) */}
+            {applicantSummary && applicantSummary.count > 0 && (
+              <div
+                style={{
+                  padding: '0.95rem 1.05rem',
+                  borderRadius: '0.8rem',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '0.6rem'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      color: 'var(--text-main)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <Users size={15} color="var(--primary)" /> Daftar Aplikan / Pemohon ({applicantSummary.count})
+                  </span>
+                </div>
+                <div
+                  style={{
+                    overflowX: 'auto',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-card)'
+                  }}
+                >
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                    <thead>
+                      <tr
+                        style={{
+                          background: 'var(--bg-surface)',
+                          borderBottom: '1px solid var(--border)',
+                          textAlign: 'left',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.69rem'
+                        }}
+                      >
+                        <th style={{ padding: '0.45rem 0.5rem', width: '28px', textAlign: 'center' }}>#</th>
+                        <th style={{ padding: '0.45rem 0.5rem' }}>Nama Aplikan</th>
+                        <th style={{ padding: '0.45rem 0.5rem' }}>No. Paspor</th>
+                        <th style={{ padding: '0.45rem 0.5rem' }}>Kategori</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {applicantSummary.applicants.map((app, idx) => (
+                        <tr
+                          key={`drawer-app-${idx}`}
+                          style={{
+                            borderBottom:
+                              idx < applicantSummary.applicants.length - 1
+                                ? '1px solid var(--border)'
+                                : 'none'
+                          }}
+                        >
+                          <td style={{ padding: '0.48rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 700 }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ padding: '0.48rem 0.5rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                            {app.fullName || '-'}
+                            {app.note && (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                                {app.note}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.48rem 0.5rem' }}>
+                            <span className="font-mono" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                              {app.passportNumber || '-'}
+                            </span>
+                            {app.passportExpiredDate && (
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                Exp: {formatDisplayDate(app.passportExpiredDate, true)}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.48rem 0.5rem', color: 'var(--text-muted)' }}>
+                            {app.category || 'Adult'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Biometric / Embassy Appointment Card */}
             <div

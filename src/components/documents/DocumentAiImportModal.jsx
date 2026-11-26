@@ -21,6 +21,7 @@ import { supabase } from '../../supabaseClient';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { buildDocumentDraftsFromAiResult } from '../../utils/documentAiParser';
+import { applicantsToGuestName } from '../../utils/documentApplicantHelpers';
 import { formatIdr } from './documentConstants';
 
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
@@ -131,7 +132,8 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
       );
 
       setParsedResult(built);
-      setSelectedApplicantIndices(built.drafts.map((_, idx) => idx));
+      const parsedApplicants = built.draft?.applicants || [];
+      setSelectedApplicantIndices(parsedApplicants.map((_, idx) => idx));
       setStatus('preview');
     } catch (err) {
       console.error('Document AI parse error:', err);
@@ -161,17 +163,32 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
   };
 
   const handleApplyToDraftForm = () => {
-    if (!parsedResult) return;
-    const chosenDrafts = parsedResult.drafts.filter((_, idx) =>
+    if (!parsedResult?.draft) return;
+    const allApplicants = parsedResult.draft.applicants || [];
+    const chosenApplicants = allApplicants.filter((_, idx) =>
       selectedApplicantIndices.includes(idx)
     );
-    if (chosenDrafts.length === 0) {
+    if (chosenApplicants.length === 0) {
       toast.warning('Pilih minimal 1 pemohon untuk dibuka sebagai draft.');
       return;
     }
 
+    const unitPrice = Number(parsedResult.meta?.unitPricePerApplicant) || 0;
+    const adjustedPrice =
+      unitPrice > 0
+        ? String(unitPrice * chosenApplicants.length)
+        : parsedResult.draft.price;
+
+    const unifiedDraft = {
+      ...parsedResult.draft,
+      applicants: chosenApplicants,
+      guestName: applicantsToGuestName(chosenApplicants),
+      price: adjustedPrice
+    };
+
     onApplyDrafts({
-      drafts: chosenDrafts,
+      draft: unifiedDraft,
+      drafts: [unifiedDraft],
       meta: parsedResult.meta
     });
     resetModal();
@@ -180,7 +197,8 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
 
   const cardSurface = isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.03)';
   const meta = parsedResult?.meta;
-  const firstDraft = parsedResult?.drafts?.[0];
+  const firstDraft = parsedResult?.draft || parsedResult?.drafts?.[0];
+  const parsedApplicants = firstDraft?.applicants || [];
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -470,7 +488,8 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
                   <CheckCircle2 size={18} color="#10b981" />
                   <div>
                     <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      Ekstraksi Berhasil · {parsedResult.drafts.length} Pemohon Ditemukan
+                      Ekstraksi Berhasil · {parsedApplicants.length} Pemohon Ditemukan
+                      {parsedApplicants.length > 1 ? ' (Digabung ke 1 Pencatatan)' : ''}
                     </div>
                     <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
                       File: {meta.fileName}
@@ -535,10 +554,15 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
                     <DollarSign size={12} /> Service / Visa Fee (Publish)
                   </div>
                   <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.2rem' }}>
-                    {firstDraft.price ? formatIdr(firstDraft.price) : '-'} / pax
+                    {firstDraft.price ? formatIdr(firstDraft.price) : '-'}
+                    {parsedApplicants.length > 1 ? ` (${parsedApplicants.length} pax)` : ' / pax'}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    {meta.nettFarePerApplicant > 0 ? `Nett: ${formatIdr(meta.nettFarePerApplicant)} (masuk Notes)` : 'Nett tidak tertera'}
+                    {parsedApplicants.length > 1 && meta.publishFarePerApplicant > 0
+                      ? `${formatIdr(meta.publishFarePerApplicant)}/pax · Nett: ${meta.nettFarePerApplicant > 0 ? formatIdr(meta.nettFarePerApplicant) : '-'}`
+                      : meta.nettFarePerApplicant > 0
+                        ? `Nett: ${formatIdr(meta.nettFarePerApplicant)} (masuk Notes)`
+                        : 'Nett tidak tertera'}
                   </div>
                 </div>
 
@@ -592,18 +616,17 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
                   }}
                 >
                   <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                    Daftar Pemohon Visa / Dokumen ({parsedResult.drafts.length})
+                    Daftar Pemohon Visa / Dokumen ({parsedApplicants.length} Orang)
                   </span>
-                  {parsedResult.drafts.length > 1 && (
-                    <span style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>
-                      Centang pemohon yang ingin dibuka dalam antrean draft
+                  {parsedApplicants.length > 1 && (
+                    <span style={{ fontSize: '0.71rem', color: '#10b981', fontWeight: 600 }}>
+                      Semua pemohon terpilih langsung masuk dalam 1 draft dokumen (1× simpan)
                     </span>
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {parsedResult.drafts.map((d, idx) => {
+                  {parsedApplicants.map((app, idx) => {
                     const checked = selectedApplicantIndices.includes(idx);
-                    const app = d._applicantMeta || {};
                     return (
                       <label
                         key={idx}
@@ -613,12 +636,12 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
                           justifyContent: 'space-between',
                           gap: '0.75rem',
                           padding: '0.65rem 0.9rem',
-                          borderBottom: idx < parsedResult.drafts.length - 1 ? '1px solid var(--border)' : 'none',
-                          cursor: parsedResult.drafts.length > 1 ? 'pointer' : 'default'
+                          borderBottom: idx < parsedApplicants.length - 1 ? '1px solid var(--border)' : 'none',
+                          cursor: parsedApplicants.length > 1 ? 'pointer' : 'default'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          {parsedResult.drafts.length > 1 && (
+                          {parsedApplicants.length > 1 && (
                             <input
                               type="checkbox"
                               checked={checked}
@@ -627,7 +650,7 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
                           )}
                           <div>
                             <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                              {idx + 1}. {d.guestName || '(Nama belum terbaca)'}
+                              {idx + 1}. {app.fullName || '(Nama belum terbaca)'}
                             </div>
                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                               Paspor: <strong className="font-mono">{app.passportNumber || '-'}</strong>
@@ -769,7 +792,7 @@ const DocumentAiImportModal = ({ isOpen, onClose, activeStaff = [], onApplyDraft
                 style={{ fontWeight: 700 }}
               >
                 {selectedApplicantIndices.length > 1
-                  ? `Buka Antrean Draft (${selectedApplicantIndices.length} Pemohon)`
+                  ? `Buka 1 Draft Dokumen (${selectedApplicantIndices.length} Pemohon)`
                   : 'Buka sebagai Draft di Form Dokumen'}
                 <ArrowRight size={15} />
               </button>

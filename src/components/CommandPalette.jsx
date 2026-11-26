@@ -26,6 +26,7 @@ const staticCommands = [
   { id: 'documents', name: 'Visa & Dokumen', subtitle: 'Intake paspor, biometrik & resi AWB', icon: <FileText size={18} />, path: '/documents' },
   { id: 'hotel', name: 'Reservasi Hotel', subtitle: 'Database voucher & rooming hotel', icon: <Briefcase size={18} />, path: '/hotel' },
   { id: 'cruise', name: 'Pelayaran Cruise', subtitle: 'Manajemen kabin & jadwal kapal pesiar', icon: <Anchor size={18} />, path: '/cruise' },
+  { id: 'cruise-guide', name: 'Panduan Penjualan Cruise', subtitle: 'Info kapal pesiar, bandingkan brand, kabin, gratuity & FAQ WA/PDF', icon: <Anchor size={18} />, path: '/cruise-guide' },
   { id: 'telecom', name: 'SIM, eSIM & WiFi', subtitle: 'Sewa modem & konektivitas perjalanan', icon: <Phone size={18} />, path: '/telecom' },
   { id: 'knowledge', name: 'Panduan & Knowledge Base', subtitle: 'SOP destinasi, visa & tips lapangan', icon: <Compass size={18} />, path: '/knowledge' },
   { id: 'corporate', name: 'Klien Korporasi (B2B)', subtitle: 'Akun corporate & matriks kontrak', icon: <Building size={18} />, path: '/corporate' },

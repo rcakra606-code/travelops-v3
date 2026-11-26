@@ -10,6 +10,11 @@ import {
   addBusinessDays,
   buildDocumentDraftsFromAiResult
 } from './documentAiParser.js';
+import {
+  normalizeDocumentApplicants,
+  applicantsToGuestName,
+  getApplicantDisplaySummary
+} from './documentApplicantHelpers.js';
 
 describe('Document AI Request Parser (Lark VISA/DOCUMENT)', () => {
   it('validates PDF magic bytes cleanly', () => {
@@ -137,8 +142,8 @@ describe('Document AI Request Parser (Lark VISA/DOCUMENT)', () => {
     assert.ok(meta.warnings.some((w) => w.includes('Under Review')));
   });
 
-  it('supports multi-applicant Lark PDFs and flags expiring passports (< 7 months)', () => {
-    const { drafts, meta } = buildDocumentDraftsFromAiResult(
+  it('combines multi-applicant Lark PDFs into 1 unified multi-applicant record and flags expiring passports (< 7 months)', () => {
+    const { draft, drafts, meta } = buildDocumentDraftsFromAiResult(
       {
         approvalNo: 'DOC-DGW-20261120-00111',
         applicationDate: '2026-11-20',
@@ -157,10 +162,26 @@ describe('Document AI Request Parser (Lark VISA/DOCUMENT)', () => {
       []
     );
 
-    assert.equal(drafts.length, 2);
-    assert.equal(drafts[0].guestName, 'Mr. Budi Santoso');
-    assert.equal(drafts[1].guestName, 'Mrs. Siti Aminah');
-    assert.equal(drafts[0].supplier, 'JVAC');
+    // Must produce 1 single combined document record with 2 applicants!
+    assert.equal(drafts.length, 1);
+    assert.equal(draft.applicants.length, 2);
+    assert.equal(draft.applicants[0].fullName, 'Mr. Budi Santoso');
+    assert.equal(draft.applicants[0].passportNumber, 'C111');
+    assert.equal(draft.applicants[1].fullName, 'Mrs. Siti Aminah');
+    assert.equal(draft.applicants[1].passportNumber, 'C222');
+    assert.equal(draft.guestName, 'Mr. Budi Santoso, Mrs. Siti Aminah');
+    assert.equal(draft.price, '1900000');
+    assert.equal(draft.supplier, 'JVAC');
     assert.ok(meta.warnings.some((w) => w.includes('Masa berlaku paspor')));
+  });
+
+  it('normalizes legacy comma-separated guestName into structured applicants cleanly', () => {
+    const apps = normalizeDocumentApplicants([], 'Mr. Andi Wijaya, Mrs. Ratna Sari, Mstr. Kevin');
+    assert.equal(apps.length, 3);
+    assert.equal(applicantsToGuestName(apps), 'Mr. Andi Wijaya, Mrs. Ratna Sari, Mstr. Kevin');
+    const summary = getApplicantDisplaySummary({ applicants: apps });
+    assert.equal(summary.count, 3);
+    assert.equal(summary.primaryName, 'Mr. Andi Wijaya');
+    assert.equal(summary.extraCount, 2);
   });
 });

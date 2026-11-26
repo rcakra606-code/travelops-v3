@@ -326,9 +326,9 @@ const Cruise = () => {
     }
   }
 
-  const buildEmptyForm = (prefillDate = '') => ({
-    cruiseBrand: '',
-    shipName: '',
+  const buildEmptyForm = (prefillDate = '', prefillBrand = '', prefillShip = '') => ({
+    cruiseBrand: prefillBrand || '',
+    shipName: prefillShip || '',
     cruiseLine: '',
     sailingStart: prefillDate || '',
     sailingEnd: prefillDate ? addDaysToDateStr(prefillDate, 3) : '',
@@ -344,7 +344,11 @@ const Cruise = () => {
   });
 
   const [formData, setFormData] = useState(() =>
-    buildEmptyForm(location.state?.prefillDate || '')
+    buildEmptyForm(
+      location.state?.prefillDate || '',
+      location.state?.prefillBrand || '',
+      location.state?.prefillShip || ''
+    )
   );
 
   const isNewCruiseMode = isModalOpen && !editingCruise && !isDuplicateMode;
@@ -1060,6 +1064,18 @@ const Cruise = () => {
               subtitle="Manage cruise lines, cabin categories, passenger manifests, final payment deadlines, and digital Voyage Passes."
               actions={
                 <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => navigate('/cruise-guide')}
+                    style={{
+                      fontSize: '0.82rem',
+                      padding: '0.5rem 0.9rem'
+                    }}
+                  >
+                    <Compass size={15} /> Panduan Sales Cruise
+                  </button>
+
                   <button
                     type="button"
                     className="btn btn-secondary"

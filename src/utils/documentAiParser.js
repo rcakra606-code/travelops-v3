@@ -1,7 +1,12 @@
 /**
  * Frontend normalizer, Schengen/VFS resolver, working-day SLA calculator,
- * anomaly detector, and Draft Queue builder for AI-parsed Visa/Document requests.
+ * anomaly detector, and unified Multi-Applicant Draft builder for AI-parsed Visa/Document requests.
  */
+
+import {
+  normalizeDocumentApplicants,
+  applicantsToGuestName
+} from './documentApplicantHelpers.js';
 
 const SCHENGEN_COUNTRIES = new Set([
   'Austria',
@@ -375,15 +380,17 @@ const diffCalendarDays = (fromIso, toIso) => {
 };
 
 /**
- * Compose compact structured operational notes clamped safely to 500 chars (DocumentFormModal maxLength)
+ * Compose compact structured operational notes clamped safely to 500 chars (DocumentFormModal maxLength).
+ * Supports single or multiple applicants in 1 unified document record.
  */
-const composeApplicantNotes = ({
+const composeGroupNotes = ({
   visaCategory,
   visaType,
-  applicant,
+  applicants = [],
   departureDate,
   arrivalDate,
-  nettFare,
+  publishFarePerPax,
+  nettFarePerPax,
   booker,
   requestNo
 }) => {
@@ -392,20 +399,40 @@ const composeApplicantNotes = ({
   if (visaCategory || visaType) {
     segments.push([visaCategory, visaType].filter(Boolean).join(' / '));
   }
-  if (applicant?.passportNumber) {
-    const exp = applicant.passportExpiredDate ? ` (Exp ${applicant.passportExpiredDate})` : '';
-    segments.push(`Pass: ${applicant.passportNumber}${exp}`);
+
+  if (applicants.length === 1) {
+    const only = applicants[0];
+    if (only?.passportNumber) {
+      const exp = only.passportExpiredDate ? ` (Exp ${only.passportExpiredDate})` : '';
+      segments.push(`Pass: ${only.passportNumber}${exp}`);
+    }
+    if (only?.dateOfBirth) {
+      segments.push(`DOB: ${only.dateOfBirth}`);
+    }
+  } else if (applicants.length > 1) {
+    segments.push(`Group: ${applicants.length} Aplikan`);
+    const passList = applicants
+      .map((a) => (a.passportNumber ? `${a.fullName.split(' ').slice(-1)[0]}:${a.passportNumber}` : ''))
+      .filter(Boolean);
+    if (passList.length > 0) {
+      segments.push(`Pass: ${passList.slice(0, 4).join(', ')}${passList.length > 4 ? ', ...' : ''}`);
+    }
   }
-  if (applicant?.dateOfBirth) {
-    segments.push(`DOB: ${applicant.dateOfBirth}`);
-  }
+
   if (departureDate || arrivalDate) {
     const travelRange =
       departureDate && arrivalDate ? `${departureDate} s/d ${arrivalDate}` : departureDate || arrivalDate;
     segments.push(`Travel: ${travelRange}`);
   }
-  if (nettFare > 0) {
-    segments.push(`Nett: ${formatCompactIdr(nettFare)}`);
+  if (applicants.length > 1 && publishFarePerPax > 0) {
+    segments.push(`Publish: ${formatCompactIdr(publishFarePerPax)}/pax`);
+  }
+  if (nettFarePerPax > 0) {
+    segments.push(
+      applicants.length > 1
+        ? `Nett: ${formatCompactIdr(nettFarePerPax)}/pax`
+        : `Nett: ${formatCompactIdr(nettFarePerPax)}`
+    );
   }
   if (booker?.fullName) {
     const bName = [booker.title, booker.fullName].filter(Boolean).join(' ').trim();
@@ -417,8 +444,9 @@ const composeApplicantNotes = ({
   if (requestNo) {
     segments.push(`ReqNo: ${requestNo}`);
   }
-  if (applicant?.note) {
-    segments.push(applicant.note);
+  const uniqueNotes = [...new Set(applicants.map((a) => a?.note).filter(Boolean))];
+  if (uniqueNotes.length > 0) {
+    segments.push(uniqueNotes.join('; '));
   }
 
   const joined = segments.join(' | ');
@@ -497,7 +525,14 @@ export const buildDocumentDraftsFromAiResult = (aiData = {}, activeStaff = [], f
     nettFarePerPax = Math.round(toPositiveInt(safeData.totalNettFare) / applicantCount);
   }
 
-  const priceValue = publishFarePerPax || nettFarePerPax || 0;
+  const totalPublishFare =
+    toPositiveInt(safeData.totalPublishFare) ||
+    (publishFarePerPax > 0 ? publishFarePerPax * applicantCount : 0);
+  const totalNettFare =
+    toPositiveInt(safeData.totalNettFare) ||
+    (nettFarePerPax > 0 ? nettFarePerPax * applicantCount : 0);
+  const unitPriceValue = publishFarePerPax || nettFarePerPax || 0;
+  const totalPriceValue = totalPublishFare || totalNettFare || unitPriceValue;
 
   // Contact & Staff
   const booker = safeData.booker && typeof safeData.booker === 'object' ? safeData.booker : {};
@@ -617,12 +652,22 @@ export const buildDocumentDraftsFromAiResult = (aiData = {}, activeStaff = [], f
   missingFields.push('Invoice Number');
   missingFields.push('Appointment Date & Time (jadwal biometrik / kedutaan)');
 
-  // Build individual DocumentFormModal draft per applicant
-  const drafts = normalizedApplicants.map((applicant, idx) => ({
-    _applicantIndex: idx,
-    _applicantMeta: applicant,
+  // Build ONE unified multi-applicant DocumentFormModal draft (1x input for all applicants!)
+  const structuredApplicants = normalizeDocumentApplicants(
+    normalizedApplicants.map((applicant) => ({
+      fullName: formatFullApplicantName(applicant),
+      category: applicant.category,
+      passportNumber: applicant.passportNumber,
+      passportExpiredDate: applicant.passportExpiredDate,
+      dateOfBirth: applicant.dateOfBirth,
+      note: applicant.note
+    }))
+  );
+
+  const unifiedDraft = {
     docType,
-    guestName: formatFullApplicantName(applicant),
+    guestName: applicantsToGuestName(structuredApplicants),
+    applicants: structuredApplicants,
     country,
     processType,
     receiveDate,
@@ -632,26 +677,28 @@ export const buildDocumentDraftsFromAiResult = (aiData = {}, activeStaff = [], f
     tourCode: '',
     invoiceNumber: '',
     supplier,
-    price: priceValue > 0 ? String(priceValue) : '',
+    price: totalPriceValue > 0 ? String(totalPriceValue) : '',
     phoneNumber,
     staff: matchedStaff,
     appointmentDate: '',
     appointmentTime: '',
     appointmentLocation,
-    notes: composeApplicantNotes({
+    notes: composeGroupNotes({
       visaCategory: safeData.visaCategory,
       visaType: safeData.visaType,
-      applicant,
+      applicants: structuredApplicants,
       departureDate,
       arrivalDate,
-      nettFare: nettFarePerPax,
+      publishFarePerPax,
+      nettFarePerPax,
       booker,
       requestNo
     })
-  }));
+  };
 
   return {
-    drafts,
+    draft: unifiedDraft,
+    drafts: [unifiedDraft],
     meta: {
       fileName: fileName || 'Request_Visa_Document.pdf',
       requestNo,
@@ -669,8 +716,12 @@ export const buildDocumentDraftsFromAiResult = (aiData = {}, activeStaff = [], f
       estimatedDaysRaw: String(safeData.estimatedDaysRaw || '').trim(),
       departureDate,
       arrivalDate,
+      applicantCount: structuredApplicants.length,
       nettFarePerApplicant: nettFarePerPax,
       publishFarePerApplicant: publishFarePerPax,
+      unitPricePerApplicant: unitPriceValue,
+      totalPublishFare,
+      totalNettFare,
       rawRequester,
       matchedStaff,
       booker: {

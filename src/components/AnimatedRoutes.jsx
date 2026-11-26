@@ -20,6 +20,7 @@ const SalesInput = lazy(() => import('../pages/SalesInput'));
 const Documents = lazy(() => import('../pages/Documents'));
 const Telecom = lazy(() => import('../pages/Telecom'));
 const Cruise = lazy(() => import('../pages/Cruise'));
+const CruiseSalesGuide = lazy(() => import('../pages/CruiseSalesGuide'));
 const Hotel = lazy(() => import('../pages/Hotel'));
 const Overtime = lazy(() => import('../pages/Overtime'));
 const Productivity = lazy(() => import('../pages/Productivity'));
@@ -117,6 +118,7 @@ const AnimatedRoutes = () => {
           <Route path="/documents" element={<ProtectedRoute><PageWrapper><Documents /></PageWrapper></ProtectedRoute>} />
           <Route path="/telecom" element={<ProtectedRoute><PageWrapper><Telecom /></PageWrapper></ProtectedRoute>} />
           <Route path="/cruise" element={<ProtectedRoute><PageWrapper><Cruise /></PageWrapper></ProtectedRoute>} />
+          <Route path="/cruise-guide" element={<ProtectedRoute><PageWrapper><CruiseSalesGuide /></PageWrapper></ProtectedRoute>} />
           <Route path="/hotel" element={<ProtectedRoute><PageWrapper><Hotel /></PageWrapper></ProtectedRoute>} />
           <Route path="/overtime" element={<ProtectedRoute><PageWrapper><Overtime /></PageWrapper></ProtectedRoute>} />
           <Route path="/productivity" element={<ProtectedRoute><PageWrapper><Productivity /></PageWrapper></ProtectedRoute>} />

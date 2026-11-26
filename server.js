@@ -30,6 +30,10 @@ import {
 } from './server/rag.js';
 import { runServerDailyReminders } from './server/dailyReminderRunner.js';
 import {
+  runCruiseAiAudit,
+  runScheduledCruiseRefresh
+} from './server/cruiseFreshnessRunner.js';
+import {
   createUserSchema,
   resetPasswordSchema,
   updateUserSchema,
@@ -42,8 +46,10 @@ import {
   biInsightsSchema,
   parseCorporateExcelSchema,
   parseFlightReservationSchema,
+  cruiseGuideAuditSchema,
   validateBody
 } from './src/schemas/apiSchemas.js';
+import { validateCruiseAuditPayload } from './src/utils/cruiseAiFreshnessAgent.js';
 import {
   validateCorporateExcelPayload,
   buildCorporateExcelPrompt
@@ -464,11 +470,21 @@ app.get('/api/public/track/:code', async (req, res) => {
 
     if (docs && docs.length > 0) {
       const d = docs[0];
+      const safeApplicants = Array.isArray(d.applicants)
+        ? d.applicants
+            .map((a) => ({
+              fullName: String(a?.fullName || '').trim(),
+              category: String(a?.category || 'Adult').trim()
+            }))
+            .filter((a) => a.fullName)
+        : [];
       const payload = {
         type: 'document',
         id: d.id,
         docType: d.doc_type || 'Visa / Passport',
         guestName: d.guest_name,
+        applicants: safeApplicants,
+        applicantCount: safeApplicants.length || 1,
         country: d.country,
         processType: d.process_type || 'Normal',
         receiveDate: d.receive_date,
@@ -1264,6 +1280,43 @@ app.post('/api/flights/parse-reservation', requireAuth, validateBody(parseFlight
   }
 });
 
+// 3e. Cruise Sales Guide AI Freshness Agent (Grounded Live Web Search Audit for Brand or Individual Ship)
+app.post('/api/cruise-guide/ai-audit', requireAuth, validateBody(cruiseGuideAuditSchema), async (req, res) => {
+  try {
+    const validation = validateCruiseAuditPayload(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({
+        success: false,
+        error: 'GEMINI_API_KEY belum terkonfigurasi di server. Harap cek environment variables.'
+      });
+    }
+
+    const auditData = await runCruiseAiAudit({
+      aiClient: client,
+      runWithModelFallback,
+      mode: validation.mode,
+      guide: validation.guide,
+      ship: validation.ship
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: auditData
+    });
+  } catch (error) {
+    logger.error({ err: error.message }, 'Error running Cruise AI Freshness Agent');
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Gagal menjalankan Cruise AI Freshness Agent.'
+    });
+  }
+});
+
 // 4. Transactional Email Dispatch (Resend HTTP API primary + Pooled SMTP fallback + DB Idempotency)
 app.post('/api/send-email', requireAuth, emailLimiter, validateBody(sendEmailSchema), async (req, res) => {
   const { to, subject, text, html, smtpConfig, category } = req.body;
@@ -1306,6 +1359,30 @@ app.post('/api/cron/daily-reminders', requireCronOrAdmin, async (req, res) => {
     return res.status(200).json(summary);
   } catch (error) {
     logger.error({ err: error.message }, 'Server daily reminders cron failed');
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 5b. Automated Scheduled Cruise Sales Guide AI Freshness Sweep (Railway Cron / Supabase pg_cron / Admin)
+app.post('/api/cron/cruise-guide-refresh', requireCronOrAdmin, async (req, res) => {
+  try {
+    const client = getAiClient();
+    if (!client) {
+      return res.status(500).json({ success: false, error: 'GEMINI_API_KEY is not configured.' });
+    }
+    const { staleDays = 14, forceAll = false, autoApply = false, maxBrands = 10 } = req.body || {};
+    const summary = await runScheduledCruiseRefresh({
+      supabaseAdmin,
+      aiClient: client,
+      runWithModelFallback,
+      staleDays,
+      forceAll: Boolean(forceAll),
+      autoApply: Boolean(autoApply),
+      maxBrands
+    });
+    return res.status(200).json(summary);
+  } catch (error) {
+    logger.error({ err: error.message }, 'Scheduled cruise guide freshness refresh failed');
     return res.status(500).json({ success: false, error: error.message });
   }
 });

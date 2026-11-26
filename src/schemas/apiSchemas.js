@@ -142,6 +142,12 @@ export const parseFlightReservationSchema = z
     { message: 'Masukkan teks reservasi atau unggah screenshot/PDF terlebih dahulu.' }
   );
 
+export const cruiseGuideAuditSchema = z.object({
+  mode: z.enum(['brand', 'ship']).default('brand'),
+  guide: z.record(z.string(), z.any()),
+  ship: z.record(z.string(), z.any()).optional().nullable()
+});
+
 export function formatZodError(error) {
   if (!error?.issues?.length) return 'Invalid request payload.';
   return error.issues

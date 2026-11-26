@@ -3,8 +3,24 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabaseClient';
 import { QUERY_KEYS } from '../lib/queryClient';
 import { useAuth } from './AuthContext';
+import {
+  normalizeDocumentApplicants,
+  applicantsToGuestName
+} from '../utils/documentApplicantHelpers';
 
 const DocumentContext = createContext(null);
+
+const resolveApplicantDbFields = (doc = {}) => {
+  const applicants = normalizeDocumentApplicants(
+    doc.applicants,
+    doc.guestName ?? doc.guest_name ?? ''
+  );
+  const guestName = applicantsToGuestName(applicants) || String(doc.guestName ?? doc.guest_name ?? '').trim();
+  return {
+    applicants,
+    guest_name: guestName
+  };
+};
 
 const toLocalTodayStr = () => {
   const now = new Date();
@@ -87,11 +103,14 @@ const loadDocumentsFromDb = async () => {
 
   return (data || []).map((d) => {
     const syncedStatus = resolveLogisticsStatus(d.shipping_status, d.received_status, d.send_date);
+    const applicants = normalizeDocumentApplicants(d.applicants, d.guest_name);
+    const syncedGuestName = d.guest_name || applicantsToGuestName(applicants);
 
     return {
       id: d.id,
       docType: d.doc_type || '',
-      guestName: d.guest_name || '',
+      guestName: syncedGuestName || '',
+      applicants,
       country: d.country || '',
       receiveDate: d.receive_date || '',
       estimatedDone: d.estimated_done || '',
@@ -167,11 +186,13 @@ export const DocumentProvider = ({ children }) => {
         cleanSendDate
       );
 
+      const applicantFields = resolveApplicantDbFields(docData);
+
       const { error } = await supabase.from('travelops_documents').insert([
         {
           id: newId,
           doc_type: (docData.docType || 'Tourist Visa').trim(),
-          guest_name: (docData.guestName || '').trim(),
+          ...applicantFields,
           country: (docData.country || '').trim(),
           receive_date: docData.receiveDate || null,
           estimated_done: docData.estimatedDone || null,
@@ -211,7 +232,14 @@ export const DocumentProvider = ({ children }) => {
       const dbUpdates = {};
 
       if (updatedData.docType !== undefined) dbUpdates.doc_type = (updatedData.docType || '').trim();
-      if (updatedData.guestName !== undefined) dbUpdates.guest_name = (updatedData.guestName || '').trim();
+      if (updatedData.applicants !== undefined || updatedData.guestName !== undefined) {
+        const applicantFields = resolveApplicantDbFields({
+          applicants: updatedData.applicants,
+          guestName: updatedData.guestName
+        });
+        dbUpdates.applicants = applicantFields.applicants;
+        dbUpdates.guest_name = applicantFields.guest_name;
+      }
       if (updatedData.country !== undefined) dbUpdates.country = (updatedData.country || '').trim();
       if (updatedData.receiveDate !== undefined) dbUpdates.receive_date = updatedData.receiveDate || null;
       if (updatedData.estimatedDone !== undefined) dbUpdates.estimated_done = updatedData.estimatedDone || null;
@@ -446,11 +474,12 @@ export const DocumentProvider = ({ children }) => {
           const notes = pickImportField(row, ['Notes', 'Catatan', 'notes']);
 
           const shippingStatus = resolveLogisticsStatus(rawShipStatus, null, sendDate);
+          const applicantFields = resolveApplicantDbFields({ guestName });
 
           return {
             id: `DOC-${baseTs}-${index + 1}`,
             doc_type: docType,
-            guest_name: guestName,
+            ...applicantFields,
             country,
             receive_date: receiveDate || null,
             estimated_done: estimatedDone || null,

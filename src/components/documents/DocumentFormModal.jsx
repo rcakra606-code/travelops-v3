@@ -2,7 +2,9 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Stamp,
   Globe,
-  User,
+  Users,
+  Plus,
+  Trash2,
   Phone,
   Building,
   DollarSign,
@@ -28,6 +30,12 @@ import {
   addDaysToDateStr,
   getDocumentStyles
 } from './documentConstants';
+import {
+  createEmptyApplicant,
+  normalizeDocumentApplicants,
+  applicantsToGuestName,
+  isApplicantEmpty
+} from '../../utils/documentApplicantHelpers';
 import { useFormDraft } from '../../hooks/useFormDraft';
 import ConfirmModal from '../ConfirmModal';
 
@@ -57,10 +65,76 @@ const DocumentFormModal = ({
 
   const [showConfirmClose, setShowConfirmClose] = useState(false);
 
+  const applicantRows = useMemo(() => {
+    if (Array.isArray(formData?.applicants) && formData.applicants.length > 0) {
+      return formData.applicants;
+    }
+    const normalized = normalizeDocumentApplicants(formData?.applicants, formData?.guestName || '');
+    return normalized.length > 0 ? normalized : [createEmptyApplicant()];
+  }, [formData]);
+
+  const filledApplicantCount = useMemo(
+    () => applicantRows.filter((a) => String(a?.fullName || '').trim().length > 0).length,
+    [applicantRows]
+  );
+
+  const setApplicantRows = (nextRows) => {
+    const safeRows = nextRows.length > 0 ? nextRows : [createEmptyApplicant()];
+    const syncedGuestName = applicantsToGuestName(safeRows);
+    setFormData((prev) => ({
+      ...prev,
+      applicants: safeRows,
+      guestName: syncedGuestName
+    }));
+  };
+
+  const handleApplicantChange = (rowIdx, field, value) => {
+    const nextRows = applicantRows.map((row, idx) =>
+      idx === rowIdx ? { ...row, [field]: value } : row
+    );
+    setApplicantRows(nextRows);
+  };
+
+  const handleApplicantNamePaste = (rowIdx, e) => {
+    const pasted = e.clipboardData?.getData('text') || '';
+    if (!pasted.includes('\n')) return;
+    const lines = pasted
+      .split(/\r?\n/)
+      .map((l) => l.replace(/^\s*\d+\s*[.)-]?\s*/, '').trim())
+      .filter(Boolean);
+    if (lines.length <= 1) return;
+    e.preventDefault();
+    const before = applicantRows.slice(0, rowIdx);
+    const after = applicantRows.slice(rowIdx + 1);
+    const inserted = lines.map((name, i) => ({
+      ...(i === 0 ? applicantRows[rowIdx] : createEmptyApplicant()),
+      fullName: name
+    }));
+    setApplicantRows([...before, ...inserted, ...after]);
+  };
+
+  const handleAddApplicantRow = () => {
+    setApplicantRows([...applicantRows, createEmptyApplicant()]);
+  };
+
+  const handleRemoveApplicantRow = (rowIdx) => {
+    if (applicantRows.length <= 1) {
+      setApplicantRows([createEmptyApplicant()]);
+      return;
+    }
+    setApplicantRows(applicantRows.filter((_, idx) => idx !== rowIdx));
+  };
+
   const isDirty = useMemo(() => {
     if (!isOpen) return false;
+    const hasAnyApplicant = applicantRows.some((a) => !isApplicantEmpty(a));
     if (editingDoc) {
+      const origApps = JSON.stringify(
+        normalizeDocumentApplicants(editingDoc.applicants, editingDoc.guestName)
+      );
+      const curApps = JSON.stringify(normalizeDocumentApplicants(applicantRows));
       return (
+        curApps !== origApps ||
         formData.guestName !== (editingDoc.guestName || '') ||
         formData.country !== (editingDoc.country || '') ||
         formData.price !== (editingDoc.price ? String(editingDoc.price) : '') ||
@@ -69,6 +143,7 @@ const DocumentFormModal = ({
       );
     }
     return Boolean(
+      hasAnyApplicant ||
       formData.guestName?.trim() ||
       formData.country?.trim() ||
       formData.phoneNumber?.trim() ||
@@ -76,7 +151,7 @@ const DocumentFormModal = ({
       formData.notes?.trim() ||
       formData.bookingCode?.trim()
     );
-  }, [isOpen, editingDoc, formData]);
+  }, [isOpen, editingDoc, formData, applicantRows]);
 
   const handleRequestClose = useCallback(() => {
     if (isDirty) {
@@ -283,7 +358,7 @@ const DocumentFormModal = ({
                 Checklist Draft:
               </span>
               {[
-                { label: 'Nama Pemohon', done: Boolean(formData.guestName?.trim()) },
+                { label: `Aplikan (${filledApplicantCount})`, done: filledApplicantCount > 0 },
                 { label: 'Negara', done: Boolean(formData.country?.trim()) },
                 { label: 'PIC Staff', done: Boolean(formData.staff?.trim()) },
                 { label: 'Booking / Approval', done: Boolean(formData.bookingCode?.trim()) },
@@ -467,26 +542,181 @@ const DocumentFormModal = ({
               </div>
             </div>
 
-            {/* Row 2: Guest Name & Phone Number */}
-            <div className="input-group">
-              <label>
-                Applicant / Guest Full Name <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <div style={{ position: 'relative' }}>
-                <User size={16} style={iconAdornmentStyle} />
-                <input
-                  type="text"
-                  required
-                  placeholder="Applicant name as on passport"
-                  value={formData.guestName}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, guestName: e.target.value }))}
-                  style={iconFieldStyle}
-                />
+            {/* Row 2: Multi-Applicant Table (1x Input untuk Banyak Nama) */}
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                background: subtleSurface,
+                border: `1.5px solid ${chipBorder}`,
+                borderRadius: '0.75rem',
+                padding: '1rem 1.1rem'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
+                  marginBottom: '0.7rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={16} color="var(--primary)" />
+                  <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    Daftar Aplikan / Pemohon <span style={{ color: '#ef4444' }}>*</span>
+                  </h3>
+                  <span
+                    className="badge badge-primary"
+                    style={{ fontSize: '0.7rem', padding: '0.12rem 0.55rem' }}
+                  >
+                    {filledApplicantCount || applicantRows.length} Orang
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddApplicantRow}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.35rem 0.78rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#10b981',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={14} /> Tambah Aplikan
+                </button>
               </div>
+
+              <div
+                style={{
+                  overflowX: 'auto',
+                  border: '1px solid var(--border)',
+                  borderRadius: '9px',
+                  background: 'var(--bg-card)'
+                }}
+              >
+                <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr
+                      style={{
+                        background: 'var(--bg-surface)',
+                        borderBottom: '1px solid var(--border)',
+                        textAlign: 'left',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.71rem'
+                      }}
+                    >
+                      <th style={{ padding: '0.5rem 0.5rem', width: '34px', textAlign: 'center' }}>#</th>
+                      <th style={{ padding: '0.5rem 0.45rem' }}>Nama Aplikan (Sesuai Paspor)</th>
+                      <th style={{ padding: '0.5rem 0.45rem', width: '132px' }}>No. Paspor</th>
+                      <th style={{ padding: '0.5rem 0.45rem', width: '132px' }}>Exp. Paspor</th>
+                      <th style={{ padding: '0.5rem 0.45rem', width: '96px' }}>Kategori</th>
+                      <th style={{ padding: '0.5rem 0.45rem', width: '40px', textAlign: 'center' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applicantRows.map((app, idx) => (
+                      <tr
+                        key={`doc-applicant-${idx}`}
+                        style={{
+                          borderBottom: idx < applicantRows.length - 1 ? '1px solid var(--border)' : 'none'
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: '0.42rem 0.45rem',
+                            textAlign: 'center',
+                            color: 'var(--text-muted)',
+                            fontWeight: 700
+                          }}
+                        >
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: '0.4rem 0.35rem' }}>
+                          <input
+                            type="text"
+                            required={idx === 0}
+                            placeholder={idx === 0 ? 'Nama pemohon utama (bisa paste banyak baris)' : `Nama pemohon ${idx + 1}...`}
+                            value={app.fullName || ''}
+                            onChange={(e) => handleApplicantChange(idx, 'fullName', e.target.value)}
+                            onPaste={(e) => handleApplicantNamePaste(idx, e)}
+                            style={{ ...fieldStyle, padding: '0.45rem 0.6rem', fontSize: '0.8rem', fontWeight: 600 }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.4rem 0.35rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Opsional"
+                            className="font-mono"
+                            value={app.passportNumber || ''}
+                            onChange={(e) =>
+                              handleApplicantChange(idx, 'passportNumber', e.target.value.toUpperCase())
+                            }
+                            style={{ ...fieldStyle, padding: '0.45rem 0.55rem', fontSize: '0.78rem', textTransform: 'uppercase' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.4rem 0.35rem' }}>
+                          <input
+                            type="date"
+                            value={app.passportExpiredDate || ''}
+                            onChange={(e) =>
+                              handleApplicantChange(idx, 'passportExpiredDate', e.target.value)
+                            }
+                            style={{ ...fieldStyle, padding: '0.42rem 0.45rem', fontSize: '0.76rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.4rem 0.35rem' }}>
+                          <select
+                            value={app.category || 'Adult'}
+                            onChange={(e) => handleApplicantChange(idx, 'category', e.target.value)}
+                            style={{ ...fieldStyle, padding: '0.45rem 0.4rem', fontSize: '0.76rem' }}
+                          >
+                            <option value="Adult">Adult</option>
+                            <option value="Child">Child</option>
+                            <option value="Infant">Infant</option>
+                          </select>
+                        </td>
+                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveApplicantRow(idx)}
+                            title={applicantRows.length <= 1 ? 'Kosongkan baris' : 'Hapus aplikan ini'}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '7px',
+                              border: '1px solid rgba(239, 68, 68, 0.28)',
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              color: '#ef4444',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ margin: '0.45rem 0 0 0', fontSize: '0.71rem', color: 'var(--text-muted)' }}>
+                Cukup 1× input untuk banyak nama keluarga/grup. Tips: Anda juga bisa langsung <strong>paste daftar nama multi-baris</strong> ke kolom nama!
+              </p>
             </div>
 
             <div className="input-group">
-              <label>Applicant Phone / WhatsApp</label>
+              <label>Applicant / Booker Phone / WhatsApp</label>
               <div style={{ position: 'relative' }}>
                 <Phone size={16} style={iconAdornmentStyle} />
                 <input
@@ -900,10 +1130,10 @@ const DocumentFormModal = ({
                 ? 'Saving...'
                 : editingDoc
                 ? 'Save Changes'
-                : aiQueueInfo && aiQueueInfo.current < aiQueueInfo.total
-                ? `Simpan & Lanjut Pemohon ${aiQueueInfo.current + 1}/${aiQueueInfo.total}`
                 : aiDraftMeta
-                ? 'Konfirmasi & Simpan Draft'
+                ? `Konfirmasi & Simpan Draft${filledApplicantCount > 1 ? ` (${filledApplicantCount} Aplikan)` : ''}`
+                : filledApplicantCount > 1
+                ? `Create Document (${filledApplicantCount} Aplikan)`
                 : 'Create Document Record'}
             </button>
           </div>

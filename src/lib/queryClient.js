@@ -12,6 +12,7 @@ export const QUERY_KEYS = {
   productivity: ['travelops', 'productivity'],
   users: ['travelops', 'users'],
   knowledge: ['travelops', 'knowledge'],
+  cruiseGuides: ['travelops', 'cruise_guides'],
   settings: ['travelops', 'settings']
 };
 

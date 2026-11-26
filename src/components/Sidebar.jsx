@@ -148,7 +148,8 @@ const Sidebar = ({ isOpen, closeMobile }) => {
   ];
 
   const intelItems = [
-    { name: 'Panduan & Tips', path: '/knowledge', icon: <Compass size={17} /> }
+    { name: 'Panduan & Tips', path: '/knowledge', icon: <Compass size={17} /> },
+    { name: 'Panduan Cruise', path: '/cruise-guide', icon: <Ship size={17} /> }
   ];
 
   const adminItems = [
